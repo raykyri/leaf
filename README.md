@@ -231,4 +231,4 @@ See [DESIGN.md](./DESIGN.md) for detailed architecture documentation including:
 
 ## License
 
-AGPL-2.0
+[AGPL-3.0](https://www.gnu.org/licenses/agpl-3.0.en.html)
