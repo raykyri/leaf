@@ -1,0 +1,234 @@
+# Leaf
+
+A minimalist blogging platform built on the [AT Protocol](https://atproto.com) using the [Leaflet](https://leaflet.pub) lexicon for rich document publishing.
+
+## Features
+
+- **Sign in with ATProto**: Use your Bluesky handle and app password
+- **PDS Integration**: Indexes your existing Leaflet documents from your Personal Data Server
+- **Real-time Updates**: Listens to Jetstream for live updates from registered users
+- **Create Posts**: Write new posts that get stored on your PDS
+- **Minimalist UI**: Clean, server-rendered HTML pages
+
+## Quick Start
+
+### Prerequisites
+
+- Node.js 18+
+- npm or yarn
+
+### Installation
+
+```bash
+git clone https://github.com/raykyri/leaf.git
+cd leaf
+
+npm install
+
+# Copy environment file and configure
+cp .env.example .env
+```
+
+### Configuration
+
+Edit `.env` with your settings:
+
+```env
+PORT=3000
+DATABASE_PATH=./data/app.db
+SESSION_SECRET=your-random-secret-key-change-this
+JETSTREAM_URL=wss://jetstream2.us-east.bsky.network/subscribe
+
+# Optional: Test credentials for integration tests
+TEST_HANDLE=your-handle.bsky.social
+TEST_APP_PASSWORD=xxxx-xxxx-xxxx-xxxx
+```
+
+### Running the Application
+
+```bash
+# Development mode (with hot reload)
+npm run dev
+
+# Production build
+npm run build
+npm start
+```
+
+The application will be available at `http://localhost:3000`.
+
+## Usage
+
+1. **Sign In**: Enter your Bluesky handle (e.g., `@username.bsky.social`) and an app password
+   - Create an app password at [bsky.app/settings/app-passwords](https://bsky.app/settings/app-passwords)
+
+2. **View Posts**: Browse all posts from registered users at `/posts`
+
+3. **Create Posts**: Click "New Post" to create a Leaflet document that gets stored on your PDS
+
+4. **Refresh**: Click "Refresh from PDS" on your profile to re-index your documents
+
+## Project Structure
+
+```
+src/
+  database/           # SQLite database operations
+    schema.ts         # Table definitions
+    index.ts          # CRUD operations
+  services/
+    auth.ts           # ATProto authentication
+    indexer.ts        # PDS document indexing
+    jetstream.ts      # Real-time Jetstream listener
+    renderer.ts       # Leaflet blocks to HTML
+    posts.ts          # Post creation
+  middleware/
+    csrf.ts           # CSRF protection
+  routes/
+    auth.ts           # Login/logout routes
+    posts.ts          # Post viewing and creation routes
+  views/
+    layout.ts         # HTML layout template
+    pages.ts          # Page templates
+  types/
+    leaflet.ts        # TypeScript types for Leaflet lexicon
+  index.ts            # Application entry point
+```
+
+## Testing
+
+The project includes comprehensive unit and integration tests using [Vitest](https://vitest.dev/).
+
+### Running Tests
+
+```bash
+# Run all tests (unit tests run without credentials)
+npm test
+
+# Run unit tests only
+npm run test:unit
+
+# Run integration tests (requires TEST_HANDLE and TEST_APP_PASSWORD)
+npm run test:integration
+
+# Run tests in watch mode
+npm run test:watch
+
+# Run tests with coverage
+npm run test:coverage
+```
+
+### Test Categories
+
+1. **Database Tests** (`src/database/index.test.ts`)
+   - Schema validation
+   - CRUD operations
+   - Cascade deletes
+   - Index verification
+
+2. **Renderer Tests** (`src/services/renderer.test.ts`)
+   - Block rendering (text, headers, lists, code, etc.)
+   - XSS prevention
+   - Facets/rich text formatting
+   - Alignment handling
+   - URL validation
+
+3. **Integration Tests** (`src/integration.test.ts`)
+   - Real ATProto authentication
+   - Creating documents on PDS
+   - Indexing/resyncing from PDS
+   - Document updates and deletion
+   - Pagination
+
+4. **Route Tests** (`src/routes/routes.test.ts`)
+   - Public routes (login page, post listing)
+   - Protected routes (profile, create post)
+   - CSRF protection
+   - Session handling
+
+### Integration Test Requirements
+
+Integration tests require real ATProto credentials. Set these in `.env`:
+
+```env
+TEST_HANDLE=raymond.bsky.social
+TEST_APP_PASSWORD=xxxx-xxxx-xxxx-xxxx
+```
+
+Tests will be skipped if credentials are not provided.
+
+## API Routes
+
+### Public Routes
+- `GET /` - Home/login page
+- `GET /posts` - List all posts (paginated)
+- `GET /posts/:did/:rkey` - View a specific post
+- `GET /user/:handle` - View posts by a user
+
+### Authentication
+- `GET /auth/login` - Login page
+- `POST /auth/login` - Handle login
+- `POST /auth/logout` - Handle logout
+
+### Authenticated Routes
+- `GET /profile` - User's posts and settings
+- `GET /create` - Post creation form
+- `POST /create` - Create a new post
+- `POST /refresh` - Re-index from PDS
+
+## Security Features
+
+- **CSRF Protection**: All POST requests require valid CSRF tokens
+- **XSS Prevention**: All user content is HTML-escaped
+- **Secure Cookies**: HTTP-only, SameSite=Lax session cookies
+- **Input Validation**: DID and rkey format validation
+- **URL Validation**: Only http/https URLs allowed in links
+
+## Supported Leaflet Block Types
+
+- Text paragraphs with rich text (bold, italic, strikethrough, links, mentions)
+- Headers (h1-h6)
+- Blockquotes
+- Horizontal rules
+- Unordered lists (with nesting)
+- Code blocks (with language highlighting class)
+- Images (placeholder display)
+- Website embeds
+- Bluesky post embeds
+
+## Development
+
+### Scripts
+
+```bash
+npm run dev          # Start development server
+npm run build        # Build TypeScript
+npm start            # Run production build
+npm test             # Run all tests
+npm run test:watch   # Run tests in watch mode
+npm run test:coverage # Run tests with coverage report
+```
+
+### Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `PORT` | HTTP server port | `3000` |
+| `DATABASE_PATH` | SQLite database path | `./data/app.db` |
+| `SESSION_SECRET` | Secret for session tokens | (required) |
+| `JETSTREAM_URL` | Jetstream WebSocket URL | `wss://jetstream2.us-east.bsky.network/subscribe` |
+| `TEST_HANDLE` | Test account handle | (optional) |
+| `TEST_APP_PASSWORD` | Test account app password | (optional) |
+
+## Architecture
+
+See [DESIGN.md](./DESIGN.md) for detailed architecture documentation including:
+
+- Database schema
+- ATProto integration details
+- Jetstream event handling
+- Security considerations
+- Future enhancements
+
+## License
+
+AGPL-2.0
