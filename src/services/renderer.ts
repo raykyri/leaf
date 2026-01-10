@@ -88,13 +88,38 @@ function applyFacets(text: string, facets?: Facet[]): string {
         case 'pub.leaflet.richtext.facet#strikethrough':
           wrapped = `<del>${wrapped}</del>`;
           break;
+        case 'pub.leaflet.richtext.facet#underline':
+          wrapped = `<u>${wrapped}</u>`;
+          break;
+        case 'pub.leaflet.richtext.facet#code':
+          wrapped = `<code>${wrapped}</code>`;
+          break;
+        case 'pub.leaflet.richtext.facet#highlight':
+          wrapped = `<mark>${wrapped}</mark>`;
+          break;
         case 'pub.leaflet.richtext.facet#link':
           if (isValidUrl(feature.uri)) {
             wrapped = `<a href="${escapeHtml(feature.uri)}" target="_blank" rel="noopener noreferrer">${wrapped}</a>`;
           }
           break;
+        // Official Leaflet facet type for DID mentions
+        case 'pub.leaflet.richtext.facet#didMention':
+          wrapped = `<a href="https://bsky.app/profile/${escapeHtml(feature.did)}" target="_blank" rel="noopener noreferrer">${wrapped}</a>`;
+          break;
+        // Backwards compatibility with non-standard mention facet
         case 'pub.leaflet.richtext.facet#mention':
           wrapped = `<a href="https://bsky.app/profile/${escapeHtml(feature.did)}" target="_blank" rel="noopener noreferrer">${wrapped}</a>`;
+          break;
+        // AT-URI mentions (links to AT Protocol resources)
+        case 'pub.leaflet.richtext.facet#atMention':
+          // AT-URIs are internal references, render as a data attribute link
+          wrapped = `<a href="#" data-at-uri="${escapeHtml(feature.uri)}" class="at-mention">${wrapped}</a>`;
+          break;
+        // ID facet for linking to segments
+        case 'pub.leaflet.richtext.facet#id':
+          if (feature.id) {
+            wrapped = `<span id="${escapeHtml(feature.id)}">${wrapped}</span>`;
+          }
           break;
       }
     }

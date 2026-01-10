@@ -206,7 +206,13 @@ export type FacetFeature =
   | ItalicFacet
   | StrikethroughFacet
   | LinkFacet
-  | MentionFacet;
+  | MentionFacet
+  | DidMentionFacet
+  | AtMentionFacet
+  | CodeFacet
+  | HighlightFacet
+  | UnderlineFacet
+  | IdFacet;
 
 export interface BoldFacet {
   $type: 'pub.leaflet.richtext.facet#bold';
@@ -225,9 +231,39 @@ export interface LinkFacet {
   uri: string;
 }
 
+// Note: MentionFacet is kept for backwards compatibility but official Leaflet uses DidMentionFacet
 export interface MentionFacet {
   $type: 'pub.leaflet.richtext.facet#mention';
   did: string;
+}
+
+// Official Leaflet facet type for DID mentions
+export interface DidMentionFacet {
+  $type: 'pub.leaflet.richtext.facet#didMention';
+  did: string;
+}
+
+// Official Leaflet facet type for AT-URI mentions
+export interface AtMentionFacet {
+  $type: 'pub.leaflet.richtext.facet#atMention';
+  uri: string;
+}
+
+export interface CodeFacet {
+  $type: 'pub.leaflet.richtext.facet#code';
+}
+
+export interface HighlightFacet {
+  $type: 'pub.leaflet.richtext.facet#highlight';
+}
+
+export interface UnderlineFacet {
+  $type: 'pub.leaflet.richtext.facet#underline';
+}
+
+export interface IdFacet {
+  $type: 'pub.leaflet.richtext.facet#id';
+  id?: string;
 }
 
 // Jetstream event types
