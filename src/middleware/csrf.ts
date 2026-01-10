@@ -45,8 +45,14 @@ export function validateCsrfToken(sessionToken: string, token: string): boolean 
     .update(`${sessionToken}:${currentTimeBucket}`)
     .digest('hex');
 
-  if (crypto.timingSafeEqual(Buffer.from(token), Buffer.from(currentToken))) {
-    return true;
+  // Use try/catch for timingSafeEqual as it throws if buffer lengths don't match
+  try {
+    if (crypto.timingSafeEqual(Buffer.from(token), Buffer.from(currentToken))) {
+      return true;
+    }
+  } catch {
+    // Buffer lengths don't match (invalid token format)
+    return false;
   }
 
   // Check previous time bucket (for tokens generated near bucket boundary)

@@ -228,3 +228,35 @@ export interface JetstreamAccount {
   active: boolean;
   did: string;
 }
+
+// Comment types
+export interface LeafletComment {
+  $type: 'pub.leaflet.comment';
+  subject: string; // AT-URI of the document being commented on
+  plaintext: string;
+  createdAt: string; // ISO 8601 datetime
+  reply?: CommentReplyRef;
+  facets?: Facet[];
+  onPage?: string; // Page ID within document
+  attachment?: LinearDocumentQuote;
+}
+
+export interface CommentReplyRef {
+  parent: string; // AT-URI of the parent comment
+}
+
+export interface LinearDocumentQuote {
+  $type: 'pub.leaflet.comment#linearDocumentQuote';
+  document: string; // AT-URI of the quoted document
+  quote: QuoteRange;
+}
+
+export interface QuoteRange {
+  start: QuotePosition;
+  end: QuotePosition;
+}
+
+export interface QuotePosition {
+  block: number[]; // Array of integers navigating block tree
+  offset: number; // Character position within block
+}
