@@ -9,6 +9,10 @@ import type {
   ImageBlock,
   UnorderedListBlock,
   CodeBlock,
+  ButtonBlock,
+  MathBlock,
+  PageBlock,
+  PollBlock,
   Facet,
   ListItem
 } from '../types/leaflet.js';
@@ -154,6 +158,18 @@ function renderBlock(blockWithAlignment: BlockWithAlignment): string {
     case 'pub.leaflet.blocks.bskyPost':
       return renderBskyPostBlock(block as { uri: string });
 
+    case 'pub.leaflet.blocks.button':
+      return renderButtonBlock(block as ButtonBlock, alignStyle);
+
+    case 'pub.leaflet.blocks.math':
+      return renderMathBlock(block as MathBlock, alignStyle);
+
+    case 'pub.leaflet.blocks.page':
+      return renderPageBlock(block as PageBlock);
+
+    case 'pub.leaflet.blocks.poll':
+      return renderPollBlock(block as PollBlock);
+
     default:
       // Unknown block type
       return `<p><em>[Unsupported content type: ${(block as Block).$type}]</em></p>`;
@@ -274,6 +290,41 @@ function renderBskyPostBlock(block: { uri: string }): string {
     `;
   }
   return '<p><em>[Bluesky post]</em></p>';
+}
+
+function renderButtonBlock(block: ButtonBlock, alignStyle: string): string {
+  if (!isValidUrl(block.url)) {
+    return '<p><em>[Invalid button URL]</em></p>';
+  }
+
+  return `
+    <div class="button-block"${alignStyle}>
+      <a href="${escapeHtml(block.url)}" target="_blank" rel="noopener noreferrer" class="button">
+        ${escapeHtml(block.text)}
+      </a>
+    </div>
+  `;
+}
+
+function renderMathBlock(block: MathBlock, alignStyle: string): string {
+  // Render LaTeX as a code block with special class for potential KaTeX/MathJax rendering
+  // The tex content is escaped to prevent XSS
+  return `<div class="math-block"${alignStyle}><code class="math-tex">${escapeHtml(block.tex)}</code></div>`;
+}
+
+function renderPageBlock(block: PageBlock): string {
+  // Page blocks reference other pages within the document by ID
+  // We render a placeholder since the full page content would need to be looked up
+  return `<div class="page-embed" data-page-id="${escapeHtml(block.id)}">[Embedded page: ${escapeHtml(block.id)}]</div>`;
+}
+
+function renderPollBlock(block: PollBlock): string {
+  // Poll blocks reference external poll records
+  // We render a placeholder with the poll reference info
+  if (block.pollRef && block.pollRef.uri) {
+    return `<div class="poll-embed">[Poll: <a href="#" data-poll-uri="${escapeHtml(block.pollRef.uri)}">View poll</a>]</div>`;
+  }
+  return '<div class="poll-embed">[Poll]</div>';
 }
 
 // Render a page to HTML
