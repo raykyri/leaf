@@ -127,7 +127,7 @@ export interface HorizontalRuleBlock {
 
 export interface UnorderedListBlock {
   $type: 'pub.leaflet.blocks.unorderedList';
-  items: ListItem[];
+  children: ListItem[];
 }
 
 export interface ListItem {

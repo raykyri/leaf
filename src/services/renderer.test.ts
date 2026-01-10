@@ -129,7 +129,7 @@ describe('Renderer', () => {
         blocks: [{
           block: {
             $type: 'pub.leaflet.blocks.unorderedList',
-            items: [
+            children: [
               { content: { $type: 'pub.leaflet.blocks.text', plaintext: 'First item' } },
               { content: { $type: 'pub.leaflet.blocks.text', plaintext: 'Second item' } },
               { content: { $type: 'pub.leaflet.blocks.text', plaintext: 'Third item' } }
@@ -152,7 +152,7 @@ describe('Renderer', () => {
         blocks: [{
           block: {
             $type: 'pub.leaflet.blocks.unorderedList',
-            items: [{
+            children: [{
               content: { $type: 'pub.leaflet.blocks.text', plaintext: 'Parent' },
               children: [
                 { content: { $type: 'pub.leaflet.blocks.text', plaintext: 'Child 1' } },

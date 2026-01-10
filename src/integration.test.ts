@@ -15,6 +15,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { AtpAgent } from '@atproto/api';
 import Database from 'better-sqlite3';
+import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { initializeDatabase } from './database/schema.js';
@@ -270,6 +271,204 @@ describe.skipIf(!hasCredentials)('ATProto Integration Tests', () => {
         });
         expect(record.data.value).toBeDefined();
       }
+    });
+
+    it('should create a rich document with all block types', async () => {
+      const rkey = generateTestTid();
+      createdRkeys.push(rkey);
+
+      // Create a document with all supported Leaflet block types
+      const document = {
+        $type: 'pub.leaflet.document',
+        title: '[TEST] Rich Document with All Block Types',
+        description: 'Testing all Leaflet block types',
+        author: userDid,
+        pages: [{
+          $type: 'pub.leaflet.pages.linearDocument',
+          id: crypto.randomUUID(),
+          blocks: [
+            // Text block with facets (bold, italic, link)
+            {
+              $type: 'pub.leaflet.pages.linearDocument#block',
+              block: {
+                $type: 'pub.leaflet.blocks.text',
+                plaintext: 'This is a text block with bold and italic formatting and a link.',
+                facets: [
+                  {
+                    index: { byteStart: 27, byteEnd: 31 },
+                    features: [{ $type: 'pub.leaflet.richtext.facet#bold' }]
+                  },
+                  {
+                    index: { byteStart: 36, byteEnd: 42 },
+                    features: [{ $type: 'pub.leaflet.richtext.facet#italic' }]
+                  },
+                  {
+                    index: { byteStart: 58, byteEnd: 62 },
+                    features: [{
+                      $type: 'pub.leaflet.richtext.facet#link',
+                      uri: 'https://example.com'
+                    }]
+                  }
+                ]
+              }
+            },
+            // Header block (h2)
+            {
+              $type: 'pub.leaflet.pages.linearDocument#block',
+              block: {
+                $type: 'pub.leaflet.blocks.header',
+                plaintext: 'This is a Header',
+                level: 2,
+                facets: []
+              }
+            },
+            // Blockquote
+            {
+              $type: 'pub.leaflet.pages.linearDocument#block',
+              block: {
+                $type: 'pub.leaflet.blocks.blockquote',
+                plaintext: 'This is a blockquote with some wise words.',
+                facets: []
+              }
+            },
+            // Code block
+            {
+              $type: 'pub.leaflet.pages.linearDocument#block',
+              block: {
+                $type: 'pub.leaflet.blocks.code',
+                plaintext: 'const greeting = "Hello, Leaflet!";\nconsole.log(greeting);',
+                language: 'javascript'
+              }
+            },
+            // Horizontal rule
+            {
+              $type: 'pub.leaflet.pages.linearDocument#block',
+              block: {
+                $type: 'pub.leaflet.blocks.horizontalRule'
+              }
+            },
+            // Unordered list - uses 'children' not 'items' per Leaflet lexicon
+            {
+              $type: 'pub.leaflet.pages.linearDocument#block',
+              block: {
+                $type: 'pub.leaflet.blocks.unorderedList',
+                children: [
+                  {
+                    content: {
+                      $type: 'pub.leaflet.blocks.text',
+                      plaintext: 'First list item',
+                      facets: []
+                    }
+                  },
+                  {
+                    content: {
+                      $type: 'pub.leaflet.blocks.text',
+                      plaintext: 'Second list item with nested items',
+                      facets: []
+                    },
+                    children: [
+                      {
+                        content: {
+                          $type: 'pub.leaflet.blocks.text',
+                          plaintext: 'Nested item 1',
+                          facets: []
+                        }
+                      },
+                      {
+                        content: {
+                          $type: 'pub.leaflet.blocks.text',
+                          plaintext: 'Nested item 2',
+                          facets: []
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    content: {
+                      $type: 'pub.leaflet.blocks.text',
+                      plaintext: 'Third list item',
+                      facets: []
+                    }
+                  }
+                ]
+              }
+            },
+            // Website embed
+            {
+              $type: 'pub.leaflet.pages.linearDocument#block',
+              block: {
+                $type: 'pub.leaflet.blocks.website',
+                src: 'https://atproto.com',
+                title: 'AT Protocol',
+                description: 'The AT Protocol is a networking technology for building open social apps.'
+              }
+            },
+            // Bluesky post embed (using strongRef format)
+            {
+              $type: 'pub.leaflet.pages.linearDocument#block',
+              block: {
+                $type: 'pub.leaflet.blocks.bskyPost',
+                postRef: {
+                  uri: 'at://did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.feed.post/3l2s5xxv2ze2c',
+                  cid: 'bafyreibe4yinjgvdvvhljbeti5lhvgo7guj6y2ij3z5vmnp7yaz5swnm6q'
+                }
+              }
+            },
+            // Math block (LaTeX)
+            {
+              $type: 'pub.leaflet.pages.linearDocument#block',
+              block: {
+                $type: 'pub.leaflet.blocks.math',
+                tex: 'E = mc^2'
+              }
+            },
+            // Button block
+            {
+              $type: 'pub.leaflet.pages.linearDocument#block',
+              block: {
+                $type: 'pub.leaflet.blocks.button',
+                text: 'Visit Leaflet',
+                url: 'https://leaflet.pub'
+              }
+            },
+            // Final text block
+            {
+              $type: 'pub.leaflet.pages.linearDocument#block',
+              block: {
+                $type: 'pub.leaflet.blocks.text',
+                plaintext: 'This document contains examples of all major Leaflet block types!',
+                facets: []
+              }
+            }
+          ]
+        }],
+        tags: ['test', 'rich-document', 'all-blocks'],
+        publishedAt: new Date().toISOString()
+      };
+
+      const response = await agent.com.atproto.repo.createRecord({
+        repo: userDid,
+        collection: LEAFLET_DOCUMENT_COLLECTION,
+        rkey,
+        record: document
+      });
+
+      expect(response.data.uri).toContain(userDid);
+      expect(response.data.cid).toBeDefined();
+
+      // Retrieve and verify
+      const retrieved = await agent.com.atproto.repo.getRecord({
+        repo: userDid,
+        collection: LEAFLET_DOCUMENT_COLLECTION,
+        rkey
+      });
+
+      const value = retrieved.data.value as typeof document;
+      expect(value.title).toBe('[TEST] Rich Document with All Block Types');
+      expect(value.pages[0].blocks.length).toBe(11);
+      expect(value.tags).toContain('rich-document');
+
+      console.log(`Created rich document: https://leaflet.pub/p/${userDid}/${rkey}`);
     });
   });
 

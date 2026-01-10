@@ -191,7 +191,7 @@ function renderImageBlock(block: ImageBlock, alignStyle: string): string {
 }
 
 function renderUnorderedListBlock(block: UnorderedListBlock): string {
-  const items = block.items.map(item => renderListItem(item)).join('');
+  const items = block.children.map(item => renderListItem(item)).join('');
   return `<ul>${items}</ul>`;
 }
 
