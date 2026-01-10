@@ -8,26 +8,40 @@
     "dev": "tsx src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "db:setup": "tsx src/database/setup.ts"
+    "db:setup": "tsx src/database/setup.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:unit": "vitest run src/database src/services/renderer.test.ts",
+    "test:integration": "vitest run src/integration.test.ts src/routes/routes.test.ts"
   },
-  "keywords": ["atproto", "bluesky", "leaflet", "blog"],
+  "keywords": [
+    "atproto",
+    "bluesky",
+    "leaflet",
+    "blog"
+  ],
   "author": "",
   "license": "MIT",
   "dependencies": {
     "@atproto/api": "^0.14.1",
-    "express": "^4.21.2",
     "better-sqlite3": "^11.8.1",
-    "ws": "^8.18.0",
     "cookie-parser": "^1.4.7",
-    "dotenv": "^16.4.7"
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "ws": "^8.18.0"
   },
   "devDependencies": {
-    "typescript": "^5.7.2",
-    "@types/node": "^22.10.5",
-    "@types/express": "^5.0.0",
     "@types/better-sqlite3": "^7.6.12",
-    "@types/ws": "^8.5.13",
     "@types/cookie-parser": "^1.4.7",
-    "tsx": "^4.19.2"
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.10.5",
+    "@types/supertest": "^6.0.3",
+    "@types/ws": "^8.5.13",
+    "@vitest/coverage-v8": "^4.0.16",
+    "supertest": "^7.2.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^4.0.16"
   }
 }
