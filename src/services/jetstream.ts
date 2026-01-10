@@ -13,6 +13,11 @@ let reconnectAttempts = 0;
 let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
 const MAX_RECONNECT_DELAY = 30000; // 30 seconds
 
+// Cursor persistence
+let lastCursor: string | null = null;
+let cursorSaveInterval: ReturnType<typeof setInterval> | null = null;
+const CURSOR_SAVE_INTERVAL = 5000; // Save cursor every 5 seconds
+
 // Cache of registered user DIDs to avoid DB query on every event
 let registeredDidsCache: Set<string> = new Set();
 let lastCacheRefresh = 0;
@@ -41,6 +46,13 @@ export function startJetstreamListener(): void {
     url.searchParams.append('wantedCollections', collection);
   }
 
+  // Load cursor from database for resumption
+  const savedCursor = db.getJetstreamCursor();
+  if (savedCursor) {
+    url.searchParams.set('cursor', savedCursor);
+    console.log(`Resuming Jetstream from cursor: ${savedCursor}`);
+  }
+
   console.log(`Connecting to Jetstream at ${url.toString()}`);
 
   ws = new WebSocket(url.toString());
@@ -48,6 +60,11 @@ export function startJetstreamListener(): void {
   ws.on('open', () => {
     console.log('Connected to Jetstream');
     reconnectAttempts = 0;
+
+    // Start periodic cursor saving
+    if (!cursorSaveInterval) {
+      cursorSaveInterval = setInterval(saveCursor, CURSOR_SAVE_INTERVAL);
+    }
   });
 
   ws.on('message', (data: Buffer) => {
@@ -84,6 +101,11 @@ function scheduleReconnect(): void {
 
 function handleJetstreamEvent(event: JetstreamEvent): void {
   const { did } = event;
+
+  // Track cursor from event timestamp for resumption
+  if (event.time_us) {
+    lastCursor = event.time_us.toString();
+  }
 
   // Handle identity events (handle changes)
   if (event.kind === 'identity' && event.identity) {
@@ -146,7 +168,22 @@ function handleIdentityEvent(did: string, identity: { did: string; handle?: stri
   }
 }
 
+function saveCursor(): void {
+  if (lastCursor) {
+    db.setJetstreamCursor(lastCursor);
+  }
+}
+
 export function stopJetstreamListener(): void {
+  // Clear cursor save interval
+  if (cursorSaveInterval) {
+    clearInterval(cursorSaveInterval);
+    cursorSaveInterval = null;
+  }
+
+  // Save final cursor before shutdown
+  saveCursor();
+
   // Clear any pending reconnect timeout
   if (reconnectTimeout) {
     clearTimeout(reconnectTimeout);

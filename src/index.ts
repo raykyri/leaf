@@ -10,6 +10,19 @@ import postsRoutes from './routes/posts.js';
 import { loginPage, notFoundPage, errorPage } from './views/pages.js';
 import { getSessionUser } from './services/auth.js';
 
+// Validate required environment variables
+if (!process.env.SESSION_SECRET) {
+  console.error('FATAL: SESSION_SECRET environment variable is not set.');
+  console.error('Please set SESSION_SECRET to a secure random string (at least 32 characters).');
+  console.error('You can generate one with: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"');
+  process.exit(1);
+}
+
+if (process.env.SESSION_SECRET.length < 32) {
+  console.error('FATAL: SESSION_SECRET must be at least 32 characters long for security.');
+  process.exit(1);
+}
+
 const app = express();
 const PORT = parseInt(process.env.PORT || '3000', 10);
 
