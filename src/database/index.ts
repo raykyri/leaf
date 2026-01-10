@@ -231,6 +231,20 @@ export function getDocumentCount(): number {
   return (stmt.get() as { count: number }).count;
 }
 
+export function getDocumentUrisByUser(userId: number): string[] {
+  const db = getDatabase();
+  const stmt = db.prepare('SELECT uri FROM documents WHERE user_id = ?');
+  const rows = stmt.all(userId) as { uri: string }[];
+  return rows.map(r => r.uri);
+}
+
+export function getPublicationUrisByUser(userId: number): string[] {
+  const db = getDatabase();
+  const stmt = db.prepare('SELECT uri FROM publications WHERE user_id = ?');
+  const rows = stmt.all(userId) as { uri: string }[];
+  return rows.map(r => r.uri);
+}
+
 // Publication operations
 export interface Publication {
   id: number;

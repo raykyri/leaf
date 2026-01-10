@@ -5,7 +5,7 @@ import type { LeafletDocument, LeafletPublication } from '../types/leaflet.js';
 const LEAFLET_DOCUMENT_COLLECTION = 'pub.leaflet.document';
 const LEAFLET_PUBLICATION_COLLECTION = 'pub.leaflet.publication';
 
-export async function indexUserPDS(user: db.User, agent?: AtpAgent): Promise<{ documents: number; publications: number }> {
+export async function indexUserPDS(user: db.User, agent?: AtpAgent): Promise<{ documents: number; publications: number; deleted: number }> {
   console.log(`Indexing PDS for user ${user.handle} (${user.did})`);
 
   // Create agent if not provided
@@ -15,6 +15,13 @@ export async function indexUserPDS(user: db.User, agent?: AtpAgent): Promise<{ d
 
   let documentsIndexed = 0;
   let publicationsIndexed = 0;
+  let deleted = 0;
+
+  // Get existing local URIs before sync to detect orphans
+  const existingDocumentUris = new Set(db.getDocumentUrisByUser(user.id));
+  const existingPublicationUris = new Set(db.getPublicationUrisByUser(user.id));
+  const seenDocumentUris = new Set<string>();
+  const seenPublicationUris = new Set<string>();
 
   // Index publications first
   try {
@@ -22,7 +29,10 @@ export async function indexUserPDS(user: db.User, agent?: AtpAgent): Promise<{ d
       agent,
       user,
       LEAFLET_PUBLICATION_COLLECTION,
-      processPublication
+      (user, uri, rkey, record) => {
+        seenPublicationUris.add(uri);
+        processPublication(user, uri, rkey, record);
+      }
     );
   } catch (error) {
     console.error(`Error indexing publications for ${user.handle}:`, error);
@@ -34,18 +44,39 @@ export async function indexUserPDS(user: db.User, agent?: AtpAgent): Promise<{ d
       agent,
       user,
       LEAFLET_DOCUMENT_COLLECTION,
-      processDocument
+      (user, uri, rkey, record) => {
+        seenDocumentUris.add(uri);
+        processDocument(user, uri, rkey, record);
+      }
     );
   } catch (error) {
     console.error(`Error indexing documents for ${user.handle}:`, error);
   }
 
+  // Delete orphaned documents (exist locally but not on PDS)
+  for (const uri of existingDocumentUris) {
+    if (!seenDocumentUris.has(uri)) {
+      db.deleteDocument(uri);
+      deleted++;
+      console.log(`Deleted orphaned document: ${uri}`);
+    }
+  }
+
+  // Delete orphaned publications
+  for (const uri of existingPublicationUris) {
+    if (!seenPublicationUris.has(uri)) {
+      db.deletePublication(uri);
+      deleted++;
+      console.log(`Deleted orphaned publication: ${uri}`);
+    }
+  }
+
   // Update last indexed timestamp
   db.updateUserLastIndexed(user.id);
 
-  console.log(`Indexed ${documentsIndexed} documents and ${publicationsIndexed} publications for ${user.handle}`);
+  console.log(`Indexed ${documentsIndexed} documents and ${publicationsIndexed} publications for ${user.handle} (deleted ${deleted} orphans)`);
 
-  return { documents: documentsIndexed, publications: publicationsIndexed };
+  return { documents: documentsIndexed, publications: publicationsIndexed, deleted };
 }
 
 type RecordProcessor = (user: db.User, uri: string, rkey: string, record: unknown) => void;

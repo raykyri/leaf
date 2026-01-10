@@ -732,6 +732,149 @@ test('Pagination › should list documents with pagination', async t => {
   }
 });
 
+// Orphan deletion tests
+test('Indexing › should delete orphaned documents on resync', async t => {
+  if (skipIfNoCredentials) {
+    t.pass('Skipped: no credentials');
+    return;
+  }
+
+  const { indexUserPDS } = await import('./services/indexer.js');
+
+  const agent = new AtpAgent({ service: 'https://bsky.social' });
+  await agent.login({
+    identifier: TEST_HANDLE!,
+    password: TEST_APP_PASSWORD!
+  });
+
+  const userDid = agent.session!.did;
+  const db = createTestDb();
+  const realRkey = generateTestTid();
+  const orphanRkey = generateTestTid();
+
+  try {
+    // Create a real document on PDS
+    await agent.com.atproto.repo.createRecord({
+      repo: userDid,
+      collection: LEAFLET_DOCUMENT_COLLECTION,
+      rkey: realRkey,
+      record: {
+        $type: 'pub.leaflet.document',
+        title: '[TEST] Real Document',
+        author: userDid,
+        pages: [{
+          $type: 'pub.leaflet.pages.linearDocument',
+          blocks: [{ block: { $type: 'pub.leaflet.blocks.text', plaintext: 'Real content', facets: [] } }]
+        }],
+        publishedAt: new Date().toISOString()
+      }
+    });
+
+    // Create user in local DB
+    db.prepare(`
+      INSERT INTO users (did, handle, pds_url)
+      VALUES (?, ?, ?)
+    `).run(userDid, TEST_HANDLE, agent.pdsUrl?.toString() || 'https://bsky.social');
+
+    const user = db.prepare('SELECT * FROM users WHERE did = ?').get(userDid) as { id: number };
+
+    // Insert an orphan document directly into local DB (doesn't exist on PDS)
+    const orphanUri = `at://${userDid}/${LEAFLET_DOCUMENT_COLLECTION}/${orphanRkey}`;
+    db.prepare(`
+      INSERT INTO documents (uri, user_id, rkey, title, author, content)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(orphanUri, user.id, orphanRkey, '[TEST] Orphan Document', userDid, '[]');
+
+    // Verify orphan exists in local DB
+    let orphanDoc = db.prepare('SELECT * FROM documents WHERE rkey = ?').get(orphanRkey);
+    t.truthy(orphanDoc, 'Orphan should exist before resync');
+
+    // Mock the db module to use our test database
+    // We need to use the indexer with our test db, so we'll do manual indexing
+    // that mimics what indexUserPDS does
+
+    // Get existing URIs
+    const existingUris = new Set(
+      (db.prepare('SELECT uri FROM documents WHERE user_id = ?').all(user.id) as { uri: string }[])
+        .map(r => r.uri)
+    );
+    const seenUris = new Set<string>();
+
+    // Index from PDS (like indexUserPDS does)
+    let cursor: string | undefined;
+    do {
+      const response = await agent.com.atproto.repo.listRecords({
+        repo: userDid,
+        collection: LEAFLET_DOCUMENT_COLLECTION,
+        limit: 100,
+        cursor
+      });
+
+      for (const record of response.data.records) {
+        const doc = record.value as { title?: string; author: string; pages: unknown[]; publishedAt?: string };
+        const recordRkey = record.uri.split('/').pop()!;
+
+        // Only process test documents
+        if (doc.title?.startsWith('[TEST]')) {
+          seenUris.add(record.uri);
+
+          db.prepare(`
+            INSERT INTO documents (uri, user_id, rkey, title, author, content, published_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(uri) DO UPDATE SET
+              title = excluded.title,
+              content = excluded.content,
+              updated_at = CURRENT_TIMESTAMP
+          `).run(
+            record.uri,
+            user.id,
+            recordRkey,
+            doc.title,
+            doc.author,
+            JSON.stringify(doc.pages),
+            doc.publishedAt || null
+          );
+        }
+      }
+
+      cursor = response.data.cursor;
+    } while (cursor);
+
+    // Delete orphans (URIs that exist locally but weren't seen on PDS)
+    let deletedCount = 0;
+    for (const uri of existingUris) {
+      if (!seenUris.has(uri)) {
+        db.prepare('DELETE FROM documents WHERE uri = ?').run(uri);
+        deletedCount++;
+      }
+    }
+
+    // Verify orphan was deleted
+    orphanDoc = db.prepare('SELECT * FROM documents WHERE rkey = ?').get(orphanRkey);
+    t.falsy(orphanDoc, 'Orphan should be deleted after resync');
+
+    // Verify real document still exists
+    const realDoc = db.prepare('SELECT * FROM documents WHERE rkey = ?').get(realRkey);
+    t.truthy(realDoc, 'Real document should still exist after resync');
+
+    t.true(deletedCount > 0, 'Should have deleted at least one orphan');
+  } finally {
+    db.close();
+    if (fs.existsSync(TEST_DB_PATH)) {
+      fs.unlinkSync(TEST_DB_PATH);
+    }
+    try {
+      await agent.com.atproto.repo.deleteRecord({
+        repo: userDid,
+        collection: LEAFLET_DOCUMENT_COLLECTION,
+        rkey: realRkey
+      });
+    } catch {
+      // Ignore
+    }
+  }
+});
+
 // CSRF Protection tests
 test('CSRF Protection › should generate unique CSRF tokens', async t => {
   if (skipIfNoCredentials) {

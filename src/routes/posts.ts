@@ -209,7 +209,8 @@ router.post('/refresh', async (req: Request, res: Response) => {
     }
 
     const result = await indexUserPDS(auth.user, agent);
-    res.redirect(`/profile?message=Indexed ${result.documents} documents`);
+    const deletedMsg = result.deleted > 0 ? `, removed ${result.deleted} orphaned` : '';
+    res.redirect(`/profile?message=Indexed ${result.documents} documents${deletedMsg}`);
   } catch (error) {
     console.error('Error refreshing from PDS:', error);
     res.redirect('/profile?message=Error refreshing from PDS');
