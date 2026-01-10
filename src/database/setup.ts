@@ -15,7 +15,64 @@ const TABLES_TO_CLEAR = [
   'users',
 ];
 
+const LEAFLET_DOCUMENT_COLLECTION = 'pub.leaflet.document';
+const LEAFLET_PUBLICATION_COLLECTION = 'pub.leaflet.publication';
+
+async function deleteAllRecordsFromCollection(
+  agent: AtpAgent,
+  did: string,
+  collection: string
+): Promise<number> {
+  let cursor: string | undefined;
+  let deleted = 0;
+  const recordsToDelete: string[] = [];
+
+  // First, collect all record keys
+  do {
+    try {
+      const response = await agent.com.atproto.repo.listRecords({
+        repo: did,
+        collection,
+        limit: 100,
+        cursor,
+      });
+
+      for (const record of response.data.records) {
+        const rkey = record.uri.split('/').pop()!;
+        recordsToDelete.push(rkey);
+      }
+
+      cursor = response.data.cursor;
+    } catch (error: unknown) {
+      // Collection might not exist, that's okay
+      if (error && typeof error === 'object' && 'status' in error && error.status === 400) {
+        break;
+      }
+      throw error;
+    }
+  } while (cursor);
+
+  // Now delete each record
+  for (const rkey of recordsToDelete) {
+    try {
+      await agent.com.atproto.repo.deleteRecord({
+        repo: did,
+        collection,
+        rkey,
+      });
+      deleted++;
+      console.log(`  - Deleted ${collection}/${rkey}`);
+    } catch (error) {
+      console.error(`  - Failed to delete ${collection}/${rkey}:`, error);
+    }
+  }
+
+  return deleted;
+}
+
 async function main() {
+  const deleteFromPDS = process.argv.includes('--all');
+
   const testHandle = process.env.TEST_HANDLE;
   const testAppPassword = process.env.TEST_APP_PASSWORD;
 
@@ -25,8 +82,48 @@ async function main() {
     process.exit(1);
   }
 
+  if (deleteFromPDS) {
+    console.log('\n=== FULL RESET: This will delete ALL Leaflet data from PDS and local database ===\n');
+  }
+
+  // Authenticate first (needed for PDS deletion and indexing)
+  console.log('Authenticating with test user...');
+  const handle = testHandle.startsWith('@') ? testHandle.slice(1) : testHandle;
+
+  const agent = new AtpAgent({ service: 'https://bsky.social' });
+
+  try {
+    await agent.login({ identifier: handle, password: testAppPassword });
+  } catch (error) {
+    console.error('Failed to authenticate:', error);
+    process.exit(1);
+  }
+
+  if (!agent.session) {
+    console.error('Failed to create session');
+    process.exit(1);
+  }
+
+  const did = agent.session.did;
+  const pdsUrl = agent.pdsUrl?.toString() || 'https://bsky.social';
+
+  console.log(`Authenticated as: ${handle} (${did})`);
+  console.log(`PDS URL: ${pdsUrl}`);
+
+  // Delete all Leaflet records from PDS if --all flag is set
+  if (deleteFromPDS) {
+    console.log('\nDeleting all Leaflet documents from PDS...');
+    const docsDeleted = await deleteAllRecordsFromCollection(agent, did, LEAFLET_DOCUMENT_COLLECTION);
+    console.log(`Deleted ${docsDeleted} documents from PDS`);
+
+    console.log('\nDeleting all Leaflet publications from PDS...');
+    const pubsDeleted = await deleteAllRecordsFromCollection(agent, did, LEAFLET_PUBLICATION_COLLECTION);
+    console.log(`Deleted ${pubsDeleted} publications from PDS`);
+  }
+
+  // Now proceed with local database reset
   const dbPath = process.env.DATABASE_PATH || './data/app.db';
-  console.log(`Using database at: ${dbPath}`);
+  console.log(`\nUsing database at: ${dbPath}`);
 
   // Ensure data directory exists
   const dir = path.dirname(dbPath);
@@ -54,32 +151,6 @@ async function main() {
   // Reset jetstream cursor to start fresh
   db.prepare('UPDATE jetstream_state SET cursor = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = 1').run();
   console.log('  - Reset jetstream cursor');
-
-  console.log('\nAuthenticating with test user...');
-  const handle = testHandle.startsWith('@') ? testHandle.slice(1) : testHandle;
-
-  // Create agent and login
-  const agent = new AtpAgent({ service: 'https://bsky.social' });
-
-  try {
-    await agent.login({ identifier: handle, password: testAppPassword });
-  } catch (error) {
-    console.error('Failed to authenticate:', error);
-    db.close();
-    process.exit(1);
-  }
-
-  if (!agent.session) {
-    console.error('Failed to create session');
-    db.close();
-    process.exit(1);
-  }
-
-  const did = agent.session.did;
-  const pdsUrl = agent.pdsUrl?.toString() || 'https://bsky.social';
-
-  console.log(`Authenticated as: ${handle} (${did})`);
-  console.log(`PDS URL: ${pdsUrl}`);
 
   // Get profile for display name
   let displayName: string | undefined;
@@ -125,7 +196,11 @@ async function main() {
     process.exit(1);
   }
 
-  console.log('\nDatabase reset complete!');
+  if (deleteFromPDS) {
+    console.log('\nFull database reset complete! All Leaflet data has been removed from PDS and local database.');
+  } else {
+    console.log('\nDatabase reset complete!');
+  }
 }
 
 main().catch((error) => {

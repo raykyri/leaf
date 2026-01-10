@@ -9,7 +9,7 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "db:reset": "tsx src/database/setup.ts",
-    "db:reset:all": "tsx src/database/setup-all.ts",
+    "db:reset:all": "tsx src/database/setup.ts --all",
     "test": "ava",
     "test:watch": "ava --watch",
     "test:coverage": "c8 ava",
