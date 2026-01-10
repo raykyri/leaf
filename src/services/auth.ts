@@ -101,7 +101,20 @@ export function logout(sessionToken: string): void {
 
 export async function getAuthenticatedAgent(session: db.Session, user: db.User): Promise<AtpAgent | null> {
   try {
-    const agent = new AtpAgent({ service: user.pds_url });
+    const agent = new AtpAgent({
+      service: user.pds_url,
+      persistSession: (evt, sess) => {
+        // Persist refreshed tokens to the database
+        if (sess && (evt === 'update' || evt === 'create')) {
+          try {
+            db.updateSessionTokens(session.id, sess.accessJwt, sess.refreshJwt);
+            console.log(`Persisted refreshed tokens for session ${session.id}`);
+          } catch (error) {
+            console.error('Failed to persist session tokens:', error);
+          }
+        }
+      }
+    });
 
     if (session.access_jwt && session.refresh_jwt) {
       // Resume session with stored tokens

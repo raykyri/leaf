@@ -55,8 +55,8 @@ describe('Renderer', () => {
       const pages: LeafletPage[] = [{
         $type: 'pub.leaflet.pages.linearDocument',
         blocks: [
-          { block: { $type: 'pub.leaflet.blocks.header', level: 0, value: 'Too Low' } },
-          { block: { $type: 'pub.leaflet.blocks.header', level: 10, value: 'Too High' } }
+          { block: { $type: 'pub.leaflet.blocks.header', level: 0 as unknown as 1, value: 'Too Low' } },
+          { block: { $type: 'pub.leaflet.blocks.header', level: 10 as unknown as 1, value: 'Too High' } }
         ]
       }];
 
@@ -190,7 +190,7 @@ describe('Renderer', () => {
         blocks: [{
           block: {
             $type: 'pub.leaflet.blocks.image',
-            image: { ref: { $link: 'bafybeig...' }, mimeType: 'image/png', size: 1234 },
+            image: { $type: 'blob', ref: { $link: 'bafybeig...' }, mimeType: 'image/png', size: 1234 },
             alt: 'Test image',
             caption: 'A test caption'
           }

@@ -2,9 +2,12 @@ import { Router, Request, Response } from 'express';
 import { authenticateUser, logout } from '../services/auth.js';
 import { indexUserPDS } from '../services/indexer.js';
 import { loginPage } from '../views/pages.js';
+import { authLimiter } from '../middleware/rateLimit.js';
 import * as db from '../database/index.js';
 
 const router = Router();
+
+const isProduction = process.env.NODE_ENV === 'production';
 
 // Login page
 router.get('/login', (req: Request, res: Response) => {
@@ -21,8 +24,8 @@ router.get('/login', (req: Request, res: Response) => {
   res.send(loginPage());
 });
 
-// Handle login
-router.post('/login', async (req: Request, res: Response) => {
+// Handle login (with rate limiting to prevent brute force)
+router.post('/login', authLimiter, async (req: Request, res: Response) => {
   const { handle, password } = req.body;
 
   if (!handle || !password) {
@@ -40,10 +43,10 @@ router.post('/login', async (req: Request, res: Response) => {
   // Check if this is a new user (needs indexing)
   const isNewUser = !result.user.last_indexed_at;
 
-  // Set session cookie
+  // Set session cookie with security flags
   res.cookie('session', result.session.session_token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: isProduction,
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     sameSite: 'lax'
   });
@@ -69,7 +72,12 @@ router.post('/logout', (req: Request, res: Response) => {
     logout(sessionToken);
   }
 
-  res.clearCookie('session');
+  // Clear cookie with same options for proper deletion
+  res.clearCookie('session', {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: 'lax'
+  });
   res.redirect('/');
 });
 

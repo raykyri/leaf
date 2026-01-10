@@ -172,8 +172,8 @@ describe.skipIf(!hasCredentials)('HTTP Routes Integration', () => {
       expect(res.headers.location).toBe('/profile');
       expect(res.headers['set-cookie']).toBeDefined();
 
-      const cookies = res.headers['set-cookie'] as string[];
-      const sessionCookie = cookies.find(c => c.startsWith('session='));
+      const cookies = (Array.isArray(res.headers['set-cookie']) ? res.headers['set-cookie'] : [res.headers['set-cookie']]) as string[];
+      const sessionCookie = cookies.find(c => c?.startsWith('session='));
       expect(sessionCookie).toBeDefined();
       expect(sessionCookie).toContain('HttpOnly');
     });
@@ -184,7 +184,7 @@ describe.skipIf(!hasCredentials)('HTTP Routes Integration', () => {
         .post('/auth/login')
         .send({ handle: TEST_HANDLE, password: TEST_APP_PASSWORD });
 
-      const cookies = loginRes.headers['set-cookie'] as string[];
+      const cookies = (Array.isArray(loginRes.headers['set-cookie']) ? loginRes.headers['set-cookie'] : [loginRes.headers['set-cookie']]) as string[];
       const sessionCookie = cookies.find(c => c.startsWith('session='));
       const sessionValue = sessionCookie!.split(';')[0].split('=')[1];
 
@@ -217,7 +217,7 @@ describe.skipIf(!hasCredentials)('HTTP Routes Integration', () => {
         .post('/auth/login')
         .send({ handle: TEST_HANDLE, password: TEST_APP_PASSWORD });
 
-      const cookies = res.headers['set-cookie'] as string[];
+      const cookies = (Array.isArray(res.headers['set-cookie']) ? res.headers['set-cookie'] : [res.headers['set-cookie']]) as string[];
       const cookie = cookies.find(c => c.startsWith('session='));
       sessionCookie = cookie!.split(';')[0];
 
@@ -317,7 +317,7 @@ describe.skipIf(!hasCredentials)('HTTP Routes Integration', () => {
         .post('/auth/login')
         .send({ handle: TEST_HANDLE, password: TEST_APP_PASSWORD });
 
-      const cookies = res.headers['set-cookie'] as string[];
+      const cookies = (Array.isArray(res.headers['set-cookie']) ? res.headers['set-cookie'] : [res.headers['set-cookie']]) as string[];
       const cookie = cookies.find(c => c.startsWith('session='));
       sessionCookie = cookie!.split(';')[0];
     });
