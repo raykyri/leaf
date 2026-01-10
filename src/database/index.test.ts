@@ -236,4 +236,36 @@ describe('Database Schema', () => {
       expect(indexNames).toContain('idx_users_handle');
     });
   });
+
+  describe('Jetstream state table', () => {
+    it('should have jetstream_state table with initial row', () => {
+      const row = db.prepare('SELECT * FROM jetstream_state WHERE id = 1').get() as { id: number; cursor: string | null };
+      expect(row).toBeDefined();
+      expect(row.id).toBe(1);
+      expect(row.cursor).toBeNull();
+    });
+
+    it('should update cursor value', () => {
+      const cursor = '1234567890123456';
+      db.prepare('UPDATE jetstream_state SET cursor = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1').run(cursor);
+
+      const row = db.prepare('SELECT cursor FROM jetstream_state WHERE id = 1').get() as { cursor: string };
+      expect(row.cursor).toBe(cursor);
+    });
+
+    it('should enforce single row constraint', () => {
+      expect(() => {
+        db.prepare('INSERT INTO jetstream_state (id, cursor) VALUES (2, NULL)').run();
+      }).toThrow();
+    });
+
+    it('should allow updating cursor multiple times', () => {
+      db.prepare('UPDATE jetstream_state SET cursor = ? WHERE id = 1').run('cursor1');
+      db.prepare('UPDATE jetstream_state SET cursor = ? WHERE id = 1').run('cursor2');
+      db.prepare('UPDATE jetstream_state SET cursor = ? WHERE id = 1').run('cursor3');
+
+      const row = db.prepare('SELECT cursor FROM jetstream_state WHERE id = 1').get() as { cursor: string };
+      expect(row.cursor).toBe('cursor3');
+    });
+  });
 });

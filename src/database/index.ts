@@ -262,3 +262,17 @@ export function deletePublication(uri: string): void {
   const stmt = db.prepare('DELETE FROM publications WHERE uri = ?');
   stmt.run(uri);
 }
+
+// Jetstream state operations
+export function getJetstreamCursor(): string | null {
+  const db = getDatabase();
+  const stmt = db.prepare('SELECT cursor FROM jetstream_state WHERE id = 1');
+  const row = stmt.get() as { cursor: string | null } | undefined;
+  return row?.cursor ?? null;
+}
+
+export function setJetstreamCursor(cursor: string): void {
+  const db = getDatabase();
+  const stmt = db.prepare('UPDATE jetstream_state SET cursor = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1');
+  stmt.run(cursor);
+}

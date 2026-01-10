@@ -75,4 +75,19 @@ export function initializeDatabase(db: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_users_did ON users(did);
     CREATE INDEX IF NOT EXISTS idx_users_handle ON users(handle);
   `);
+
+  // Create jetstream_state table for cursor persistence
+  // This allows the app to resume from where it left off after restarts
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS jetstream_state (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      cursor TEXT,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Ensure there's always exactly one row in jetstream_state
+  db.exec(`
+    INSERT OR IGNORE INTO jetstream_state (id, cursor) VALUES (1, NULL)
+  `);
 }
