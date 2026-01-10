@@ -3,13 +3,16 @@
 export interface LeafletDocument {
   $type: 'pub.leaflet.document';
   pages: LeafletPage[];
-  author: string; // DID
+  author: string; // DID (at-identifier format)
   title: string;
   description?: string;
   publishedAt?: string;
   publication?: string; // AT-URI
   tags?: string[];
   coverImage?: BlobRef;
+  // Official Leaflet document fields
+  postRef?: StrongRef; // Reference to related Bluesky post
+  theme?: PublicationTheme; // Document-level theme override
 }
 
 export interface LeafletPublication {
@@ -34,6 +37,14 @@ export interface PublicationTheme {
   accentBackground?: ColorValue;
   accentText?: ColorValue;
   showPageBackground?: boolean;
+  // Official Leaflet theme fields
+  backgroundImage?: BackgroundImage;
+  pageWidth?: number; // 0-1600
+}
+
+export interface BackgroundImage {
+  image?: BlobRef;
+  // Additional background image properties as defined in official lexicon
 }
 
 export type ColorValue = RGBAColor | RGBColor;
