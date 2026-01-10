@@ -12,6 +12,7 @@
  * - TEST_APP_PASSWORD: App password for the test account
  */
 
+import 'dotenv/config';
 import test from 'ava';
 import { AtpAgent } from '@atproto/api';
 import Database from 'better-sqlite3';
@@ -24,6 +25,7 @@ import { initializeDatabase } from './database/schema.js';
 const TEST_HANDLE = process.env.TEST_HANDLE;
 const TEST_APP_PASSWORD = process.env.TEST_APP_PASSWORD;
 const TEST_DB_PATH = './data/test-integration.db';
+const PERSIST = process.env.PERSIST === '1';
 const LEAFLET_DOCUMENT_COLLECTION = 'pub.leaflet.document';
 
 // Skip tests if credentials not provided
@@ -194,15 +196,17 @@ test('Creating Posts › should create a Leaflet document on the PDS', async t =
     t.true(response.data.uri.includes(LEAFLET_DOCUMENT_COLLECTION));
     t.true(response.data.uri.includes(rkey));
   } finally {
-    // Cleanup
-    try {
-      await agent.com.atproto.repo.deleteRecord({
-        repo: userDid,
-        collection: LEAFLET_DOCUMENT_COLLECTION,
-        rkey
-      });
-    } catch {
-      // Ignore
+    // Cleanup (skip if PERSIST=1)
+    if (!PERSIST) {
+      try {
+        await agent.com.atproto.repo.deleteRecord({
+          repo: userDid,
+          collection: LEAFLET_DOCUMENT_COLLECTION,
+          rkey
+        });
+      } catch {
+        // Ignore
+      }
     }
   }
 });
@@ -253,14 +257,16 @@ test('Creating Posts › should retrieve the created document from PDS', async t
     t.is(value.title, '[TEST] Retrieve Test');
     t.is(value.author, userDid);
   } finally {
-    try {
-      await agent.com.atproto.repo.deleteRecord({
-        repo: userDid,
-        collection: LEAFLET_DOCUMENT_COLLECTION,
-        rkey
-      });
-    } catch {
-      // Ignore
+    if (!PERSIST) {
+      try {
+        await agent.com.atproto.repo.deleteRecord({
+          repo: userDid,
+          collection: LEAFLET_DOCUMENT_COLLECTION,
+          rkey
+        });
+      } catch {
+        // Ignore
+      }
     }
   }
 });
@@ -311,15 +317,17 @@ test('Creating Posts › should create multiple documents', async t => {
       t.truthy(record.data.value);
     }
   } finally {
-    for (const rkey of rkeys) {
-      try {
-        await agent.com.atproto.repo.deleteRecord({
-          repo: userDid,
-          collection: LEAFLET_DOCUMENT_COLLECTION,
-          rkey
-        });
-      } catch {
-        // Ignore
+    if (!PERSIST) {
+      for (const rkey of rkeys) {
+        try {
+          await agent.com.atproto.repo.deleteRecord({
+            repo: userDid,
+            collection: LEAFLET_DOCUMENT_COLLECTION,
+            rkey
+          });
+        } catch {
+          // Ignore
+        }
       }
     }
   }
@@ -417,14 +425,16 @@ test('Indexing › should index documents from PDS to local database', async t =
     if (fs.existsSync(TEST_DB_PATH)) {
       fs.unlinkSync(TEST_DB_PATH);
     }
-    try {
-      await agent.com.atproto.repo.deleteRecord({
-        repo: userDid,
-        collection: LEAFLET_DOCUMENT_COLLECTION,
-        rkey
-      });
-    } catch {
-      // Ignore
+    if (!PERSIST) {
+      try {
+        await agent.com.atproto.repo.deleteRecord({
+          repo: userDid,
+          collection: LEAFLET_DOCUMENT_COLLECTION,
+          rkey
+        });
+      } catch {
+        // Ignore
+      }
     }
   }
 });
@@ -514,14 +524,16 @@ test('Indexing › should resync after clearing local database', async t => {
     if (fs.existsSync(TEST_DB_PATH)) {
       fs.unlinkSync(TEST_DB_PATH);
     }
-    try {
-      await agent.com.atproto.repo.deleteRecord({
-        repo: userDid,
-        collection: LEAFLET_DOCUMENT_COLLECTION,
-        rkey
-      });
-    } catch {
-      // Ignore
+    if (!PERSIST) {
+      try {
+        await agent.com.atproto.repo.deleteRecord({
+          repo: userDid,
+          collection: LEAFLET_DOCUMENT_COLLECTION,
+          rkey
+        });
+      } catch {
+        // Ignore
+      }
     }
   }
 });
@@ -584,14 +596,16 @@ test('Document Updates › should update an existing document', async t => {
     const value = record.data.value as { title: string };
     t.is(value.title, '[TEST] Updated Title');
   } finally {
-    try {
-      await agent.com.atproto.repo.deleteRecord({
-        repo: userDid,
-        collection: LEAFLET_DOCUMENT_COLLECTION,
-        rkey
-      });
-    } catch {
-      // Ignore
+    if (!PERSIST) {
+      try {
+        await agent.com.atproto.repo.deleteRecord({
+          repo: userDid,
+          collection: LEAFLET_DOCUMENT_COLLECTION,
+          rkey
+        });
+      } catch {
+        // Ignore
+      }
     }
   }
 });
@@ -702,15 +716,17 @@ test('Pagination › should list documents with pagination', async t => {
       t.true(page2.data.records.length > 0);
     }
   } finally {
-    for (const rkey of rkeys) {
-      try {
-        await agent.com.atproto.repo.deleteRecord({
-          repo: userDid,
-          collection: LEAFLET_DOCUMENT_COLLECTION,
-          rkey
-        });
-      } catch {
-        // Ignore
+    if (!PERSIST) {
+      for (const rkey of rkeys) {
+        try {
+          await agent.com.atproto.repo.deleteRecord({
+            repo: userDid,
+            collection: LEAFLET_DOCUMENT_COLLECTION,
+            rkey
+          });
+        } catch {
+          // Ignore
+        }
       }
     }
   }
@@ -723,7 +739,7 @@ test('CSRF Protection › should generate unique CSRF tokens', async t => {
     return;
   }
 
-  const { generateCsrfToken } = await import('./middleware/csrf.js');
+  const { generateCsrfToken } = await import('./middleware/csrf.ts');
 
   const token1 = generateCsrfToken('session1');
   const token2 = generateCsrfToken('session2');
@@ -738,7 +754,7 @@ test('CSRF Protection › should validate correct CSRF tokens', async t => {
     return;
   }
 
-  const { generateCsrfToken, validateCsrfToken } = await import('./middleware/csrf.js');
+  const { generateCsrfToken, validateCsrfToken } = await import('./middleware/csrf.ts');
 
   const sessionToken = 'test-session-csrf';
   const csrfToken = generateCsrfToken(sessionToken);
@@ -752,7 +768,7 @@ test('CSRF Protection › should reject invalid CSRF tokens', async t => {
     return;
   }
 
-  const { generateCsrfToken, validateCsrfToken } = await import('./middleware/csrf.js');
+  const { generateCsrfToken, validateCsrfToken } = await import('./middleware/csrf.ts');
 
   const sessionToken = 'test-session-invalid';
   generateCsrfToken(sessionToken);
@@ -770,7 +786,7 @@ test('Comments › should create a comment on a document', async t => {
     return;
   }
 
-  const { createComment, extractRkeyFromUri } = await import('./services/comments.js');
+  const { createComment, extractRkeyFromUri } = await import('./services/comments.ts');
 
   const agent = new AtpAgent({ service: 'https://bsky.social' });
   await agent.login({
@@ -827,26 +843,28 @@ test('Comments › should create a comment on a document', async t => {
     t.is(comment.subject, documentUri);
     t.is(comment.plaintext, 'This is a test comment');
   } finally {
-    // Cleanup
-    if (commentRkey) {
+    // Cleanup (skip if PERSIST=1)
+    if (!PERSIST) {
+      if (commentRkey) {
+        try {
+          await agent.com.atproto.repo.deleteRecord({
+            repo: userDid,
+            collection: LEAFLET_COMMENT_COLLECTION,
+            rkey: commentRkey
+          });
+        } catch {
+          // Ignore
+        }
+      }
       try {
         await agent.com.atproto.repo.deleteRecord({
           repo: userDid,
-          collection: LEAFLET_COMMENT_COLLECTION,
-          rkey: commentRkey
+          collection: LEAFLET_DOCUMENT_COLLECTION,
+          rkey: docRkey
         });
       } catch {
         // Ignore
       }
-    }
-    try {
-      await agent.com.atproto.repo.deleteRecord({
-        repo: userDid,
-        collection: LEAFLET_DOCUMENT_COLLECTION,
-        rkey: docRkey
-      });
-    } catch {
-      // Ignore
     }
   }
 });
@@ -857,7 +875,7 @@ test('Comments › should create a reply to a comment', async t => {
     return;
   }
 
-  const { createComment, extractRkeyFromUri } = await import('./services/comments.js');
+  const { createComment, extractRkeyFromUri } = await import('./services/comments.ts');
 
   const agent = new AtpAgent({ service: 'https://bsky.social' });
   await agent.login({
@@ -925,37 +943,39 @@ test('Comments › should create a reply to a comment', async t => {
     t.is(reply.plaintext, 'This is a reply');
     t.is(reply.reply?.parent, parentResult.uri);
   } finally {
-    // Cleanup - delete reply first, then parent
-    if (replyCommentRkey) {
+    // Cleanup - delete reply first, then parent (skip if PERSIST=1)
+    if (!PERSIST) {
+      if (replyCommentRkey) {
+        try {
+          await agent.com.atproto.repo.deleteRecord({
+            repo: userDid,
+            collection: LEAFLET_COMMENT_COLLECTION,
+            rkey: replyCommentRkey
+          });
+        } catch {
+          // Ignore
+        }
+      }
+      if (parentCommentRkey) {
+        try {
+          await agent.com.atproto.repo.deleteRecord({
+            repo: userDid,
+            collection: LEAFLET_COMMENT_COLLECTION,
+            rkey: parentCommentRkey
+          });
+        } catch {
+          // Ignore
+        }
+      }
       try {
         await agent.com.atproto.repo.deleteRecord({
           repo: userDid,
-          collection: LEAFLET_COMMENT_COLLECTION,
-          rkey: replyCommentRkey
+          collection: LEAFLET_DOCUMENT_COLLECTION,
+          rkey: docRkey
         });
       } catch {
         // Ignore
       }
-    }
-    if (parentCommentRkey) {
-      try {
-        await agent.com.atproto.repo.deleteRecord({
-          repo: userDid,
-          collection: LEAFLET_COMMENT_COLLECTION,
-          rkey: parentCommentRkey
-        });
-      } catch {
-        // Ignore
-      }
-    }
-    try {
-      await agent.com.atproto.repo.deleteRecord({
-        repo: userDid,
-        collection: LEAFLET_DOCUMENT_COLLECTION,
-        rkey: docRkey
-      });
-    } catch {
-      // Ignore
     }
   }
 });
@@ -966,7 +986,7 @@ test('Comments › should delete a comment', async t => {
     return;
   }
 
-  const { createComment, deleteComment, extractRkeyFromUri } = await import('./services/comments.js');
+  const { createComment, deleteComment, extractRkeyFromUri } = await import('./services/comments.ts');
 
   const agent = new AtpAgent({ service: 'https://bsky.social' });
   await agent.login({
@@ -1028,14 +1048,16 @@ test('Comments › should delete a comment', async t => {
       });
     });
   } finally {
-    try {
-      await agent.com.atproto.repo.deleteRecord({
-        repo: userDid,
-        collection: LEAFLET_DOCUMENT_COLLECTION,
-        rkey: docRkey
-      });
-    } catch {
-      // Ignore
+    if (!PERSIST) {
+      try {
+        await agent.com.atproto.repo.deleteRecord({
+          repo: userDid,
+          collection: LEAFLET_DOCUMENT_COLLECTION,
+          rkey: docRkey
+        });
+      } catch {
+        // Ignore
+      }
     }
   }
 });
@@ -1046,7 +1068,7 @@ test('Comments › should create a comment with facets', async t => {
     return;
   }
 
-  const { createComment, extractRkeyFromUri } = await import('./services/comments.js');
+  const { createComment, extractRkeyFromUri } = await import('./services/comments.ts');
 
   const agent = new AtpAgent({ service: 'https://bsky.social' });
   await agent.login({
@@ -1108,25 +1130,27 @@ test('Comments › should create a comment with facets', async t => {
     t.truthy(comment.facets);
     t.is(comment.facets?.length, 1);
   } finally {
-    if (commentRkey) {
+    if (!PERSIST) {
+      if (commentRkey) {
+        try {
+          await agent.com.atproto.repo.deleteRecord({
+            repo: userDid,
+            collection: LEAFLET_COMMENT_COLLECTION,
+            rkey: commentRkey
+          });
+        } catch {
+          // Ignore
+        }
+      }
       try {
         await agent.com.atproto.repo.deleteRecord({
           repo: userDid,
-          collection: LEAFLET_COMMENT_COLLECTION,
-          rkey: commentRkey
+          collection: LEAFLET_DOCUMENT_COLLECTION,
+          rkey: docRkey
         });
       } catch {
         // Ignore
       }
-    }
-    try {
-      await agent.com.atproto.repo.deleteRecord({
-        repo: userDid,
-        collection: LEAFLET_DOCUMENT_COLLECTION,
-        rkey: docRkey
-      });
-    } catch {
-      // Ignore
     }
   }
 });
@@ -1137,7 +1161,7 @@ test('Comments › should list comments for a document', async t => {
     return;
   }
 
-  const { createComment, extractRkeyFromUri } = await import('./services/comments.js');
+  const { createComment, extractRkeyFromUri } = await import('./services/comments.ts');
 
   const agent = new AtpAgent({ service: 'https://bsky.social' });
   await agent.login({
@@ -1195,25 +1219,27 @@ test('Comments › should list comments for a document', async t => {
 
     t.is(documentComments.length, 3);
   } finally {
-    for (const rkey of commentRkeys) {
+    if (!PERSIST) {
+      for (const rkey of commentRkeys) {
+        try {
+          await agent.com.atproto.repo.deleteRecord({
+            repo: userDid,
+            collection: LEAFLET_COMMENT_COLLECTION,
+            rkey
+          });
+        } catch {
+          // Ignore
+        }
+      }
       try {
         await agent.com.atproto.repo.deleteRecord({
           repo: userDid,
-          collection: LEAFLET_COMMENT_COLLECTION,
-          rkey
+          collection: LEAFLET_DOCUMENT_COLLECTION,
+          rkey: docRkey
         });
       } catch {
         // Ignore
       }
-    }
-    try {
-      await agent.com.atproto.repo.deleteRecord({
-        repo: userDid,
-        collection: LEAFLET_DOCUMENT_COLLECTION,
-        rkey: docRkey
-      });
-    } catch {
-      // Ignore
     }
   }
 });
