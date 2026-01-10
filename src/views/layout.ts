@@ -163,6 +163,22 @@ export function layout(
       color: var(--text);
     }
 
+    .primary-btn {
+      background: #1d4ed8;
+      border: none;
+      color: white;
+      padding: 0.75rem 1.5rem;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 1rem;
+      font-weight: 500;
+      transition: background 0.2s;
+    }
+
+    .primary-btn:hover {
+      background: #2563eb;
+    }
+
     main {
       max-width: 800px;
       margin: 0 auto;

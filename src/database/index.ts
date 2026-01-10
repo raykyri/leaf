@@ -303,3 +303,61 @@ export function setJetstreamCursor(cursor: string): void {
   const stmt = db.prepare('UPDATE jetstream_state SET cursor = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1');
   stmt.run(cursor);
 }
+
+// OAuth state operations
+export function getOAuthState(key: string): string | undefined {
+  const db = getDatabase();
+  const stmt = db.prepare('SELECT value FROM oauth_state WHERE key = ?');
+  const row = stmt.get(key) as { value: string } | undefined;
+  return row?.value;
+}
+
+export function setOAuthState(key: string, value: string): void {
+  const db = getDatabase();
+  const stmt = db.prepare(`
+    INSERT INTO oauth_state (key, value) VALUES (?, ?)
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value, created_at = CURRENT_TIMESTAMP
+  `);
+  stmt.run(key, value);
+}
+
+export function deleteOAuthState(key: string): void {
+  const db = getDatabase();
+  const stmt = db.prepare('DELETE FROM oauth_state WHERE key = ?');
+  stmt.run(key);
+}
+
+export function cleanupOldOAuthState(maxAgeMinutes: number = 10): void {
+  const db = getDatabase();
+  const stmt = db.prepare("DELETE FROM oauth_state WHERE created_at < datetime('now', '-' || ? || ' minutes')");
+  stmt.run(maxAgeMinutes);
+}
+
+// OAuth session operations
+export function getOAuthSession(key: string): string | undefined {
+  const db = getDatabase();
+  const stmt = db.prepare('SELECT value FROM oauth_sessions WHERE key = ?');
+  const row = stmt.get(key) as { value: string } | undefined;
+  return row?.value;
+}
+
+export function setOAuthSession(key: string, value: string): void {
+  const db = getDatabase();
+  const stmt = db.prepare(`
+    INSERT INTO oauth_sessions (key, value) VALUES (?, ?)
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP
+  `);
+  stmt.run(key, value);
+}
+
+export function deleteOAuthSession(key: string): void {
+  const db = getDatabase();
+  const stmt = db.prepare('DELETE FROM oauth_sessions WHERE key = ?');
+  stmt.run(key);
+}
+
+export function cleanupOldOAuthSessions(maxAgeDays: number = 30): void {
+  const db = getDatabase();
+  const stmt = db.prepare("DELETE FROM oauth_sessions WHERE updated_at < datetime('now', '-' || ? || ' days')");
+  stmt.run(maxAgeDays);
+}

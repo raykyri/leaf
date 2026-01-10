@@ -2,6 +2,7 @@ import { AtpAgent } from '@atproto/api';
 import crypto from 'crypto';
 import * as db from '../database/index.js';
 import { addRegisteredDid } from './jetstream.js';
+import { getOAuthAgent, revokeOAuthSession } from './oauth-client.js';
 
 export interface AuthResult {
   success: boolean;
@@ -95,28 +96,38 @@ export function getSessionUser(sessionToken: string): { user: db.User; session: 
   return { user, session };
 }
 
-export function logout(sessionToken: string): void {
+export async function logout(sessionToken: string): Promise<void> {
+  // Get session to find user DID for OAuth revocation
+  const session = db.getSessionByToken(sessionToken);
+  if (session) {
+    const user = db.getUserById(session.user_id);
+    if (user) {
+      // Try to revoke OAuth session (no-op if user didn't use OAuth)
+      await revokeOAuthSession(user.did);
+    }
+  }
   db.deleteSession(sessionToken);
 }
 
 export async function getAuthenticatedAgent(session: db.Session, user: db.User): Promise<AtpAgent | null> {
   try {
-    const agent = new AtpAgent({
-      service: user.pds_url,
-      persistSession: (evt, sess) => {
-        // Persist refreshed tokens to the database
-        if (sess && (evt === 'update' || evt === 'create')) {
-          try {
-            db.updateSessionTokens(session.id, sess.accessJwt, sess.refreshJwt);
-            console.log(`Persisted refreshed tokens for session ${session.id}`);
-          } catch (error) {
-            console.error('Failed to persist session tokens:', error);
+    // If session has access JWT, use traditional app password auth
+    if (session.access_jwt && session.refresh_jwt) {
+      const agent = new AtpAgent({
+        service: user.pds_url,
+        persistSession: (evt, sess) => {
+          // Persist refreshed tokens to the database
+          if (sess && (evt === 'update' || evt === 'create')) {
+            try {
+              db.updateSessionTokens(session.id, sess.accessJwt, sess.refreshJwt);
+              console.log(`Persisted refreshed tokens for session ${session.id}`);
+            } catch (error) {
+              console.error('Failed to persist session tokens:', error);
+            }
           }
         }
-      }
-    });
+      });
 
-    if (session.access_jwt && session.refresh_jwt) {
       // Resume session with stored tokens
       await agent.resumeSession({
         did: user.did,
@@ -126,6 +137,14 @@ export async function getAuthenticatedAgent(session: db.Session, user: db.User):
         active: true
       });
       return agent;
+    }
+
+    // Otherwise, try OAuth authentication
+    const oauthAgent = await getOAuthAgent(user);
+    if (oauthAgent) {
+      // The OAuth agent is already an Agent, but we need an AtpAgent for compatibility
+      // The Agent class from @atproto/api should work the same way
+      return oauthAgent as unknown as AtpAgent;
     }
 
     return null;

@@ -4,7 +4,8 @@ A minimalist blogging platform built on the [AT Protocol](https://atproto.com) u
 
 ## Features
 
-- **Sign in with ATProto**: Use your Bluesky handle and app password
+- **ATProto OAuth Login**: Sign in securely using your Bluesky account (recommended)
+- **App Password Support**: Alternative sign-in using app passwords
 - **PDS Integration**: Indexes your existing Leaflet documents from your Personal Data Server
 - **Real-time Updates**: Listens to Jetstream for live updates from registered users
 - **Create Posts**: Write new posts that get stored on your PDS
@@ -39,10 +40,28 @@ DATABASE_PATH=./data/app.db
 SESSION_SECRET=your-random-secret-key-change-this
 JETSTREAM_URL=wss://jetstream2.us-east.bsky.network/subscribe
 
+# OAuth Configuration (required for OAuth login)
+PUBLIC_URL=https://yourdomain.com
+
 # Optional: Test credentials for integration tests
 TEST_HANDLE=your-handle.bsky.social
 TEST_APP_PASSWORD=xxxx-xxxx-xxxx-xxxx
 ```
+
+### Setting Up OAuth (Recommended)
+
+ATProto OAuth provides a secure way for users to authenticate without sharing their app passwords. To enable OAuth:
+
+1. **Set the PUBLIC_URL**: This must be the publicly accessible HTTPS URL of your application.
+   ```env
+   PUBLIC_URL=https://yourdomain.com
+   ```
+
+2. **Ensure HTTPS**: OAuth requires HTTPS in production. For local development, you can use `http://localhost:3000` but OAuth may not work with all PDS servers.
+
+3. **Deploy your app**: The OAuth client metadata is served at `/oauth/client-metadata.json`. ATProto authorization servers will fetch this to verify your client.
+
+**Note**: If `PUBLIC_URL` is not set, OAuth will be disabled and only app password login will be available.
 
 ### Running the Application
 
@@ -59,8 +78,9 @@ The application will be available at `http://localhost:3000`.
 
 ## Usage
 
-1. **Sign In**: Enter your Bluesky handle (e.g., `@username.bsky.social`) and an app password
-   - Create an app password at [bsky.app/settings/app-passwords](https://bsky.app/settings/app-passwords)
+1. **Sign In**: You have two authentication options:
+   - **OAuth (Recommended)**: Enter your Bluesky handle and click "Sign in with Bluesky". You'll be redirected to authorize the app.
+   - **App Password**: Enter your handle and an app password. Create one at [bsky.app/settings/app-passwords](https://bsky.app/settings/app-passwords)
 
 2. **View Posts**: Browse all posts from registered users at `/posts`
 
@@ -77,6 +97,7 @@ src/
     index.ts          # CRUD operations
   services/
     auth.ts           # ATProto authentication
+    oauth-client.ts   # ATProto OAuth client
     indexer.ts        # PDS document indexing
     jetstream.ts      # Real-time Jetstream listener
     renderer.ts       # Leaflet blocks to HTML
@@ -85,6 +106,7 @@ src/
     csrf.ts           # CSRF protection
   routes/
     auth.ts           # Login/logout routes
+    oauth.ts          # OAuth routes
     posts.ts          # Post viewing and creation routes
   views/
     layout.ts         # HTML layout template
@@ -166,8 +188,13 @@ Tests will be skipped if credentials are not provided.
 
 ### Authentication
 - `GET /auth/login` - Login page
-- `POST /auth/login` - Handle login
+- `POST /auth/login` - Handle login (app password)
 - `POST /auth/logout` - Handle logout
+
+### OAuth Routes
+- `GET /oauth/client-metadata.json` - OAuth client metadata
+- `POST /oauth/authorize` - Initiate OAuth flow
+- `GET /oauth/callback` - OAuth callback handler
 
 ### Authenticated Routes
 - `GET /profile` - User's posts and settings
@@ -215,6 +242,7 @@ npm run test:coverage # Run tests with coverage report
 | `PORT` | HTTP server port | `3000` |
 | `DATABASE_PATH` | SQLite database path | `./data/app.db` |
 | `SESSION_SECRET` | Secret for session tokens | (required) |
+| `PUBLIC_URL` | Public URL for OAuth (e.g., `https://yourdomain.com`) | (optional, enables OAuth) |
 | `JETSTREAM_URL` | Jetstream WebSocket URL | `wss://jetstream2.us-east.bsky.network/subscribe` |
 | `TEST_HANDLE` | Test account handle | (optional) |
 | `TEST_APP_PASSWORD` | Test account app password | (optional) |
