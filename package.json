@@ -1,0 +1,33 @@
+{
+  "name": "leaflet-atproto-blog",
+  "version": "1.0.0",
+  "description": "A minimalist blogging platform built on ATProto using the Leaflet lexicon",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "db:setup": "tsx src/database/setup.ts"
+  },
+  "keywords": ["atproto", "bluesky", "leaflet", "blog"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@atproto/api": "^0.14.1",
+    "express": "^4.21.2",
+    "better-sqlite3": "^11.8.1",
+    "ws": "^8.18.0",
+    "cookie-parser": "^1.4.7",
+    "dotenv": "^16.4.7"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2",
+    "@types/node": "^22.10.5",
+    "@types/express": "^5.0.0",
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/ws": "^8.5.13",
+    "@types/cookie-parser": "^1.4.7",
+    "tsx": "^4.19.2"
+  }
+}
