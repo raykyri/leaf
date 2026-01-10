@@ -760,3 +760,460 @@ test('CSRF Protection › should reject invalid CSRF tokens', async t => {
   t.false(validateCsrfToken(sessionToken, 'wrong-token'));
   t.false(validateCsrfToken('other-session', 'any-token'));
 });
+
+// Comments tests
+const LEAFLET_COMMENT_COLLECTION = 'pub.leaflet.comment';
+
+test('Comments › should create a comment on a document', async t => {
+  if (skipIfNoCredentials) {
+    t.pass('Skipped: no credentials');
+    return;
+  }
+
+  const { createComment, extractRkeyFromUri } = await import('./services/comments.js');
+
+  const agent = new AtpAgent({ service: 'https://bsky.social' });
+  await agent.login({
+    identifier: TEST_HANDLE!,
+    password: TEST_APP_PASSWORD!
+  });
+
+  const userDid = agent.session!.did;
+  const docRkey = generateTestTid();
+  let commentRkey: string | null = null;
+
+  try {
+    // Create a document to comment on
+    const docResponse = await agent.com.atproto.repo.createRecord({
+      repo: userDid,
+      collection: LEAFLET_DOCUMENT_COLLECTION,
+      rkey: docRkey,
+      record: {
+        $type: 'pub.leaflet.document',
+        title: '[TEST] Comment Target',
+        author: userDid,
+        pages: [{
+          $type: 'pub.leaflet.pages.linearDocument',
+          blocks: [{ block: { $type: 'pub.leaflet.blocks.text', plaintext: 'Test content', facets: [] } }]
+        }],
+        publishedAt: new Date().toISOString()
+      }
+    });
+
+    const documentUri = docResponse.data.uri;
+
+    // Create a comment on the document
+    const result = await createComment(agent, userDid, {
+      subject: documentUri,
+      plaintext: 'This is a test comment'
+    });
+
+    t.true(result.success);
+    t.truthy(result.uri);
+    t.truthy(result.comment);
+    t.is(result.comment?.subject, documentUri);
+    t.is(result.comment?.plaintext, 'This is a test comment');
+
+    commentRkey = extractRkeyFromUri(result.uri!);
+
+    // Verify the comment was created on the PDS
+    const retrieved = await agent.com.atproto.repo.getRecord({
+      repo: userDid,
+      collection: LEAFLET_COMMENT_COLLECTION,
+      rkey: commentRkey!
+    });
+
+    const comment = retrieved.data.value as { subject: string; plaintext: string };
+    t.is(comment.subject, documentUri);
+    t.is(comment.plaintext, 'This is a test comment');
+  } finally {
+    // Cleanup
+    if (commentRkey) {
+      try {
+        await agent.com.atproto.repo.deleteRecord({
+          repo: userDid,
+          collection: LEAFLET_COMMENT_COLLECTION,
+          rkey: commentRkey
+        });
+      } catch {
+        // Ignore
+      }
+    }
+    try {
+      await agent.com.atproto.repo.deleteRecord({
+        repo: userDid,
+        collection: LEAFLET_DOCUMENT_COLLECTION,
+        rkey: docRkey
+      });
+    } catch {
+      // Ignore
+    }
+  }
+});
+
+test('Comments › should create a reply to a comment', async t => {
+  if (skipIfNoCredentials) {
+    t.pass('Skipped: no credentials');
+    return;
+  }
+
+  const { createComment, extractRkeyFromUri } = await import('./services/comments.js');
+
+  const agent = new AtpAgent({ service: 'https://bsky.social' });
+  await agent.login({
+    identifier: TEST_HANDLE!,
+    password: TEST_APP_PASSWORD!
+  });
+
+  const userDid = agent.session!.did;
+  const docRkey = generateTestTid();
+  let parentCommentRkey: string | null = null;
+  let replyCommentRkey: string | null = null;
+
+  try {
+    // Create a document
+    const docResponse = await agent.com.atproto.repo.createRecord({
+      repo: userDid,
+      collection: LEAFLET_DOCUMENT_COLLECTION,
+      rkey: docRkey,
+      record: {
+        $type: 'pub.leaflet.document',
+        title: '[TEST] Reply Target',
+        author: userDid,
+        pages: [{
+          $type: 'pub.leaflet.pages.linearDocument',
+          blocks: [{ block: { $type: 'pub.leaflet.blocks.text', plaintext: 'Test content', facets: [] } }]
+        }],
+        publishedAt: new Date().toISOString()
+      }
+    });
+
+    const documentUri = docResponse.data.uri;
+
+    // Create a parent comment
+    const parentResult = await createComment(agent, userDid, {
+      subject: documentUri,
+      plaintext: 'Parent comment'
+    });
+
+    t.true(parentResult.success);
+    parentCommentRkey = extractRkeyFromUri(parentResult.uri!);
+
+    // Create a reply to the parent comment
+    const replyResult = await createComment(agent, userDid, {
+      subject: documentUri,
+      plaintext: 'This is a reply',
+      reply: { parent: parentResult.uri! }
+    });
+
+    t.true(replyResult.success);
+    t.truthy(replyResult.uri);
+    t.truthy(replyResult.comment?.reply);
+    t.is(replyResult.comment?.reply?.parent, parentResult.uri);
+
+    replyCommentRkey = extractRkeyFromUri(replyResult.uri!);
+
+    // Verify the reply was created with correct threading
+    const retrieved = await agent.com.atproto.repo.getRecord({
+      repo: userDid,
+      collection: LEAFLET_COMMENT_COLLECTION,
+      rkey: replyCommentRkey!
+    });
+
+    const reply = retrieved.data.value as { subject: string; plaintext: string; reply?: { parent: string } };
+    t.is(reply.subject, documentUri);
+    t.is(reply.plaintext, 'This is a reply');
+    t.is(reply.reply?.parent, parentResult.uri);
+  } finally {
+    // Cleanup - delete reply first, then parent
+    if (replyCommentRkey) {
+      try {
+        await agent.com.atproto.repo.deleteRecord({
+          repo: userDid,
+          collection: LEAFLET_COMMENT_COLLECTION,
+          rkey: replyCommentRkey
+        });
+      } catch {
+        // Ignore
+      }
+    }
+    if (parentCommentRkey) {
+      try {
+        await agent.com.atproto.repo.deleteRecord({
+          repo: userDid,
+          collection: LEAFLET_COMMENT_COLLECTION,
+          rkey: parentCommentRkey
+        });
+      } catch {
+        // Ignore
+      }
+    }
+    try {
+      await agent.com.atproto.repo.deleteRecord({
+        repo: userDid,
+        collection: LEAFLET_DOCUMENT_COLLECTION,
+        rkey: docRkey
+      });
+    } catch {
+      // Ignore
+    }
+  }
+});
+
+test('Comments › should delete a comment', async t => {
+  if (skipIfNoCredentials) {
+    t.pass('Skipped: no credentials');
+    return;
+  }
+
+  const { createComment, deleteComment, extractRkeyFromUri } = await import('./services/comments.js');
+
+  const agent = new AtpAgent({ service: 'https://bsky.social' });
+  await agent.login({
+    identifier: TEST_HANDLE!,
+    password: TEST_APP_PASSWORD!
+  });
+
+  const userDid = agent.session!.did;
+  const docRkey = generateTestTid();
+
+  try {
+    // Create a document
+    const docResponse = await agent.com.atproto.repo.createRecord({
+      repo: userDid,
+      collection: LEAFLET_DOCUMENT_COLLECTION,
+      rkey: docRkey,
+      record: {
+        $type: 'pub.leaflet.document',
+        title: '[TEST] Delete Comment Target',
+        author: userDid,
+        pages: [{
+          $type: 'pub.leaflet.pages.linearDocument',
+          blocks: [{ block: { $type: 'pub.leaflet.blocks.text', plaintext: 'Test content', facets: [] } }]
+        }],
+        publishedAt: new Date().toISOString()
+      }
+    });
+
+    const documentUri = docResponse.data.uri;
+
+    // Create a comment
+    const result = await createComment(agent, userDid, {
+      subject: documentUri,
+      plaintext: 'Comment to be deleted'
+    });
+
+    t.true(result.success);
+    const commentRkey = extractRkeyFromUri(result.uri!);
+    t.truthy(commentRkey);
+
+    // Verify it exists
+    const retrieved = await agent.com.atproto.repo.getRecord({
+      repo: userDid,
+      collection: LEAFLET_COMMENT_COLLECTION,
+      rkey: commentRkey!
+    });
+    t.truthy(retrieved.data.value);
+
+    // Delete the comment
+    const deleteResult = await deleteComment(agent, userDid, commentRkey!);
+    t.true(deleteResult.success);
+
+    // Verify it's deleted
+    await t.throwsAsync(async () => {
+      await agent.com.atproto.repo.getRecord({
+        repo: userDid,
+        collection: LEAFLET_COMMENT_COLLECTION,
+        rkey: commentRkey!
+      });
+    });
+  } finally {
+    try {
+      await agent.com.atproto.repo.deleteRecord({
+        repo: userDid,
+        collection: LEAFLET_DOCUMENT_COLLECTION,
+        rkey: docRkey
+      });
+    } catch {
+      // Ignore
+    }
+  }
+});
+
+test('Comments › should create a comment with facets', async t => {
+  if (skipIfNoCredentials) {
+    t.pass('Skipped: no credentials');
+    return;
+  }
+
+  const { createComment, extractRkeyFromUri } = await import('./services/comments.js');
+
+  const agent = new AtpAgent({ service: 'https://bsky.social' });
+  await agent.login({
+    identifier: TEST_HANDLE!,
+    password: TEST_APP_PASSWORD!
+  });
+
+  const userDid = agent.session!.did;
+  const docRkey = generateTestTid();
+  let commentRkey: string | null = null;
+
+  try {
+    // Create a document
+    const docResponse = await agent.com.atproto.repo.createRecord({
+      repo: userDid,
+      collection: LEAFLET_DOCUMENT_COLLECTION,
+      rkey: docRkey,
+      record: {
+        $type: 'pub.leaflet.document',
+        title: '[TEST] Facet Comment Target',
+        author: userDid,
+        pages: [{
+          $type: 'pub.leaflet.pages.linearDocument',
+          blocks: [{ block: { $type: 'pub.leaflet.blocks.text', plaintext: 'Test content', facets: [] } }]
+        }],
+        publishedAt: new Date().toISOString()
+      }
+    });
+
+    const documentUri = docResponse.data.uri;
+
+    // Create a comment with bold text facet
+    const plaintext = 'This is bold text';
+    const result = await createComment(agent, userDid, {
+      subject: documentUri,
+      plaintext,
+      facets: [{
+        index: { byteStart: 8, byteEnd: 12 }, // "bold"
+        features: [{ $type: 'pub.leaflet.richtext.facet#bold' }]
+      }]
+    });
+
+    t.true(result.success);
+    t.truthy(result.comment?.facets);
+    t.is(result.comment?.facets?.length, 1);
+    t.is(result.comment?.facets?.[0].index.byteStart, 8);
+    t.is(result.comment?.facets?.[0].index.byteEnd, 12);
+
+    commentRkey = extractRkeyFromUri(result.uri!);
+
+    // Verify facets were stored
+    const retrieved = await agent.com.atproto.repo.getRecord({
+      repo: userDid,
+      collection: LEAFLET_COMMENT_COLLECTION,
+      rkey: commentRkey!
+    });
+
+    const comment = retrieved.data.value as { facets?: Array<{ index: { byteStart: number; byteEnd: number } }> };
+    t.truthy(comment.facets);
+    t.is(comment.facets?.length, 1);
+  } finally {
+    if (commentRkey) {
+      try {
+        await agent.com.atproto.repo.deleteRecord({
+          repo: userDid,
+          collection: LEAFLET_COMMENT_COLLECTION,
+          rkey: commentRkey
+        });
+      } catch {
+        // Ignore
+      }
+    }
+    try {
+      await agent.com.atproto.repo.deleteRecord({
+        repo: userDid,
+        collection: LEAFLET_DOCUMENT_COLLECTION,
+        rkey: docRkey
+      });
+    } catch {
+      // Ignore
+    }
+  }
+});
+
+test('Comments › should list comments for a document', async t => {
+  if (skipIfNoCredentials) {
+    t.pass('Skipped: no credentials');
+    return;
+  }
+
+  const { createComment, extractRkeyFromUri } = await import('./services/comments.js');
+
+  const agent = new AtpAgent({ service: 'https://bsky.social' });
+  await agent.login({
+    identifier: TEST_HANDLE!,
+    password: TEST_APP_PASSWORD!
+  });
+
+  const userDid = agent.session!.did;
+  const docRkey = generateTestTid();
+  const commentRkeys: string[] = [];
+
+  try {
+    // Create a document
+    const docResponse = await agent.com.atproto.repo.createRecord({
+      repo: userDid,
+      collection: LEAFLET_DOCUMENT_COLLECTION,
+      rkey: docRkey,
+      record: {
+        $type: 'pub.leaflet.document',
+        title: '[TEST] List Comments Target',
+        author: userDid,
+        pages: [{
+          $type: 'pub.leaflet.pages.linearDocument',
+          blocks: [{ block: { $type: 'pub.leaflet.blocks.text', plaintext: 'Test content', facets: [] } }]
+        }],
+        publishedAt: new Date().toISOString()
+      }
+    });
+
+    const documentUri = docResponse.data.uri;
+
+    // Create multiple comments
+    for (let i = 0; i < 3; i++) {
+      const result = await createComment(agent, userDid, {
+        subject: documentUri,
+        plaintext: `Test comment ${i + 1}`
+      });
+      t.true(result.success);
+      const rkey = extractRkeyFromUri(result.uri!);
+      if (rkey) commentRkeys.push(rkey);
+    }
+
+    // List all comments from the user's repo
+    const response = await agent.com.atproto.repo.listRecords({
+      repo: userDid,
+      collection: LEAFLET_COMMENT_COLLECTION,
+      limit: 100
+    });
+
+    // Filter to comments on our test document
+    const documentComments = response.data.records.filter(record => {
+      const comment = record.value as { subject: string };
+      return comment.subject === documentUri;
+    });
+
+    t.is(documentComments.length, 3);
+  } finally {
+    for (const rkey of commentRkeys) {
+      try {
+        await agent.com.atproto.repo.deleteRecord({
+          repo: userDid,
+          collection: LEAFLET_COMMENT_COLLECTION,
+          rkey
+        });
+      } catch {
+        // Ignore
+      }
+    }
+    try {
+      await agent.com.atproto.repo.deleteRecord({
+        repo: userDid,
+        collection: LEAFLET_DOCUMENT_COLLECTION,
+        rkey: docRkey
+      });
+    } catch {
+      // Ignore
+    }
+  }
+});
