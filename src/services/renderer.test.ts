@@ -10,7 +10,7 @@ describe('Renderer', () => {
         blocks: [{
           block: {
             $type: 'pub.leaflet.blocks.text',
-            value: 'Hello, world!'
+            plaintext: 'Hello, world!'
           }
         }]
       }];
@@ -25,7 +25,7 @@ describe('Renderer', () => {
         blocks: [{
           block: {
             $type: 'pub.leaflet.blocks.text',
-            value: '<script>alert("xss")</script>'
+            plaintext: '<script>alert("xss")</script>'
           }
         }]
       }];
@@ -39,9 +39,9 @@ describe('Renderer', () => {
       const pages: LeafletPage[] = [{
         $type: 'pub.leaflet.pages.linearDocument',
         blocks: [
-          { block: { $type: 'pub.leaflet.blocks.header', level: 1, value: 'H1 Title' } },
-          { block: { $type: 'pub.leaflet.blocks.header', level: 2, value: 'H2 Title' } },
-          { block: { $type: 'pub.leaflet.blocks.header', level: 3, value: 'H3 Title' } }
+          { block: { $type: 'pub.leaflet.blocks.header', level: 1, plaintext: 'H1 Title' } },
+          { block: { $type: 'pub.leaflet.blocks.header', level: 2, plaintext: 'H2 Title' } },
+          { block: { $type: 'pub.leaflet.blocks.header', level: 3, plaintext: 'H3 Title' } }
         ]
       }];
 
@@ -55,8 +55,8 @@ describe('Renderer', () => {
       const pages: LeafletPage[] = [{
         $type: 'pub.leaflet.pages.linearDocument',
         blocks: [
-          { block: { $type: 'pub.leaflet.blocks.header', level: 0 as unknown as 1, value: 'Too Low' } },
-          { block: { $type: 'pub.leaflet.blocks.header', level: 10 as unknown as 1, value: 'Too High' } }
+          { block: { $type: 'pub.leaflet.blocks.header', level: 0, plaintext: 'Too Low' } },
+          { block: { $type: 'pub.leaflet.blocks.header', level: 10, plaintext: 'Too High' } }
         ]
       }];
 
@@ -71,7 +71,7 @@ describe('Renderer', () => {
         blocks: [{
           block: {
             $type: 'pub.leaflet.blocks.blockquote',
-            value: 'A wise quote'
+            plaintext: 'A wise quote'
           }
         }]
       }];
@@ -98,7 +98,7 @@ describe('Renderer', () => {
         blocks: [{
           block: {
             $type: 'pub.leaflet.blocks.code',
-            value: 'const x = 1;',
+            plaintext: 'const x = 1;',
             language: 'javascript'
           }
         }]
@@ -114,7 +114,7 @@ describe('Renderer', () => {
         blocks: [{
           block: {
             $type: 'pub.leaflet.blocks.code',
-            value: '<div>Not HTML</div>'
+            plaintext: '<div>Not HTML</div>'
           }
         }]
       }];
@@ -130,9 +130,9 @@ describe('Renderer', () => {
           block: {
             $type: 'pub.leaflet.blocks.unorderedList',
             items: [
-              { value: 'First item' },
-              { value: 'Second item' },
-              { value: 'Third item' }
+              { content: { $type: 'pub.leaflet.blocks.text', plaintext: 'First item' } },
+              { content: { $type: 'pub.leaflet.blocks.text', plaintext: 'Second item' } },
+              { content: { $type: 'pub.leaflet.blocks.text', plaintext: 'Third item' } }
             ]
           }
         }]
@@ -153,10 +153,10 @@ describe('Renderer', () => {
           block: {
             $type: 'pub.leaflet.blocks.unorderedList',
             items: [{
-              value: 'Parent',
+              content: { $type: 'pub.leaflet.blocks.text', plaintext: 'Parent' },
               children: [
-                { value: 'Child 1' },
-                { value: 'Child 2' }
+                { content: { $type: 'pub.leaflet.blocks.text', plaintext: 'Child 1' } },
+                { content: { $type: 'pub.leaflet.blocks.text', plaintext: 'Child 2' } }
               ]
             }]
           }
@@ -175,7 +175,7 @@ describe('Renderer', () => {
         blocks: [{
           block: {
             $type: 'pub.leaflet.blocks.text',
-            value: ''
+            plaintext: ''
           }
         }]
       }];
@@ -208,10 +208,10 @@ describe('Renderer', () => {
       const pages: LeafletPage[] = [{
         $type: 'pub.leaflet.pages.linearDocument',
         blocks: [
-          { block: { $type: 'pub.leaflet.blocks.text', value: 'Left' }, alignment: 'left' },
-          { block: { $type: 'pub.leaflet.blocks.text', value: 'Center' }, alignment: 'center' },
-          { block: { $type: 'pub.leaflet.blocks.text', value: 'Right' }, alignment: 'right' },
-          { block: { $type: 'pub.leaflet.blocks.text', value: 'Justify' }, alignment: 'justify' }
+          { block: { $type: 'pub.leaflet.blocks.text', plaintext: 'Left' }, alignment: 'left' },
+          { block: { $type: 'pub.leaflet.blocks.text', plaintext: 'Center' }, alignment: 'center' },
+          { block: { $type: 'pub.leaflet.blocks.text', plaintext: 'Right' }, alignment: 'right' },
+          { block: { $type: 'pub.leaflet.blocks.text', plaintext: 'Justify' }, alignment: 'justify' }
         ]
       }];
 
@@ -226,7 +226,7 @@ describe('Renderer', () => {
       const pages: LeafletPage[] = [{
         $type: 'pub.leaflet.pages.linearDocument',
         blocks: [{
-          block: { $type: 'pub.leaflet.blocks.text', value: 'Test' },
+          block: { $type: 'pub.leaflet.blocks.text', plaintext: 'Test' },
           alignment: 'left"; onmouseover="alert(1)"' as 'left'
         }]
       }];
@@ -245,7 +245,7 @@ describe('Renderer', () => {
         blocks: [{
           block: {
             $type: 'pub.leaflet.blocks.text',
-            value: 'Hello bold world',
+            plaintext: 'Hello bold world',
             facets: [{
               index: { byteStart: 6, byteEnd: 10 },
               features: [{ $type: 'pub.leaflet.richtext.facet#bold' }]
@@ -264,7 +264,7 @@ describe('Renderer', () => {
         blocks: [{
           block: {
             $type: 'pub.leaflet.blocks.text',
-            value: 'Hello italic world',
+            plaintext: 'Hello italic world',
             facets: [{
               index: { byteStart: 6, byteEnd: 12 },
               features: [{ $type: 'pub.leaflet.richtext.facet#italic' }]
@@ -283,7 +283,7 @@ describe('Renderer', () => {
         blocks: [{
           block: {
             $type: 'pub.leaflet.blocks.text',
-            value: 'Hello deleted world',
+            plaintext: 'Hello deleted world',
             facets: [{
               index: { byteStart: 6, byteEnd: 13 },
               features: [{ $type: 'pub.leaflet.richtext.facet#strikethrough' }]
@@ -302,7 +302,7 @@ describe('Renderer', () => {
         blocks: [{
           block: {
             $type: 'pub.leaflet.blocks.text',
-            value: 'Click here for more',
+            plaintext: 'Click here for more',
             facets: [{
               index: { byteStart: 6, byteEnd: 10 },
               features: [{
@@ -324,7 +324,7 @@ describe('Renderer', () => {
         blocks: [{
           block: {
             $type: 'pub.leaflet.blocks.text',
-            value: 'Click here',
+            plaintext: 'Click here',
             facets: [{
               index: { byteStart: 6, byteEnd: 10 },
               features: [{
@@ -348,7 +348,7 @@ describe('Renderer', () => {
         blocks: [{
           block: {
             $type: 'pub.leaflet.blocks.text',
-            value: 'Hello @alice there',
+            plaintext: 'Hello @alice there',
             facets: [{
               index: { byteStart: 6, byteEnd: 12 },
               features: [{
@@ -371,7 +371,7 @@ describe('Renderer', () => {
         blocks: [{
           block: {
             $type: 'pub.leaflet.blocks.text',
-            value: 'Bold and italic text',
+            plaintext: 'Bold and italic text',
             facets: [
               {
                 index: { byteStart: 0, byteEnd: 4 },
@@ -397,7 +397,7 @@ describe('Renderer', () => {
         blocks: [{
           block: {
             $type: 'pub.leaflet.blocks.text',
-            value: 'Bold italic text',
+            plaintext: 'Bold italic text',
             facets: [{
               index: { byteStart: 0, byteEnd: 11 },
               features: [
@@ -423,7 +423,7 @@ describe('Renderer', () => {
         blocks: [{
           block: {
             $type: 'pub.leaflet.blocks.text',
-            value: 'Hello 🌍 world',
+            plaintext: 'Hello 🌍 world',
             facets: [{
               index: { byteStart: 11, byteEnd: 16 }, // "world" after 4-byte emoji
               features: [{ $type: 'pub.leaflet.richtext.facet#bold' }]
@@ -442,7 +442,7 @@ describe('Renderer', () => {
         blocks: [{
           block: {
             $type: 'pub.leaflet.blocks.text',
-            value: 'Short',
+            plaintext: 'Short',
             facets: [{
               index: { byteStart: 0, byteEnd: 100 }, // Beyond string length
               features: [{ $type: 'pub.leaflet.richtext.facet#bold' }]
@@ -530,11 +530,11 @@ describe('Renderer', () => {
       const pages: LeafletPage[] = [
         {
           $type: 'pub.leaflet.pages.linearDocument',
-          blocks: [{ block: { $type: 'pub.leaflet.blocks.text', value: 'Page 1' } }]
+          blocks: [{ block: { $type: 'pub.leaflet.blocks.text', plaintext: 'Page 1' } }]
         },
         {
           $type: 'pub.leaflet.pages.linearDocument',
-          blocks: [{ block: { $type: 'pub.leaflet.blocks.text', value: 'Page 2' } }]
+          blocks: [{ block: { $type: 'pub.leaflet.blocks.text', plaintext: 'Page 2' } }]
         }
       ];
 
@@ -546,7 +546,7 @@ describe('Renderer', () => {
     it('should not wrap single page in section', () => {
       const pages: LeafletPage[] = [{
         $type: 'pub.leaflet.pages.linearDocument',
-        blocks: [{ block: { $type: 'pub.leaflet.blocks.text', value: 'Only page' } }]
+        blocks: [{ block: { $type: 'pub.leaflet.blocks.text', plaintext: 'Only page' } }]
       }];
 
       const html = renderDocument(pages);
@@ -558,7 +558,7 @@ describe('Renderer', () => {
     it('should parse JSON and render document', () => {
       const json = JSON.stringify([{
         $type: 'pub.leaflet.pages.linearDocument',
-        blocks: [{ block: { $type: 'pub.leaflet.blocks.text', value: 'From JSON' } }]
+        blocks: [{ block: { $type: 'pub.leaflet.blocks.text', plaintext: 'From JSON' } }]
       }]);
 
       const html = renderDocumentContent(json);

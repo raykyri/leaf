@@ -179,7 +179,8 @@ describe.skipIf(!hasCredentials)('ATProto Integration Tests', () => {
           blocks: [{
             block: {
               $type: 'pub.leaflet.blocks.text',
-              value: 'This is a test post created by the integration test suite.'
+              plaintext: 'This is a test post created by the integration test suite.',
+              facets: []
             }
           }]
         }],
@@ -210,7 +211,7 @@ describe.skipIf(!hasCredentials)('ATProto Integration Tests', () => {
         pages: [{
           $type: 'pub.leaflet.pages.linearDocument',
           blocks: [{
-            block: { $type: 'pub.leaflet.blocks.text', value: 'Test content' }
+            block: { $type: 'pub.leaflet.blocks.text', plaintext: 'Test content', facets: [] }
           }]
         }],
         publishedAt: new Date().toISOString()
@@ -253,7 +254,7 @@ describe.skipIf(!hasCredentials)('ATProto Integration Tests', () => {
             author: userDid,
             pages: [{
               $type: 'pub.leaflet.pages.linearDocument',
-              blocks: [{ block: { $type: 'pub.leaflet.blocks.text', value: `Content ${i + 1}` } }]
+              blocks: [{ block: { $type: 'pub.leaflet.blocks.text', plaintext: `Content ${i + 1}`, facets: [] } }]
             }],
             publishedAt: new Date().toISOString()
           }
@@ -289,7 +290,7 @@ describe.skipIf(!hasCredentials)('ATProto Integration Tests', () => {
           author: userDid,
           pages: [{
             $type: 'pub.leaflet.pages.linearDocument',
-            blocks: [{ block: { $type: 'pub.leaflet.blocks.text', value: 'Indexable content' } }]
+            blocks: [{ block: { $type: 'pub.leaflet.blocks.text', plaintext: 'Indexable content', facets: [] } }]
           }],
           publishedAt: new Date().toISOString()
         }
@@ -369,7 +370,7 @@ describe.skipIf(!hasCredentials)('ATProto Integration Tests', () => {
           author: userDid,
           pages: [{
             $type: 'pub.leaflet.pages.linearDocument',
-            blocks: [{ block: { $type: 'pub.leaflet.blocks.text', value: 'Resync test' } }]
+            blocks: [{ block: { $type: 'pub.leaflet.blocks.text', plaintext: 'Resync test', facets: [] } }]
           }],
           publishedAt: new Date().toISOString()
         }
@@ -448,7 +449,7 @@ describe.skipIf(!hasCredentials)('ATProto Integration Tests', () => {
           author: userDid,
           pages: [{
             $type: 'pub.leaflet.pages.linearDocument',
-            blocks: [{ block: { $type: 'pub.leaflet.blocks.text', value: 'Original content' } }]
+            blocks: [{ block: { $type: 'pub.leaflet.blocks.text', plaintext: 'Original content', facets: [] } }]
           }],
           publishedAt: new Date().toISOString()
         }
@@ -465,7 +466,7 @@ describe.skipIf(!hasCredentials)('ATProto Integration Tests', () => {
           author: userDid,
           pages: [{
             $type: 'pub.leaflet.pages.linearDocument',
-            blocks: [{ block: { $type: 'pub.leaflet.blocks.text', value: 'Updated content' } }]
+            blocks: [{ block: { $type: 'pub.leaflet.blocks.text', plaintext: 'Updated content', facets: [] } }]
           }],
           publishedAt: new Date().toISOString()
         }
@@ -499,7 +500,7 @@ describe.skipIf(!hasCredentials)('ATProto Integration Tests', () => {
           author: userDid,
           pages: [{
             $type: 'pub.leaflet.pages.linearDocument',
-            blocks: [{ block: { $type: 'pub.leaflet.blocks.text', value: 'Delete me' } }]
+            blocks: [{ block: { $type: 'pub.leaflet.blocks.text', plaintext: 'Delete me', facets: [] } }]
           }]
         }
       });

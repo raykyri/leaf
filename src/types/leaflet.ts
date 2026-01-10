@@ -76,6 +76,7 @@ export interface CanvasPage {
 }
 
 export interface BlockWithAlignment {
+  $type?: 'pub.leaflet.pages.linearDocument#block';
   block: Block;
   alignment?: 'left' | 'center' | 'right' | 'justify';
 }
@@ -95,20 +96,21 @@ export type Block =
 
 export interface TextBlock {
   $type: 'pub.leaflet.blocks.text';
-  value: string;
+  plaintext: string;
   facets?: Facet[];
+  textSize?: 'default' | 'small' | 'large';
 }
 
 export interface HeaderBlock {
   $type: 'pub.leaflet.blocks.header';
-  value: string;
+  plaintext: string;
   level: 1 | 2 | 3 | 4 | 5 | 6;
   facets?: Facet[];
 }
 
 export interface BlockquoteBlock {
   $type: 'pub.leaflet.blocks.blockquote';
-  value: string;
+  plaintext: string;
   facets?: Facet[];
 }
 
@@ -129,14 +131,13 @@ export interface UnorderedListBlock {
 }
 
 export interface ListItem {
-  value: string;
-  facets?: Facet[];
+  content: TextBlock | HeaderBlock | ImageBlock;
   children?: ListItem[];
 }
 
 export interface CodeBlock {
   $type: 'pub.leaflet.blocks.code';
-  value: string;
+  plaintext: string;
   language?: string;
 }
 
