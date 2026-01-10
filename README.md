@@ -219,16 +219,6 @@ npm run test:coverage # Run tests with coverage report
 | `TEST_HANDLE` | Test account handle | (optional) |
 | `TEST_APP_PASSWORD` | Test account app password | (optional) |
 
-## Architecture
-
-See [DESIGN.md](./DESIGN.md) for detailed architecture documentation including:
-
-- Database schema
-- ATProto integration details
-- Jetstream event handling
-- Security considerations
-- Future enhancements
-
 ## License
 
 [AGPL-3.0](https://www.gnu.org/licenses/agpl-3.0.en.html)
