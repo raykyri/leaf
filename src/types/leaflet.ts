@@ -92,7 +92,11 @@ export type Block =
   | CodeBlock
   | IframeBlock
   | WebsiteBlock
-  | BskyPostBlock;
+  | BskyPostBlock
+  | ButtonBlock
+  | MathBlock
+  | PageBlock
+  | PollBlock;
 
 export interface TextBlock {
   $type: 'pub.leaflet.blocks.text';
@@ -158,6 +162,32 @@ export interface WebsiteBlock {
 export interface BskyPostBlock {
   $type: 'pub.leaflet.blocks.bskyPost';
   uri: string;
+}
+
+export interface ButtonBlock {
+  $type: 'pub.leaflet.blocks.button';
+  text: string;
+  url: string;
+}
+
+export interface MathBlock {
+  $type: 'pub.leaflet.blocks.math';
+  tex: string;
+}
+
+export interface PageBlock {
+  $type: 'pub.leaflet.blocks.page';
+  id: string;
+}
+
+export interface PollBlock {
+  $type: 'pub.leaflet.blocks.poll';
+  pollRef: StrongRef;
+}
+
+export interface StrongRef {
+  uri: string;
+  cid: string;
 }
 
 // Richtext facets
