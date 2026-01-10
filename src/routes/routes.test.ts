@@ -5,11 +5,10 @@
  * Uses supertest to make HTTP requests to the application.
  */
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import test from 'ava';
 import request from 'supertest';
 import express from 'express';
 import cookieParser from 'cookie-parser';
-import Database from 'better-sqlite3';
 import fs from 'fs';
 import path from 'path';
 import { initializeDatabase } from '../database/schema.js';
@@ -20,6 +19,12 @@ const TEST_APP_PASSWORD = process.env.TEST_APP_PASSWORD;
 const TEST_DB_PATH = './data/test-routes.db';
 
 const hasCredentials = TEST_HANDLE && TEST_APP_PASSWORD;
+const skipIfNoCredentials = !hasCredentials;
+
+// Log skip reason if credentials not provided
+if (!hasCredentials) {
+  console.log('Skipping HTTP route integration tests: TEST_HANDLE and TEST_APP_PASSWORD not set');
+}
 
 // Create a test app that uses a test database
 async function createTestApp() {
@@ -63,304 +68,609 @@ async function createTestApp() {
   return app;
 }
 
-describe.skipIf(!hasCredentials)('HTTP Routes Integration', () => {
-  let app: express.Application;
-
-  beforeAll(async () => {
-    app = await createTestApp();
-  });
-
-  afterAll(async () => {
-    // Clean up test database
+// Cleanup function
+async function cleanupTestDb() {
+  try {
     const { closeDatabase } = await import('../database/index.js');
     closeDatabase();
+  } catch {
+    // Ignore
+  }
 
-    if (fs.existsSync(TEST_DB_PATH)) {
-      fs.unlinkSync(TEST_DB_PATH);
-    }
-  });
+  if (fs.existsSync(TEST_DB_PATH)) {
+    fs.unlinkSync(TEST_DB_PATH);
+  }
+}
 
-  describe('Public Routes', () => {
-    it('GET / should return login page', async () => {
-      const res = await request(app).get('/');
-      expect(res.status).toBe(200);
-      expect(res.text).toContain('Login');
-      expect(res.text).toContain('Leaflet Blog');
-    });
+// Public Routes tests
+test('Public Routes › GET / should return login page', async t => {
+  if (skipIfNoCredentials) {
+    t.pass('Skipped: no credentials');
+    return;
+  }
 
-    it('GET /auth/login should return login page', async () => {
-      const res = await request(app).get('/auth/login');
-      expect(res.status).toBe(200);
-      expect(res.text).toContain('Login');
-    });
-
-    it('GET /posts should return empty posts list', async () => {
-      const res = await request(app).get('/posts');
-      expect(res.status).toBe(200);
-      expect(res.text).toContain('All Posts');
-    });
-
-    it('GET /posts with pagination should work', async () => {
-      const res = await request(app).get('/posts?page=1');
-      expect(res.status).toBe(200);
-    });
-
-    it('GET /user/:handle for nonexistent user should return 404', async () => {
-      const res = await request(app).get('/user/nonexistent.bsky.social');
-      expect(res.status).toBe(404);
-      expect(res.text).toContain('Not Found');
-    });
-
-    it('GET /posts/:did/:rkey for nonexistent post should return 404', async () => {
-      const res = await request(app).get('/posts/did:plc:fake/nonexistent');
-      expect(res.status).toBe(404);
-      expect(res.text).toContain('Not Found');
-    });
-  });
-
-  describe('Protected Routes (Unauthenticated)', () => {
-    it('GET /profile should redirect to home', async () => {
-      const res = await request(app).get('/profile');
-      expect(res.status).toBe(302);
-      expect(res.headers.location).toBe('/');
-    });
-
-    it('GET /create should redirect to home', async () => {
-      const res = await request(app).get('/create');
-      expect(res.status).toBe(302);
-      expect(res.headers.location).toBe('/');
-    });
-
-    it('POST /create should redirect to home', async () => {
-      const res = await request(app)
-        .post('/create')
-        .send({ title: 'Test', content: 'Content' });
-      expect(res.status).toBe(302);
-      expect(res.headers.location).toBe('/');
-    });
-
-    it('POST /refresh should redirect to home', async () => {
-      const res = await request(app).post('/refresh');
-      expect(res.status).toBe(302);
-      expect(res.headers.location).toBe('/');
-    });
-  });
-
-  describe('Authentication', () => {
-    it('POST /auth/login with missing credentials should show error', async () => {
-      const res = await request(app)
-        .post('/auth/login')
-        .send({});
-      expect(res.status).toBe(200);
-      expect(res.text).toContain('Please provide both handle and password');
-    });
-
-    it('POST /auth/login with invalid credentials should show error', async () => {
-      const res = await request(app)
-        .post('/auth/login')
-        .send({ handle: 'invalid.bsky.social', password: 'wrongpassword' });
-      expect(res.status).toBe(200);
-      expect(res.text).toContain('Invalid credentials');
-    });
-
-    it('POST /auth/login with valid credentials should redirect and set cookie', async () => {
-      const res = await request(app)
-        .post('/auth/login')
-        .send({ handle: TEST_HANDLE, password: TEST_APP_PASSWORD });
-
-      expect(res.status).toBe(302);
-      expect(res.headers.location).toBe('/profile');
-      expect(res.headers['set-cookie']).toBeDefined();
-
-      const cookies = (Array.isArray(res.headers['set-cookie']) ? res.headers['set-cookie'] : [res.headers['set-cookie']]) as string[];
-      const sessionCookie = cookies.find(c => c?.startsWith('session='));
-      expect(sessionCookie).toBeDefined();
-      expect(sessionCookie).toContain('HttpOnly');
-    });
-
-    it('POST /auth/logout should clear cookie and redirect', async () => {
-      // First login
-      const loginRes = await request(app)
-        .post('/auth/login')
-        .send({ handle: TEST_HANDLE, password: TEST_APP_PASSWORD });
-
-      const cookies = (Array.isArray(loginRes.headers['set-cookie']) ? loginRes.headers['set-cookie'] : [loginRes.headers['set-cookie']]) as string[];
-      const sessionCookie = cookies.find(c => c.startsWith('session='));
-      const sessionValue = sessionCookie!.split(';')[0].split('=')[1];
-
-      // Get CSRF token from profile page
-      const profileRes = await request(app)
-        .get('/profile')
-        .set('Cookie', [`session=${sessionValue}`]);
-
-      const csrfMatch = profileRes.text.match(/name="_csrf" value="([^"]+)"/);
-      const logoutCsrfToken = csrfMatch?.[1] || '';
-
-      // Then logout with CSRF token
-      const logoutRes = await request(app)
-        .post('/auth/logout')
-        .set('Cookie', [`session=${sessionValue}`])
-        .send({ _csrf: logoutCsrfToken });
-
-      expect(logoutRes.status).toBe(302);
-      expect(logoutRes.headers.location).toBe('/');
-    });
-  });
-
-  describe('Authenticated Routes', () => {
-    let sessionCookie: string;
-    let csrfToken: string;
-
-    beforeAll(async () => {
-      // Login to get session
-      const res = await request(app)
-        .post('/auth/login')
-        .send({ handle: TEST_HANDLE, password: TEST_APP_PASSWORD });
-
-      const cookies = (Array.isArray(res.headers['set-cookie']) ? res.headers['set-cookie'] : [res.headers['set-cookie']]) as string[];
-      const cookie = cookies.find(c => c.startsWith('session='));
-      sessionCookie = cookie!.split(';')[0];
-
-      // Get CSRF token from profile page
-      const profileRes = await request(app)
-        .get('/profile')
-        .set('Cookie', [sessionCookie]);
-
-      // Extract CSRF token from form
-      const csrfMatch = profileRes.text.match(/name="_csrf" value="([^"]+)"/);
-      csrfToken = csrfMatch?.[1] || '';
-    });
-
-    it('GET /profile should show user profile', async () => {
-      const res = await request(app)
-        .get('/profile')
-        .set('Cookie', [sessionCookie]);
-
-      expect(res.status).toBe(200);
-      expect(res.text).toContain(TEST_HANDLE!);
-      expect(res.text).toContain('My Posts');
-    });
-
-    it('GET /create should show create post form', async () => {
-      const res = await request(app)
-        .get('/create')
-        .set('Cookie', [sessionCookie]);
-
-      expect(res.status).toBe(200);
-      expect(res.text).toContain('Create New Post');
-      expect(res.text).toContain('_csrf');
-    });
-
-    it('POST /create without CSRF should fail', async () => {
-      const res = await request(app)
-        .post('/create')
-        .set('Cookie', [sessionCookie])
-        .send({ title: 'Test', content: 'Test content' });
-
-      expect(res.status).toBe(403);
-      expect(res.text).toContain('CSRF');
-    });
-
-    it('POST /create with valid CSRF should work', async () => {
-      const res = await request(app)
-        .post('/create')
-        .set('Cookie', [sessionCookie])
-        .send({
-          title: '[TEST] Route Test Post',
-          content: 'Created via route test',
-          _csrf: csrfToken
-        });
-
-      // Should redirect to the new post
-      expect(res.status).toBe(302);
-      expect(res.headers.location).toMatch(/^\/posts\//);
-    });
-
-    it('POST /create without title should show error', async () => {
-      const res = await request(app)
-        .post('/create')
-        .set('Cookie', [sessionCookie])
-        .send({
-          content: 'Content without title',
-          _csrf: csrfToken
-        });
-
-      expect(res.status).toBe(200);
-      expect(res.text).toContain('Title and content are required');
-    });
-
-    it('POST /refresh should index from PDS', async () => {
-      const res = await request(app)
-        .post('/refresh')
-        .set('Cookie', [sessionCookie])
-        .send({ _csrf: csrfToken });
-
-      expect(res.status).toBe(302);
-      expect(res.headers.location).toContain('/profile?message=');
-    });
-
-    it('GET /user/:handle should show user posts', async () => {
-      const res = await request(app)
-        .get(`/user/${TEST_HANDLE}`)
-        .set('Cookie', [sessionCookie]);
-
-      expect(res.status).toBe(200);
-      expect(res.text).toContain(TEST_HANDLE);
-    });
-  });
-
-  describe('CSRF Protection', () => {
-    let sessionCookie: string;
-
-    beforeAll(async () => {
-      const res = await request(app)
-        .post('/auth/login')
-        .send({ handle: TEST_HANDLE, password: TEST_APP_PASSWORD });
-
-      const cookies = (Array.isArray(res.headers['set-cookie']) ? res.headers['set-cookie'] : [res.headers['set-cookie']]) as string[];
-      const cookie = cookies.find(c => c.startsWith('session='));
-      sessionCookie = cookie!.split(';')[0];
-    });
-
-    it('should reject POST to /create without CSRF token', async () => {
-      const res = await request(app)
-        .post('/create')
-        .set('Cookie', [sessionCookie])
-        .send({ title: 'Test', content: 'Test' });
-
-      expect(res.status).toBe(403);
-    });
-
-    it('should reject POST with invalid CSRF token', async () => {
-      const res = await request(app)
-        .post('/create')
-        .set('Cookie', [sessionCookie])
-        .send({ title: 'Test', content: 'Test', _csrf: 'invalid-token' });
-
-      expect(res.status).toBe(403);
-    });
-
-    it('should accept CSRF token in header', async () => {
-      // Get a valid CSRF token
-      const profileRes = await request(app)
-        .get('/profile')
-        .set('Cookie', [sessionCookie]);
-
-      const csrfMatch = profileRes.text.match(/name="_csrf" value="([^"]+)"/);
-      const csrfToken = csrfMatch?.[1] || '';
-
-      const res = await request(app)
-        .post('/refresh')
-        .set('Cookie', [sessionCookie])
-        .set('X-CSRF-Token', csrfToken);
-
-      // Should not be 403
-      expect(res.status).not.toBe(403);
-    });
-  });
+  const app = await createTestApp();
+  try {
+    const res = await request(app).get('/');
+    t.is(res.status, 200);
+    t.true(res.text.includes('Login'));
+    t.true(res.text.includes('Leaflet Blog'));
+  } finally {
+    await cleanupTestDb();
+  }
 });
 
-// Log skip reason if credentials not provided
-if (!hasCredentials) {
-  console.log('Skipping HTTP route integration tests: TEST_HANDLE and TEST_APP_PASSWORD not set');
-}
+test('Public Routes › GET /auth/login should return login page', async t => {
+  if (skipIfNoCredentials) {
+    t.pass('Skipped: no credentials');
+    return;
+  }
+
+  const app = await createTestApp();
+  try {
+    const res = await request(app).get('/auth/login');
+    t.is(res.status, 200);
+    t.true(res.text.includes('Login'));
+  } finally {
+    await cleanupTestDb();
+  }
+});
+
+test('Public Routes › GET /posts should return empty posts list', async t => {
+  if (skipIfNoCredentials) {
+    t.pass('Skipped: no credentials');
+    return;
+  }
+
+  const app = await createTestApp();
+  try {
+    const res = await request(app).get('/posts');
+    t.is(res.status, 200);
+    t.true(res.text.includes('All Posts'));
+  } finally {
+    await cleanupTestDb();
+  }
+});
+
+test('Public Routes › GET /posts with pagination should work', async t => {
+  if (skipIfNoCredentials) {
+    t.pass('Skipped: no credentials');
+    return;
+  }
+
+  const app = await createTestApp();
+  try {
+    const res = await request(app).get('/posts?page=1');
+    t.is(res.status, 200);
+  } finally {
+    await cleanupTestDb();
+  }
+});
+
+test('Public Routes › GET /user/:handle for nonexistent user should return 404', async t => {
+  if (skipIfNoCredentials) {
+    t.pass('Skipped: no credentials');
+    return;
+  }
+
+  const app = await createTestApp();
+  try {
+    const res = await request(app).get('/user/nonexistent.bsky.social');
+    t.is(res.status, 404);
+    t.true(res.text.includes('Not Found'));
+  } finally {
+    await cleanupTestDb();
+  }
+});
+
+test('Public Routes › GET /posts/:did/:rkey for nonexistent post should return 404', async t => {
+  if (skipIfNoCredentials) {
+    t.pass('Skipped: no credentials');
+    return;
+  }
+
+  const app = await createTestApp();
+  try {
+    const res = await request(app).get('/posts/did:plc:fake/nonexistent');
+    t.is(res.status, 404);
+    t.true(res.text.includes('Not Found'));
+  } finally {
+    await cleanupTestDb();
+  }
+});
+
+// Protected Routes (Unauthenticated) tests
+test('Protected Routes › GET /profile should redirect to home', async t => {
+  if (skipIfNoCredentials) {
+    t.pass('Skipped: no credentials');
+    return;
+  }
+
+  const app = await createTestApp();
+  try {
+    const res = await request(app).get('/profile');
+    t.is(res.status, 302);
+    t.is(res.headers.location, '/');
+  } finally {
+    await cleanupTestDb();
+  }
+});
+
+test('Protected Routes › GET /create should redirect to home', async t => {
+  if (skipIfNoCredentials) {
+    t.pass('Skipped: no credentials');
+    return;
+  }
+
+  const app = await createTestApp();
+  try {
+    const res = await request(app).get('/create');
+    t.is(res.status, 302);
+    t.is(res.headers.location, '/');
+  } finally {
+    await cleanupTestDb();
+  }
+});
+
+test('Protected Routes › POST /create should redirect to home', async t => {
+  if (skipIfNoCredentials) {
+    t.pass('Skipped: no credentials');
+    return;
+  }
+
+  const app = await createTestApp();
+  try {
+    const res = await request(app)
+      .post('/create')
+      .send({ title: 'Test', content: 'Content' });
+    t.is(res.status, 302);
+    t.is(res.headers.location, '/');
+  } finally {
+    await cleanupTestDb();
+  }
+});
+
+test('Protected Routes › POST /refresh should redirect to home', async t => {
+  if (skipIfNoCredentials) {
+    t.pass('Skipped: no credentials');
+    return;
+  }
+
+  const app = await createTestApp();
+  try {
+    const res = await request(app).post('/refresh');
+    t.is(res.status, 302);
+    t.is(res.headers.location, '/');
+  } finally {
+    await cleanupTestDb();
+  }
+});
+
+// Authentication tests
+test('Authentication › POST /auth/login with missing credentials should show error', async t => {
+  if (skipIfNoCredentials) {
+    t.pass('Skipped: no credentials');
+    return;
+  }
+
+  const app = await createTestApp();
+  try {
+    const res = await request(app)
+      .post('/auth/login')
+      .send({});
+    t.is(res.status, 200);
+    t.true(res.text.includes('Please provide both handle and password'));
+  } finally {
+    await cleanupTestDb();
+  }
+});
+
+test('Authentication › POST /auth/login with invalid credentials should show error', async t => {
+  if (skipIfNoCredentials) {
+    t.pass('Skipped: no credentials');
+    return;
+  }
+
+  const app = await createTestApp();
+  try {
+    const res = await request(app)
+      .post('/auth/login')
+      .send({ handle: 'invalid.bsky.social', password: 'wrongpassword' });
+    t.is(res.status, 200);
+    t.true(res.text.includes('Invalid credentials'));
+  } finally {
+    await cleanupTestDb();
+  }
+});
+
+test('Authentication › POST /auth/login with valid credentials should redirect and set cookie', async t => {
+  if (skipIfNoCredentials) {
+    t.pass('Skipped: no credentials');
+    return;
+  }
+
+  const app = await createTestApp();
+  try {
+    const res = await request(app)
+      .post('/auth/login')
+      .send({ handle: TEST_HANDLE, password: TEST_APP_PASSWORD });
+
+    t.is(res.status, 302);
+    t.is(res.headers.location, '/profile');
+    t.truthy(res.headers['set-cookie']);
+
+    const cookies = (Array.isArray(res.headers['set-cookie']) ? res.headers['set-cookie'] : [res.headers['set-cookie']]) as string[];
+    const sessionCookie = cookies.find(c => c?.startsWith('session='));
+    t.truthy(sessionCookie);
+    t.true(sessionCookie!.includes('HttpOnly'));
+  } finally {
+    await cleanupTestDb();
+  }
+});
+
+test('Authentication › POST /auth/logout should clear cookie and redirect', async t => {
+  if (skipIfNoCredentials) {
+    t.pass('Skipped: no credentials');
+    return;
+  }
+
+  const app = await createTestApp();
+  try {
+    // First login
+    const loginRes = await request(app)
+      .post('/auth/login')
+      .send({ handle: TEST_HANDLE, password: TEST_APP_PASSWORD });
+
+    const cookies = (Array.isArray(loginRes.headers['set-cookie']) ? loginRes.headers['set-cookie'] : [loginRes.headers['set-cookie']]) as string[];
+    const sessionCookie = cookies.find(c => c.startsWith('session='));
+    const sessionValue = sessionCookie!.split(';')[0].split('=')[1];
+
+    // Get CSRF token from profile page
+    const profileRes = await request(app)
+      .get('/profile')
+      .set('Cookie', [`session=${sessionValue}`]);
+
+    const csrfMatch = profileRes.text.match(/name="_csrf" value="([^"]+)"/);
+    const logoutCsrfToken = csrfMatch?.[1] || '';
+
+    // Then logout with CSRF token
+    const logoutRes = await request(app)
+      .post('/auth/logout')
+      .set('Cookie', [`session=${sessionValue}`])
+      .send({ _csrf: logoutCsrfToken });
+
+    t.is(logoutRes.status, 302);
+    t.is(logoutRes.headers.location, '/');
+  } finally {
+    await cleanupTestDb();
+  }
+});
+
+// Authenticated Routes tests
+test('Authenticated Routes › GET /profile should show user profile', async t => {
+  if (skipIfNoCredentials) {
+    t.pass('Skipped: no credentials');
+    return;
+  }
+
+  const app = await createTestApp();
+  try {
+    // Login to get session
+    const res = await request(app)
+      .post('/auth/login')
+      .send({ handle: TEST_HANDLE, password: TEST_APP_PASSWORD });
+
+    const cookies = (Array.isArray(res.headers['set-cookie']) ? res.headers['set-cookie'] : [res.headers['set-cookie']]) as string[];
+    const cookie = cookies.find(c => c.startsWith('session='));
+    const sessionCookie = cookie!.split(';')[0];
+
+    const profileRes = await request(app)
+      .get('/profile')
+      .set('Cookie', [sessionCookie]);
+
+    t.is(profileRes.status, 200);
+    t.true(profileRes.text.includes(TEST_HANDLE!));
+    t.true(profileRes.text.includes('My Posts'));
+  } finally {
+    await cleanupTestDb();
+  }
+});
+
+test('Authenticated Routes › GET /create should show create post form', async t => {
+  if (skipIfNoCredentials) {
+    t.pass('Skipped: no credentials');
+    return;
+  }
+
+  const app = await createTestApp();
+  try {
+    // Login to get session
+    const res = await request(app)
+      .post('/auth/login')
+      .send({ handle: TEST_HANDLE, password: TEST_APP_PASSWORD });
+
+    const cookies = (Array.isArray(res.headers['set-cookie']) ? res.headers['set-cookie'] : [res.headers['set-cookie']]) as string[];
+    const cookie = cookies.find(c => c.startsWith('session='));
+    const sessionCookie = cookie!.split(';')[0];
+
+    const createRes = await request(app)
+      .get('/create')
+      .set('Cookie', [sessionCookie]);
+
+    t.is(createRes.status, 200);
+    t.true(createRes.text.includes('Create New Post'));
+    t.true(createRes.text.includes('_csrf'));
+  } finally {
+    await cleanupTestDb();
+  }
+});
+
+test('Authenticated Routes › POST /create without CSRF should fail', async t => {
+  if (skipIfNoCredentials) {
+    t.pass('Skipped: no credentials');
+    return;
+  }
+
+  const app = await createTestApp();
+  try {
+    // Login to get session
+    const res = await request(app)
+      .post('/auth/login')
+      .send({ handle: TEST_HANDLE, password: TEST_APP_PASSWORD });
+
+    const cookies = (Array.isArray(res.headers['set-cookie']) ? res.headers['set-cookie'] : [res.headers['set-cookie']]) as string[];
+    const cookie = cookies.find(c => c.startsWith('session='));
+    const sessionCookie = cookie!.split(';')[0];
+
+    const createRes = await request(app)
+      .post('/create')
+      .set('Cookie', [sessionCookie])
+      .send({ title: 'Test', content: 'Test content' });
+
+    t.is(createRes.status, 403);
+    t.true(createRes.text.includes('CSRF'));
+  } finally {
+    await cleanupTestDb();
+  }
+});
+
+test('Authenticated Routes › POST /create with valid CSRF should work', async t => {
+  if (skipIfNoCredentials) {
+    t.pass('Skipped: no credentials');
+    return;
+  }
+
+  const app = await createTestApp();
+  try {
+    // Login to get session
+    const res = await request(app)
+      .post('/auth/login')
+      .send({ handle: TEST_HANDLE, password: TEST_APP_PASSWORD });
+
+    const cookies = (Array.isArray(res.headers['set-cookie']) ? res.headers['set-cookie'] : [res.headers['set-cookie']]) as string[];
+    const cookie = cookies.find(c => c.startsWith('session='));
+    const sessionCookie = cookie!.split(';')[0];
+
+    // Get CSRF token from profile page
+    const profileRes = await request(app)
+      .get('/profile')
+      .set('Cookie', [sessionCookie]);
+
+    const csrfMatch = profileRes.text.match(/name="_csrf" value="([^"]+)"/);
+    const csrfToken = csrfMatch?.[1] || '';
+
+    const createRes = await request(app)
+      .post('/create')
+      .set('Cookie', [sessionCookie])
+      .send({
+        title: '[TEST] Route Test Post',
+        content: 'Created via route test',
+        _csrf: csrfToken
+      });
+
+    // Should redirect to the new post
+    t.is(createRes.status, 302);
+    t.regex(createRes.headers.location, /^\/posts\//);
+  } finally {
+    await cleanupTestDb();
+  }
+});
+
+test('Authenticated Routes › POST /create without title should show error', async t => {
+  if (skipIfNoCredentials) {
+    t.pass('Skipped: no credentials');
+    return;
+  }
+
+  const app = await createTestApp();
+  try {
+    // Login to get session
+    const res = await request(app)
+      .post('/auth/login')
+      .send({ handle: TEST_HANDLE, password: TEST_APP_PASSWORD });
+
+    const cookies = (Array.isArray(res.headers['set-cookie']) ? res.headers['set-cookie'] : [res.headers['set-cookie']]) as string[];
+    const cookie = cookies.find(c => c.startsWith('session='));
+    const sessionCookie = cookie!.split(';')[0];
+
+    // Get CSRF token from profile page
+    const profileRes = await request(app)
+      .get('/profile')
+      .set('Cookie', [sessionCookie]);
+
+    const csrfMatch = profileRes.text.match(/name="_csrf" value="([^"]+)"/);
+    const csrfToken = csrfMatch?.[1] || '';
+
+    const createRes = await request(app)
+      .post('/create')
+      .set('Cookie', [sessionCookie])
+      .send({
+        content: 'Content without title',
+        _csrf: csrfToken
+      });
+
+    t.is(createRes.status, 200);
+    t.true(createRes.text.includes('Title and content are required'));
+  } finally {
+    await cleanupTestDb();
+  }
+});
+
+test('Authenticated Routes › POST /refresh should index from PDS', async t => {
+  if (skipIfNoCredentials) {
+    t.pass('Skipped: no credentials');
+    return;
+  }
+
+  const app = await createTestApp();
+  try {
+    // Login to get session
+    const res = await request(app)
+      .post('/auth/login')
+      .send({ handle: TEST_HANDLE, password: TEST_APP_PASSWORD });
+
+    const cookies = (Array.isArray(res.headers['set-cookie']) ? res.headers['set-cookie'] : [res.headers['set-cookie']]) as string[];
+    const cookie = cookies.find(c => c.startsWith('session='));
+    const sessionCookie = cookie!.split(';')[0];
+
+    // Get CSRF token from profile page
+    const profileRes = await request(app)
+      .get('/profile')
+      .set('Cookie', [sessionCookie]);
+
+    const csrfMatch = profileRes.text.match(/name="_csrf" value="([^"]+)"/);
+    const csrfToken = csrfMatch?.[1] || '';
+
+    const refreshRes = await request(app)
+      .post('/refresh')
+      .set('Cookie', [sessionCookie])
+      .send({ _csrf: csrfToken });
+
+    t.is(refreshRes.status, 302);
+    t.true(refreshRes.headers.location.includes('/profile?message='));
+  } finally {
+    await cleanupTestDb();
+  }
+});
+
+test('Authenticated Routes › GET /user/:handle should show user posts', async t => {
+  if (skipIfNoCredentials) {
+    t.pass('Skipped: no credentials');
+    return;
+  }
+
+  const app = await createTestApp();
+  try {
+    // Login to get session
+    const res = await request(app)
+      .post('/auth/login')
+      .send({ handle: TEST_HANDLE, password: TEST_APP_PASSWORD });
+
+    const cookies = (Array.isArray(res.headers['set-cookie']) ? res.headers['set-cookie'] : [res.headers['set-cookie']]) as string[];
+    const cookie = cookies.find(c => c.startsWith('session='));
+    const sessionCookie = cookie!.split(';')[0];
+
+    const userRes = await request(app)
+      .get(`/user/${TEST_HANDLE}`)
+      .set('Cookie', [sessionCookie]);
+
+    t.is(userRes.status, 200);
+    t.true(userRes.text.includes(TEST_HANDLE!));
+  } finally {
+    await cleanupTestDb();
+  }
+});
+
+// CSRF Protection tests
+test('CSRF Protection › should reject POST to /create without CSRF token', async t => {
+  if (skipIfNoCredentials) {
+    t.pass('Skipped: no credentials');
+    return;
+  }
+
+  const app = await createTestApp();
+  try {
+    // Login to get session
+    const res = await request(app)
+      .post('/auth/login')
+      .send({ handle: TEST_HANDLE, password: TEST_APP_PASSWORD });
+
+    const cookies = (Array.isArray(res.headers['set-cookie']) ? res.headers['set-cookie'] : [res.headers['set-cookie']]) as string[];
+    const cookie = cookies.find(c => c.startsWith('session='));
+    const sessionCookie = cookie!.split(';')[0];
+
+    const createRes = await request(app)
+      .post('/create')
+      .set('Cookie', [sessionCookie])
+      .send({ title: 'Test', content: 'Test' });
+
+    t.is(createRes.status, 403);
+  } finally {
+    await cleanupTestDb();
+  }
+});
+
+test('CSRF Protection › should reject POST with invalid CSRF token', async t => {
+  if (skipIfNoCredentials) {
+    t.pass('Skipped: no credentials');
+    return;
+  }
+
+  const app = await createTestApp();
+  try {
+    // Login to get session
+    const res = await request(app)
+      .post('/auth/login')
+      .send({ handle: TEST_HANDLE, password: TEST_APP_PASSWORD });
+
+    const cookies = (Array.isArray(res.headers['set-cookie']) ? res.headers['set-cookie'] : [res.headers['set-cookie']]) as string[];
+    const cookie = cookies.find(c => c.startsWith('session='));
+    const sessionCookie = cookie!.split(';')[0];
+
+    const createRes = await request(app)
+      .post('/create')
+      .set('Cookie', [sessionCookie])
+      .send({ title: 'Test', content: 'Test', _csrf: 'invalid-token' });
+
+    t.is(createRes.status, 403);
+  } finally {
+    await cleanupTestDb();
+  }
+});
+
+test('CSRF Protection › should accept CSRF token in header', async t => {
+  if (skipIfNoCredentials) {
+    t.pass('Skipped: no credentials');
+    return;
+  }
+
+  const app = await createTestApp();
+  try {
+    // Login to get session
+    const res = await request(app)
+      .post('/auth/login')
+      .send({ handle: TEST_HANDLE, password: TEST_APP_PASSWORD });
+
+    const cookies = (Array.isArray(res.headers['set-cookie']) ? res.headers['set-cookie'] : [res.headers['set-cookie']]) as string[];
+    const cookie = cookies.find(c => c.startsWith('session='));
+    const sessionCookie = cookie!.split(';')[0];
+
+    // Get a valid CSRF token
+    const profileRes = await request(app)
+      .get('/profile')
+      .set('Cookie', [sessionCookie]);
+
+    const csrfMatch = profileRes.text.match(/name="_csrf" value="([^"]+)"/);
+    const csrfToken = csrfMatch?.[1] || '';
+
+    const refreshRes = await request(app)
+      .post('/refresh')
+      .set('Cookie', [sessionCookie])
+      .set('X-CSRF-Token', csrfToken);
+
+    // Should not be 403
+    t.not(refreshRes.status, 403);
+  } finally {
+    await cleanupTestDb();
+  }
+});

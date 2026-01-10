@@ -9,11 +9,11 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "db:setup": "tsx src/database/setup.ts",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage",
-    "test:unit": "vitest run src/database src/services/renderer.test.ts",
-    "test:integration": "vitest run src/integration.test.ts src/routes/routes.test.ts"
+    "test": "ava",
+    "test:watch": "ava --watch",
+    "test:coverage": "c8 ava",
+    "test:unit": "ava src/database/index.test.ts src/services/renderer.test.ts",
+    "test:integration": "ava src/integration.test.ts src/routes/routes.test.ts"
   },
   "keywords": [
     "atproto",
@@ -39,10 +39,10 @@
     "@types/node": "^22.10.5",
     "@types/supertest": "^6.0.3",
     "@types/ws": "^8.5.13",
-    "@vitest/coverage-v8": "^4.0.16",
+    "ava": "^6.1.1",
+    "c8": "^9.1.0",
     "supertest": "^7.2.2",
     "tsx": "^4.19.2",
-    "typescript": "^5.7.2",
-    "vitest": "^4.0.16"
+    "typescript": "^5.7.2"
   }
 }

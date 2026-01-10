@@ -1,573 +1,564 @@
-import { describe, it, expect } from 'vitest';
+import test from 'ava';
 import { renderDocument, renderDocumentContent } from './renderer.js';
-import type { LinearDocumentPage, LeafletPage } from '../types/leaflet.js';
+import type { LeafletPage } from '../types/leaflet.js';
 
-describe('Renderer', () => {
-  describe('renderDocument', () => {
-    it('should render a simple text block', () => {
-      const pages: LeafletPage[] = [{
-        $type: 'pub.leaflet.pages.linearDocument',
-        blocks: [{
-          block: {
-            $type: 'pub.leaflet.blocks.text',
-            plaintext: 'Hello, world!'
-          }
-        }]
-      }];
+// renderDocument tests
+test('renderDocument › should render a simple text block', t => {
+  const pages: LeafletPage[] = [{
+    $type: 'pub.leaflet.pages.linearDocument',
+    blocks: [{
+      block: {
+        $type: 'pub.leaflet.blocks.text',
+        plaintext: 'Hello, world!'
+      }
+    }]
+  }];
 
-      const html = renderDocument(pages);
-      expect(html).toContain('<p>Hello, world!</p>');
-    });
+  const html = renderDocument(pages);
+  t.true(html.includes('<p>Hello, world!</p>'));
+});
 
-    it('should escape HTML in text to prevent XSS', () => {
-      const pages: LeafletPage[] = [{
-        $type: 'pub.leaflet.pages.linearDocument',
-        blocks: [{
-          block: {
-            $type: 'pub.leaflet.blocks.text',
-            plaintext: '<script>alert("xss")</script>'
-          }
-        }]
-      }];
+test('renderDocument › should escape HTML in text to prevent XSS', t => {
+  const pages: LeafletPage[] = [{
+    $type: 'pub.leaflet.pages.linearDocument',
+    blocks: [{
+      block: {
+        $type: 'pub.leaflet.blocks.text',
+        plaintext: '<script>alert("xss")</script>'
+      }
+    }]
+  }];
 
-      const html = renderDocument(pages);
-      expect(html).not.toContain('<script>');
-      expect(html).toContain('&lt;script&gt;');
-    });
+  const html = renderDocument(pages);
+  t.false(html.includes('<script>'));
+  t.true(html.includes('&lt;script&gt;'));
+});
 
-    it('should render header blocks with correct levels', () => {
-      const pages: LeafletPage[] = [{
-        $type: 'pub.leaflet.pages.linearDocument',
-        blocks: [
-          { block: { $type: 'pub.leaflet.blocks.header', level: 1, plaintext: 'H1 Title' } },
-          { block: { $type: 'pub.leaflet.blocks.header', level: 2, plaintext: 'H2 Title' } },
-          { block: { $type: 'pub.leaflet.blocks.header', level: 3, plaintext: 'H3 Title' } }
+test('renderDocument › should render header blocks with correct levels', t => {
+  const pages: LeafletPage[] = [{
+    $type: 'pub.leaflet.pages.linearDocument',
+    blocks: [
+      { block: { $type: 'pub.leaflet.blocks.header', level: 1, plaintext: 'H1 Title' } },
+      { block: { $type: 'pub.leaflet.blocks.header', level: 2, plaintext: 'H2 Title' } },
+      { block: { $type: 'pub.leaflet.blocks.header', level: 3, plaintext: 'H3 Title' } }
+    ]
+  }];
+
+  const html = renderDocument(pages);
+  t.true(html.includes('<h1>H1 Title</h1>'));
+  t.true(html.includes('<h2>H2 Title</h2>'));
+  t.true(html.includes('<h3>H3 Title</h3>'));
+});
+
+test('renderDocument › should clamp header levels to valid range (1-6)', t => {
+  const pages: LeafletPage[] = [{
+    $type: 'pub.leaflet.pages.linearDocument',
+    blocks: [
+      { block: { $type: 'pub.leaflet.blocks.header', level: 0, plaintext: 'Too Low' } },
+      { block: { $type: 'pub.leaflet.blocks.header', level: 10, plaintext: 'Too High' } }
+    ]
+  }];
+
+  const html = renderDocument(pages);
+  t.true(html.includes('<h1>Too Low</h1>'));
+  t.true(html.includes('<h6>Too High</h6>'));
+});
+
+test('renderDocument › should render blockquotes', t => {
+  const pages: LeafletPage[] = [{
+    $type: 'pub.leaflet.pages.linearDocument',
+    blocks: [{
+      block: {
+        $type: 'pub.leaflet.blocks.blockquote',
+        plaintext: 'A wise quote'
+      }
+    }]
+  }];
+
+  const html = renderDocument(pages);
+  t.true(html.includes('<blockquote>A wise quote</blockquote>'));
+});
+
+test('renderDocument › should render horizontal rules', t => {
+  const pages: LeafletPage[] = [{
+    $type: 'pub.leaflet.pages.linearDocument',
+    blocks: [{
+      block: { $type: 'pub.leaflet.blocks.horizontalRule' }
+    }]
+  }];
+
+  const html = renderDocument(pages);
+  t.true(html.includes('<hr>'));
+});
+
+test('renderDocument › should render code blocks with language class', t => {
+  const pages: LeafletPage[] = [{
+    $type: 'pub.leaflet.pages.linearDocument',
+    blocks: [{
+      block: {
+        $type: 'pub.leaflet.blocks.code',
+        plaintext: 'const x = 1;',
+        language: 'javascript'
+      }
+    }]
+  }];
+
+  const html = renderDocument(pages);
+  t.true(html.includes('<pre><code class="language-javascript">const x = 1;</code></pre>'));
+});
+
+test('renderDocument › should escape HTML in code blocks', t => {
+  const pages: LeafletPage[] = [{
+    $type: 'pub.leaflet.pages.linearDocument',
+    blocks: [{
+      block: {
+        $type: 'pub.leaflet.blocks.code',
+        plaintext: '<div>Not HTML</div>'
+      }
+    }]
+  }];
+
+  const html = renderDocument(pages);
+  t.true(html.includes('&lt;div&gt;Not HTML&lt;/div&gt;'));
+});
+
+test('renderDocument › should render unordered lists', t => {
+  const pages: LeafletPage[] = [{
+    $type: 'pub.leaflet.pages.linearDocument',
+    blocks: [{
+      block: {
+        $type: 'pub.leaflet.blocks.unorderedList',
+        items: [
+          { content: { $type: 'pub.leaflet.blocks.text', plaintext: 'First item' } },
+          { content: { $type: 'pub.leaflet.blocks.text', plaintext: 'Second item' } },
+          { content: { $type: 'pub.leaflet.blocks.text', plaintext: 'Third item' } }
         ]
-      }];
+      }
+    }]
+  }];
 
-      const html = renderDocument(pages);
-      expect(html).toContain('<h1>H1 Title</h1>');
-      expect(html).toContain('<h2>H2 Title</h2>');
-      expect(html).toContain('<h3>H3 Title</h3>');
-    });
+  const html = renderDocument(pages);
+  t.true(html.includes('<ul>'));
+  t.true(html.includes('<li>First item</li>'));
+  t.true(html.includes('<li>Second item</li>'));
+  t.true(html.includes('<li>Third item</li>'));
+  t.true(html.includes('</ul>'));
+});
 
-    it('should clamp header levels to valid range (1-6)', () => {
-      const pages: LeafletPage[] = [{
-        $type: 'pub.leaflet.pages.linearDocument',
-        blocks: [
-          { block: { $type: 'pub.leaflet.blocks.header', level: 0, plaintext: 'Too Low' } },
-          { block: { $type: 'pub.leaflet.blocks.header', level: 10, plaintext: 'Too High' } }
+test('renderDocument › should render nested lists', t => {
+  const pages: LeafletPage[] = [{
+    $type: 'pub.leaflet.pages.linearDocument',
+    blocks: [{
+      block: {
+        $type: 'pub.leaflet.blocks.unorderedList',
+        items: [{
+          content: { $type: 'pub.leaflet.blocks.text', plaintext: 'Parent' },
+          children: [
+            { content: { $type: 'pub.leaflet.blocks.text', plaintext: 'Child 1' } },
+            { content: { $type: 'pub.leaflet.blocks.text', plaintext: 'Child 2' } }
+          ]
+        }]
+      }
+    }]
+  }];
+
+  const html = renderDocument(pages);
+  t.true(html.includes('<li>Parent<ul>'));
+  t.true(html.includes('<li>Child 1</li>'));
+  t.true(html.includes('<li>Child 2</li>'));
+});
+
+test('renderDocument › should render empty paragraphs as non-breaking space', t => {
+  const pages: LeafletPage[] = [{
+    $type: 'pub.leaflet.pages.linearDocument',
+    blocks: [{
+      block: {
+        $type: 'pub.leaflet.blocks.text',
+        plaintext: ''
+      }
+    }]
+  }];
+
+  const html = renderDocument(pages);
+  t.true(html.includes('<p>&nbsp;</p>'));
+});
+
+test('renderDocument › should render image placeholders', t => {
+  const pages: LeafletPage[] = [{
+    $type: 'pub.leaflet.pages.linearDocument',
+    blocks: [{
+      block: {
+        $type: 'pub.leaflet.blocks.image',
+        image: { $type: 'blob', ref: { $link: 'bafybeig...' }, mimeType: 'image/png', size: 1234 },
+        alt: 'Test image',
+        caption: 'A test caption'
+      }
+    }]
+  }];
+
+  const html = renderDocument(pages);
+  t.true(html.includes('[Image: Test image]'));
+  t.true(html.includes('<figcaption>A test caption</figcaption>'));
+});
+
+// Alignment handling tests
+test('Alignment handling › should apply valid alignment styles', t => {
+  const pages: LeafletPage[] = [{
+    $type: 'pub.leaflet.pages.linearDocument',
+    blocks: [
+      { block: { $type: 'pub.leaflet.blocks.text', plaintext: 'Left' }, alignment: 'left' },
+      { block: { $type: 'pub.leaflet.blocks.text', plaintext: 'Center' }, alignment: 'center' },
+      { block: { $type: 'pub.leaflet.blocks.text', plaintext: 'Right' }, alignment: 'right' },
+      { block: { $type: 'pub.leaflet.blocks.text', plaintext: 'Justify' }, alignment: 'justify' }
+    ]
+  }];
+
+  const html = renderDocument(pages);
+  t.true(html.includes('style="text-align: left"'));
+  t.true(html.includes('style="text-align: center"'));
+  t.true(html.includes('style="text-align: right"'));
+  t.true(html.includes('style="text-align: justify"'));
+});
+
+test('Alignment handling › should ignore invalid alignment values (XSS prevention)', t => {
+  const pages: LeafletPage[] = [{
+    $type: 'pub.leaflet.pages.linearDocument',
+    blocks: [{
+      block: { $type: 'pub.leaflet.blocks.text', plaintext: 'Test' },
+      alignment: 'left"; onmouseover="alert(1)"' as 'left'
+    }]
+  }];
+
+  const html = renderDocument(pages);
+  t.false(html.includes('onmouseover'));
+  t.false(html.includes('alert'));
+  t.is(html, '<p>Test</p>');
+});
+
+// Facets (rich text) tests
+test('Facets › should apply bold formatting', t => {
+  const pages: LeafletPage[] = [{
+    $type: 'pub.leaflet.pages.linearDocument',
+    blocks: [{
+      block: {
+        $type: 'pub.leaflet.blocks.text',
+        plaintext: 'Hello bold world',
+        facets: [{
+          index: { byteStart: 6, byteEnd: 10 },
+          features: [{ $type: 'pub.leaflet.richtext.facet#bold' }]
+        }]
+      }
+    }]
+  }];
+
+  const html = renderDocument(pages);
+  t.true(html.includes('Hello <strong>bold</strong> world'));
+});
+
+test('Facets › should apply italic formatting', t => {
+  const pages: LeafletPage[] = [{
+    $type: 'pub.leaflet.pages.linearDocument',
+    blocks: [{
+      block: {
+        $type: 'pub.leaflet.blocks.text',
+        plaintext: 'Hello italic world',
+        facets: [{
+          index: { byteStart: 6, byteEnd: 12 },
+          features: [{ $type: 'pub.leaflet.richtext.facet#italic' }]
+        }]
+      }
+    }]
+  }];
+
+  const html = renderDocument(pages);
+  t.true(html.includes('Hello <em>italic</em> world'));
+});
+
+test('Facets › should apply strikethrough formatting', t => {
+  const pages: LeafletPage[] = [{
+    $type: 'pub.leaflet.pages.linearDocument',
+    blocks: [{
+      block: {
+        $type: 'pub.leaflet.blocks.text',
+        plaintext: 'Hello deleted world',
+        facets: [{
+          index: { byteStart: 6, byteEnd: 13 },
+          features: [{ $type: 'pub.leaflet.richtext.facet#strikethrough' }]
+        }]
+      }
+    }]
+  }];
+
+  const html = renderDocument(pages);
+  t.true(html.includes('Hello <del>deleted</del> world'));
+});
+
+test('Facets › should apply link formatting with valid URLs', t => {
+  const pages: LeafletPage[] = [{
+    $type: 'pub.leaflet.pages.linearDocument',
+    blocks: [{
+      block: {
+        $type: 'pub.leaflet.blocks.text',
+        plaintext: 'Click here for more',
+        facets: [{
+          index: { byteStart: 6, byteEnd: 10 },
+          features: [{
+            $type: 'pub.leaflet.richtext.facet#link',
+            uri: 'https://example.com'
+          }]
+        }]
+      }
+    }]
+  }];
+
+  const html = renderDocument(pages);
+  t.true(html.includes('<a href="https://example.com" target="_blank" rel="noopener noreferrer">here</a>'));
+});
+
+test('Facets › should reject invalid link URLs (javascript:)', t => {
+  const pages: LeafletPage[] = [{
+    $type: 'pub.leaflet.pages.linearDocument',
+    blocks: [{
+      block: {
+        $type: 'pub.leaflet.blocks.text',
+        plaintext: 'Click here',
+        facets: [{
+          index: { byteStart: 6, byteEnd: 10 },
+          features: [{
+            $type: 'pub.leaflet.richtext.facet#link',
+            uri: 'javascript:alert(1)'
+          }]
+        }]
+      }
+    }]
+  }];
+
+  const html = renderDocument(pages);
+  t.false(html.includes('javascript:'));
+  t.false(html.includes('<a'));
+  t.true(html.includes('here'));
+});
+
+test('Facets › should apply mention formatting', t => {
+  const pages: LeafletPage[] = [{
+    $type: 'pub.leaflet.pages.linearDocument',
+    blocks: [{
+      block: {
+        $type: 'pub.leaflet.blocks.text',
+        plaintext: 'Hello @alice there',
+        facets: [{
+          index: { byteStart: 6, byteEnd: 12 },
+          features: [{
+            $type: 'pub.leaflet.richtext.facet#mention',
+            did: 'did:plc:alice123'
+          }]
+        }]
+      }
+    }]
+  }];
+
+  const html = renderDocument(pages);
+  t.true(html.includes('https://bsky.app/profile/did:plc:alice123'));
+  t.true(html.includes('@alice'));
+});
+
+test('Facets › should apply multiple facets correctly', t => {
+  const pages: LeafletPage[] = [{
+    $type: 'pub.leaflet.pages.linearDocument',
+    blocks: [{
+      block: {
+        $type: 'pub.leaflet.blocks.text',
+        plaintext: 'Bold and italic text',
+        facets: [
+          {
+            index: { byteStart: 0, byteEnd: 4 },
+            features: [{ $type: 'pub.leaflet.richtext.facet#bold' }]
+          },
+          {
+            index: { byteStart: 9, byteEnd: 15 },
+            features: [{ $type: 'pub.leaflet.richtext.facet#italic' }]
+          }
         ]
-      }];
+      }
+    }]
+  }];
 
-      const html = renderDocument(pages);
-      expect(html).toContain('<h1>Too Low</h1>');
-      expect(html).toContain('<h6>Too High</h6>');
-    });
+  const html = renderDocument(pages);
+  t.true(html.includes('<strong>Bold</strong>'));
+  t.true(html.includes('<em>italic</em>'));
+});
 
-    it('should render blockquotes', () => {
-      const pages: LeafletPage[] = [{
-        $type: 'pub.leaflet.pages.linearDocument',
-        blocks: [{
-          block: {
-            $type: 'pub.leaflet.blocks.blockquote',
-            plaintext: 'A wise quote'
-          }
+test('Facets › should handle multiple features on same segment', t => {
+  const pages: LeafletPage[] = [{
+    $type: 'pub.leaflet.pages.linearDocument',
+    blocks: [{
+      block: {
+        $type: 'pub.leaflet.blocks.text',
+        plaintext: 'Bold italic text',
+        facets: [{
+          index: { byteStart: 0, byteEnd: 11 },
+          features: [
+            { $type: 'pub.leaflet.richtext.facet#bold' },
+            { $type: 'pub.leaflet.richtext.facet#italic' }
+          ]
         }]
-      }];
+      }
+    }]
+  }];
 
-      const html = renderDocument(pages);
-      expect(html).toContain('<blockquote>A wise quote</blockquote>');
-    });
+  const html = renderDocument(pages);
+  t.true(html.includes('<strong>'));
+  t.true(html.includes('<em>'));
+  // Features are applied in order: bold first wraps the text, then italic wraps the result
+  t.true(html.includes('Bold italic</strong></em>'));
+});
 
-    it('should render horizontal rules', () => {
-      const pages: LeafletPage[] = [{
-        $type: 'pub.leaflet.pages.linearDocument',
-        blocks: [{
-          block: { $type: 'pub.leaflet.blocks.horizontalRule' }
+test('Facets › should handle unicode characters with byte indices correctly', t => {
+  // "Hello 🌍 world" - emoji is 4 bytes
+  const pages: LeafletPage[] = [{
+    $type: 'pub.leaflet.pages.linearDocument',
+    blocks: [{
+      block: {
+        $type: 'pub.leaflet.blocks.text',
+        plaintext: 'Hello 🌍 world',
+        facets: [{
+          index: { byteStart: 11, byteEnd: 16 }, // "world" after 4-byte emoji
+          features: [{ $type: 'pub.leaflet.richtext.facet#bold' }]
         }]
-      }];
+      }
+    }]
+  }];
 
-      const html = renderDocument(pages);
-      expect(html).toContain('<hr>');
-    });
+  const html = renderDocument(pages);
+  t.true(html.includes('<strong>world</strong>'));
+});
 
-    it('should render code blocks with language class', () => {
-      const pages: LeafletPage[] = [{
-        $type: 'pub.leaflet.pages.linearDocument',
-        blocks: [{
-          block: {
-            $type: 'pub.leaflet.blocks.code',
-            plaintext: 'const x = 1;',
-            language: 'javascript'
-          }
+test('Facets › should skip facets with invalid byte indices', t => {
+  const pages: LeafletPage[] = [{
+    $type: 'pub.leaflet.pages.linearDocument',
+    blocks: [{
+      block: {
+        $type: 'pub.leaflet.blocks.text',
+        plaintext: 'Short',
+        facets: [{
+          index: { byteStart: 0, byteEnd: 100 }, // Beyond string length
+          features: [{ $type: 'pub.leaflet.richtext.facet#bold' }]
         }]
-      }];
+      }
+    }]
+  }];
 
-      const html = renderDocument(pages);
-      expect(html).toContain('<pre><code class="language-javascript">const x = 1;</code></pre>');
-    });
+  const html = renderDocument(pages);
+  t.true(html.includes('Short'));
+  t.false(html.includes('<strong>'));
+});
 
-    it('should escape HTML in code blocks', () => {
-      const pages: LeafletPage[] = [{
-        $type: 'pub.leaflet.pages.linearDocument',
-        blocks: [{
-          block: {
-            $type: 'pub.leaflet.blocks.code',
-            plaintext: '<div>Not HTML</div>'
-          }
-        }]
-      }];
+// Bluesky post embeds tests
+test('Bluesky post embeds › should render valid bsky post links', t => {
+  const pages: LeafletPage[] = [{
+    $type: 'pub.leaflet.pages.linearDocument',
+    blocks: [{
+      block: {
+        $type: 'pub.leaflet.blocks.bskyPost',
+        uri: 'at://did:plc:abc123/app.bsky.feed.post/xyz789'
+      }
+    }]
+  }];
 
-      const html = renderDocument(pages);
-      expect(html).toContain('&lt;div&gt;Not HTML&lt;/div&gt;');
-    });
+  const html = renderDocument(pages);
+  t.true(html.includes('bsky.app/profile/did%3Aplc%3Aabc123/post/xyz789'));
+});
 
-    it('should render unordered lists', () => {
-      const pages: LeafletPage[] = [{
-        $type: 'pub.leaflet.pages.linearDocument',
-        blocks: [{
-          block: {
-            $type: 'pub.leaflet.blocks.unorderedList',
-            items: [
-              { content: { $type: 'pub.leaflet.blocks.text', plaintext: 'First item' } },
-              { content: { $type: 'pub.leaflet.blocks.text', plaintext: 'Second item' } },
-              { content: { $type: 'pub.leaflet.blocks.text', plaintext: 'Third item' } }
-            ]
-          }
-        }]
-      }];
+test('Bluesky post embeds › should reject invalid DIDs in bsky post blocks', t => {
+  const pages: LeafletPage[] = [{
+    $type: 'pub.leaflet.pages.linearDocument',
+    blocks: [{
+      block: {
+        $type: 'pub.leaflet.blocks.bskyPost',
+        uri: 'at://invalid-did/app.bsky.feed.post/xyz789'
+      }
+    }]
+  }];
 
-      const html = renderDocument(pages);
-      expect(html).toContain('<ul>');
-      expect(html).toContain('<li>First item</li>');
-      expect(html).toContain('<li>Second item</li>');
-      expect(html).toContain('<li>Third item</li>');
-      expect(html).toContain('</ul>');
-    });
+  const html = renderDocument(pages);
+  t.true(html.includes('[Invalid Bluesky post reference]'));
+});
 
-    it('should render nested lists', () => {
-      const pages: LeafletPage[] = [{
-        $type: 'pub.leaflet.pages.linearDocument',
-        blocks: [{
-          block: {
-            $type: 'pub.leaflet.blocks.unorderedList',
-            items: [{
-              content: { $type: 'pub.leaflet.blocks.text', plaintext: 'Parent' },
-              children: [
-                { content: { $type: 'pub.leaflet.blocks.text', plaintext: 'Child 1' } },
-                { content: { $type: 'pub.leaflet.blocks.text', plaintext: 'Child 2' } }
-              ]
-            }]
-          }
-        }]
-      }];
+// Website blocks tests
+test('Website blocks › should render website links', t => {
+  const pages: LeafletPage[] = [{
+    $type: 'pub.leaflet.pages.linearDocument',
+    blocks: [{
+      block: {
+        $type: 'pub.leaflet.blocks.website',
+        url: 'https://example.com',
+        title: 'Example Site',
+        description: 'An example website'
+      }
+    }]
+  }];
 
-      const html = renderDocument(pages);
-      expect(html).toContain('<li>Parent<ul>');
-      expect(html).toContain('<li>Child 1</li>');
-      expect(html).toContain('<li>Child 2</li>');
-    });
+  const html = renderDocument(pages);
+  t.true(html.includes('href="https://example.com"'));
+  t.true(html.includes('Example Site'));
+  t.true(html.includes('An example website'));
+});
 
-    it('should render empty paragraphs as non-breaking space', () => {
-      const pages: LeafletPage[] = [{
-        $type: 'pub.leaflet.pages.linearDocument',
-        blocks: [{
-          block: {
-            $type: 'pub.leaflet.blocks.text',
-            plaintext: ''
-          }
-        }]
-      }];
+test('Website blocks › should reject invalid URLs in website blocks', t => {
+  const pages: LeafletPage[] = [{
+    $type: 'pub.leaflet.pages.linearDocument',
+    blocks: [{
+      block: {
+        $type: 'pub.leaflet.blocks.website',
+        url: 'javascript:alert(1)'
+      }
+    }]
+  }];
 
-      const html = renderDocument(pages);
-      expect(html).toContain('<p>&nbsp;</p>');
-    });
+  const html = renderDocument(pages);
+  t.true(html.includes('[Invalid URL]'));
+});
 
-    it('should render image placeholders', () => {
-      const pages: LeafletPage[] = [{
-        $type: 'pub.leaflet.pages.linearDocument',
-        blocks: [{
-          block: {
-            $type: 'pub.leaflet.blocks.image',
-            image: { $type: 'blob', ref: { $link: 'bafybeig...' }, mimeType: 'image/png', size: 1234 },
-            alt: 'Test image',
-            caption: 'A test caption'
-          }
-        }]
-      }];
+// Multi-page documents tests
+test('Multi-page documents › should wrap multiple pages in sections', t => {
+  const pages: LeafletPage[] = [
+    {
+      $type: 'pub.leaflet.pages.linearDocument',
+      blocks: [{ block: { $type: 'pub.leaflet.blocks.text', plaintext: 'Page 1' } }]
+    },
+    {
+      $type: 'pub.leaflet.pages.linearDocument',
+      blocks: [{ block: { $type: 'pub.leaflet.blocks.text', plaintext: 'Page 2' } }]
+    }
+  ];
 
-      const html = renderDocument(pages);
-      expect(html).toContain('[Image: Test image]');
-      expect(html).toContain('<figcaption>A test caption</figcaption>');
-    });
-  });
+  const html = renderDocument(pages);
+  t.true(html.includes('<section class="page" data-page="1">'));
+  t.true(html.includes('<section class="page" data-page="2">'));
+});
 
-  describe('Alignment handling', () => {
-    it('should apply valid alignment styles', () => {
-      const pages: LeafletPage[] = [{
-        $type: 'pub.leaflet.pages.linearDocument',
-        blocks: [
-          { block: { $type: 'pub.leaflet.blocks.text', plaintext: 'Left' }, alignment: 'left' },
-          { block: { $type: 'pub.leaflet.blocks.text', plaintext: 'Center' }, alignment: 'center' },
-          { block: { $type: 'pub.leaflet.blocks.text', plaintext: 'Right' }, alignment: 'right' },
-          { block: { $type: 'pub.leaflet.blocks.text', plaintext: 'Justify' }, alignment: 'justify' }
-        ]
-      }];
+test('Multi-page documents › should not wrap single page in section', t => {
+  const pages: LeafletPage[] = [{
+    $type: 'pub.leaflet.pages.linearDocument',
+    blocks: [{ block: { $type: 'pub.leaflet.blocks.text', plaintext: 'Only page' } }]
+  }];
 
-      const html = renderDocument(pages);
-      expect(html).toContain('style="text-align: left"');
-      expect(html).toContain('style="text-align: center"');
-      expect(html).toContain('style="text-align: right"');
-      expect(html).toContain('style="text-align: justify"');
-    });
+  const html = renderDocument(pages);
+  t.false(html.includes('<section'));
+});
 
-    it('should ignore invalid alignment values (XSS prevention)', () => {
-      const pages: LeafletPage[] = [{
-        $type: 'pub.leaflet.pages.linearDocument',
-        blocks: [{
-          block: { $type: 'pub.leaflet.blocks.text', plaintext: 'Test' },
-          alignment: 'left"; onmouseover="alert(1)"' as 'left'
-        }]
-      }];
+// renderDocumentContent tests
+test('renderDocumentContent › should parse JSON and render document', t => {
+  const json = JSON.stringify([{
+    $type: 'pub.leaflet.pages.linearDocument',
+    blocks: [{ block: { $type: 'pub.leaflet.blocks.text', plaintext: 'From JSON' } }]
+  }]);
 
-      const html = renderDocument(pages);
-      expect(html).not.toContain('onmouseover');
-      expect(html).not.toContain('alert');
-      expect(html).toBe('<p>Test</p>');
-    });
-  });
+  const html = renderDocumentContent(json);
+  t.true(html.includes('<p>From JSON</p>'));
+});
 
-  describe('Facets (rich text)', () => {
-    it('should apply bold formatting', () => {
-      const pages: LeafletPage[] = [{
-        $type: 'pub.leaflet.pages.linearDocument',
-        blocks: [{
-          block: {
-            $type: 'pub.leaflet.blocks.text',
-            plaintext: 'Hello bold world',
-            facets: [{
-              index: { byteStart: 6, byteEnd: 10 },
-              features: [{ $type: 'pub.leaflet.richtext.facet#bold' }]
-            }]
-          }
-        }]
-      }];
-
-      const html = renderDocument(pages);
-      expect(html).toContain('Hello <strong>bold</strong> world');
-    });
-
-    it('should apply italic formatting', () => {
-      const pages: LeafletPage[] = [{
-        $type: 'pub.leaflet.pages.linearDocument',
-        blocks: [{
-          block: {
-            $type: 'pub.leaflet.blocks.text',
-            plaintext: 'Hello italic world',
-            facets: [{
-              index: { byteStart: 6, byteEnd: 12 },
-              features: [{ $type: 'pub.leaflet.richtext.facet#italic' }]
-            }]
-          }
-        }]
-      }];
-
-      const html = renderDocument(pages);
-      expect(html).toContain('Hello <em>italic</em> world');
-    });
-
-    it('should apply strikethrough formatting', () => {
-      const pages: LeafletPage[] = [{
-        $type: 'pub.leaflet.pages.linearDocument',
-        blocks: [{
-          block: {
-            $type: 'pub.leaflet.blocks.text',
-            plaintext: 'Hello deleted world',
-            facets: [{
-              index: { byteStart: 6, byteEnd: 13 },
-              features: [{ $type: 'pub.leaflet.richtext.facet#strikethrough' }]
-            }]
-          }
-        }]
-      }];
-
-      const html = renderDocument(pages);
-      expect(html).toContain('Hello <del>deleted</del> world');
-    });
-
-    it('should apply link formatting with valid URLs', () => {
-      const pages: LeafletPage[] = [{
-        $type: 'pub.leaflet.pages.linearDocument',
-        blocks: [{
-          block: {
-            $type: 'pub.leaflet.blocks.text',
-            plaintext: 'Click here for more',
-            facets: [{
-              index: { byteStart: 6, byteEnd: 10 },
-              features: [{
-                $type: 'pub.leaflet.richtext.facet#link',
-                uri: 'https://example.com'
-              }]
-            }]
-          }
-        }]
-      }];
-
-      const html = renderDocument(pages);
-      expect(html).toContain('<a href="https://example.com" target="_blank" rel="noopener noreferrer">here</a>');
-    });
-
-    it('should reject invalid link URLs (javascript:)', () => {
-      const pages: LeafletPage[] = [{
-        $type: 'pub.leaflet.pages.linearDocument',
-        blocks: [{
-          block: {
-            $type: 'pub.leaflet.blocks.text',
-            plaintext: 'Click here',
-            facets: [{
-              index: { byteStart: 6, byteEnd: 10 },
-              features: [{
-                $type: 'pub.leaflet.richtext.facet#link',
-                uri: 'javascript:alert(1)'
-              }]
-            }]
-          }
-        }]
-      }];
-
-      const html = renderDocument(pages);
-      expect(html).not.toContain('javascript:');
-      expect(html).not.toContain('<a');
-      expect(html).toContain('here');
-    });
-
-    it('should apply mention formatting', () => {
-      const pages: LeafletPage[] = [{
-        $type: 'pub.leaflet.pages.linearDocument',
-        blocks: [{
-          block: {
-            $type: 'pub.leaflet.blocks.text',
-            plaintext: 'Hello @alice there',
-            facets: [{
-              index: { byteStart: 6, byteEnd: 12 },
-              features: [{
-                $type: 'pub.leaflet.richtext.facet#mention',
-                did: 'did:plc:alice123'
-              }]
-            }]
-          }
-        }]
-      }];
-
-      const html = renderDocument(pages);
-      expect(html).toContain('https://bsky.app/profile/did:plc:alice123');
-      expect(html).toContain('@alice');
-    });
-
-    it('should apply multiple facets correctly', () => {
-      const pages: LeafletPage[] = [{
-        $type: 'pub.leaflet.pages.linearDocument',
-        blocks: [{
-          block: {
-            $type: 'pub.leaflet.blocks.text',
-            plaintext: 'Bold and italic text',
-            facets: [
-              {
-                index: { byteStart: 0, byteEnd: 4 },
-                features: [{ $type: 'pub.leaflet.richtext.facet#bold' }]
-              },
-              {
-                index: { byteStart: 9, byteEnd: 15 },
-                features: [{ $type: 'pub.leaflet.richtext.facet#italic' }]
-              }
-            ]
-          }
-        }]
-      }];
-
-      const html = renderDocument(pages);
-      expect(html).toContain('<strong>Bold</strong>');
-      expect(html).toContain('<em>italic</em>');
-    });
-
-    it('should handle multiple features on same segment', () => {
-      const pages: LeafletPage[] = [{
-        $type: 'pub.leaflet.pages.linearDocument',
-        blocks: [{
-          block: {
-            $type: 'pub.leaflet.blocks.text',
-            plaintext: 'Bold italic text',
-            facets: [{
-              index: { byteStart: 0, byteEnd: 11 },
-              features: [
-                { $type: 'pub.leaflet.richtext.facet#bold' },
-                { $type: 'pub.leaflet.richtext.facet#italic' }
-              ]
-            }]
-          }
-        }]
-      }];
-
-      const html = renderDocument(pages);
-      expect(html).toContain('<strong>');
-      expect(html).toContain('<em>');
-      // Features are applied in order: bold first wraps the text, then italic wraps the result
-      expect(html).toContain('Bold italic</strong></em>');
-    });
-
-    it('should handle unicode characters with byte indices correctly', () => {
-      // "Hello 🌍 world" - emoji is 4 bytes
-      const pages: LeafletPage[] = [{
-        $type: 'pub.leaflet.pages.linearDocument',
-        blocks: [{
-          block: {
-            $type: 'pub.leaflet.blocks.text',
-            plaintext: 'Hello 🌍 world',
-            facets: [{
-              index: { byteStart: 11, byteEnd: 16 }, // "world" after 4-byte emoji
-              features: [{ $type: 'pub.leaflet.richtext.facet#bold' }]
-            }]
-          }
-        }]
-      }];
-
-      const html = renderDocument(pages);
-      expect(html).toContain('<strong>world</strong>');
-    });
-
-    it('should skip facets with invalid byte indices', () => {
-      const pages: LeafletPage[] = [{
-        $type: 'pub.leaflet.pages.linearDocument',
-        blocks: [{
-          block: {
-            $type: 'pub.leaflet.blocks.text',
-            plaintext: 'Short',
-            facets: [{
-              index: { byteStart: 0, byteEnd: 100 }, // Beyond string length
-              features: [{ $type: 'pub.leaflet.richtext.facet#bold' }]
-            }]
-          }
-        }]
-      }];
-
-      const html = renderDocument(pages);
-      expect(html).toContain('Short');
-      expect(html).not.toContain('<strong>');
-    });
-  });
-
-  describe('Bluesky post embeds', () => {
-    it('should render valid bsky post links', () => {
-      const pages: LeafletPage[] = [{
-        $type: 'pub.leaflet.pages.linearDocument',
-        blocks: [{
-          block: {
-            $type: 'pub.leaflet.blocks.bskyPost',
-            uri: 'at://did:plc:abc123/app.bsky.feed.post/xyz789'
-          }
-        }]
-      }];
-
-      const html = renderDocument(pages);
-      expect(html).toContain('bsky.app/profile/did%3Aplc%3Aabc123/post/xyz789');
-    });
-
-    it('should reject invalid DIDs in bsky post blocks', () => {
-      const pages: LeafletPage[] = [{
-        $type: 'pub.leaflet.pages.linearDocument',
-        blocks: [{
-          block: {
-            $type: 'pub.leaflet.blocks.bskyPost',
-            uri: 'at://invalid-did/app.bsky.feed.post/xyz789'
-          }
-        }]
-      }];
-
-      const html = renderDocument(pages);
-      expect(html).toContain('[Invalid Bluesky post reference]');
-    });
-  });
-
-  describe('Website blocks', () => {
-    it('should render website links', () => {
-      const pages: LeafletPage[] = [{
-        $type: 'pub.leaflet.pages.linearDocument',
-        blocks: [{
-          block: {
-            $type: 'pub.leaflet.blocks.website',
-            url: 'https://example.com',
-            title: 'Example Site',
-            description: 'An example website'
-          }
-        }]
-      }];
-
-      const html = renderDocument(pages);
-      expect(html).toContain('href="https://example.com"');
-      expect(html).toContain('Example Site');
-      expect(html).toContain('An example website');
-    });
-
-    it('should reject invalid URLs in website blocks', () => {
-      const pages: LeafletPage[] = [{
-        $type: 'pub.leaflet.pages.linearDocument',
-        blocks: [{
-          block: {
-            $type: 'pub.leaflet.blocks.website',
-            url: 'javascript:alert(1)'
-          }
-        }]
-      }];
-
-      const html = renderDocument(pages);
-      expect(html).toContain('[Invalid URL]');
-    });
-  });
-
-  describe('Multi-page documents', () => {
-    it('should wrap multiple pages in sections', () => {
-      const pages: LeafletPage[] = [
-        {
-          $type: 'pub.leaflet.pages.linearDocument',
-          blocks: [{ block: { $type: 'pub.leaflet.blocks.text', plaintext: 'Page 1' } }]
-        },
-        {
-          $type: 'pub.leaflet.pages.linearDocument',
-          blocks: [{ block: { $type: 'pub.leaflet.blocks.text', plaintext: 'Page 2' } }]
-        }
-      ];
-
-      const html = renderDocument(pages);
-      expect(html).toContain('<section class="page" data-page="1">');
-      expect(html).toContain('<section class="page" data-page="2">');
-    });
-
-    it('should not wrap single page in section', () => {
-      const pages: LeafletPage[] = [{
-        $type: 'pub.leaflet.pages.linearDocument',
-        blocks: [{ block: { $type: 'pub.leaflet.blocks.text', plaintext: 'Only page' } }]
-      }];
-
-      const html = renderDocument(pages);
-      expect(html).not.toContain('<section');
-    });
-  });
-
-  describe('renderDocumentContent', () => {
-    it('should parse JSON and render document', () => {
-      const json = JSON.stringify([{
-        $type: 'pub.leaflet.pages.linearDocument',
-        blocks: [{ block: { $type: 'pub.leaflet.blocks.text', plaintext: 'From JSON' } }]
-      }]);
-
-      const html = renderDocumentContent(json);
-      expect(html).toContain('<p>From JSON</p>');
-    });
-
-    it('should handle invalid JSON gracefully', () => {
-      const html = renderDocumentContent('not valid json');
-      expect(html).toContain('Error rendering document content');
-    });
-  });
+test('renderDocumentContent › should handle invalid JSON gracefully', t => {
+  const html = renderDocumentContent('not valid json');
+  t.true(html.includes('Error rendering document content'));
 });
