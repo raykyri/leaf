@@ -3,14 +3,36 @@ import { renderDocumentContent } from '../services/renderer.js';
 import type { Document, User } from '../database/index.js';
 
 export function loginPage(error?: string): string {
-  const content = `
+  const oauthEnabled = !!process.env.PUBLIC_URL;
+
+  const oauthSection = oauthEnabled ? `
     <div class="card">
-      <h2>Login / Sign Up</h2>
+      <h2>Sign in with Bluesky</h2>
       <p style="margin-bottom: 1rem; color: var(--text-muted);">
-        Use your Bluesky handle and an app password to sign in.
-        If you don't have an account yet, signing in will create one.
+        Sign in securely using your Bluesky account. You'll be redirected to authorize this app.
       </p>
       ${error ? `<div class="error">${escapeHtml(error)}</div>` : ''}
+      <form action="/oauth/authorize" method="POST">
+        <div>
+          <label for="oauth-handle">Handle</label>
+          <input type="text" id="oauth-handle" name="handle" placeholder="@username.bsky.social" required>
+        </div>
+        <button type="submit" class="primary-btn">Sign in with Bluesky</button>
+      </form>
+    </div>
+    <div style="text-align: center; margin: 1.5rem 0; color: var(--text-muted);">
+      <span>or use an app password</span>
+    </div>
+  ` : '';
+
+  const appPasswordSection = `
+    <div class="card">
+      <h2>${oauthEnabled ? 'Sign in with App Password' : 'Login / Sign Up'}</h2>
+      <p style="margin-bottom: 1rem; color: var(--text-muted);">
+        Use your Bluesky handle and an app password to sign in.
+        ${!oauthEnabled ? 'If you don\'t have an account yet, signing in will create one.' : ''}
+      </p>
+      ${!oauthEnabled && error ? `<div class="error">${escapeHtml(error)}</div>` : ''}
       <form action="/auth/login" method="POST">
         <div>
           <label for="handle">Handle</label>
@@ -24,6 +46,11 @@ export function loginPage(error?: string): string {
         <button type="submit">Sign In</button>
       </form>
     </div>
+  `;
+
+  const content = `
+    ${oauthSection}
+    ${appPasswordSection}
     <script>
       document.addEventListener('keydown', function(e) {
         if (e.altKey || e.metaKey || e.ctrlKey) {

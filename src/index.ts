@@ -1,12 +1,13 @@
 import 'dotenv/config';
 import express from 'express';
 import cookieParser from 'cookie-parser';
-import { getDatabase, closeDatabase, deleteExpiredSessions } from './database/index.js';
+import { getDatabase, closeDatabase, deleteExpiredSessions, cleanupOldOAuthState, cleanupOldOAuthSessions } from './database/index.js';
 import { startJetstreamListener, stopJetstreamListener } from './services/jetstream.js';
 import { csrfProtection, getCsrfToken } from './middleware/csrf.js';
 import { generalLimiter, authLimiter } from './middleware/rateLimit.js';
 import authRoutes from './routes/auth.js';
 import postsRoutes from './routes/posts.js';
+import oauthRoutes from './routes/oauth.js';
 import { loginPage, notFoundPage, errorPage } from './views/pages.js';
 import { getSessionUser } from './services/auth.js';
 
@@ -42,11 +43,14 @@ app.get('/healthz', (_req, res) => {
 console.log('Initializing database...');
 getDatabase();
 
-// Clean up expired sessions on startup
+// Clean up expired sessions and old OAuth state on startup
 deleteExpiredSessions();
+cleanupOldOAuthState();
+cleanupOldOAuthSessions();
 
 // Routes
 app.use('/auth', authRoutes);
+app.use('/oauth', oauthRoutes);
 app.use('/', postsRoutes);
 
 // Home page

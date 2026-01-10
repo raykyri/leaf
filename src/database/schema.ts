@@ -90,4 +90,29 @@ export function initializeDatabase(db: Database.Database): void {
   db.exec(`
     INSERT OR IGNORE INTO jetstream_state (id, cursor) VALUES (1, NULL)
   `);
+
+  // Create OAuth state table for storing authorization flow state
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS oauth_state (
+      key TEXT PRIMARY KEY NOT NULL,
+      value TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Create OAuth sessions table for storing OAuth tokens
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS oauth_sessions (
+      key TEXT PRIMARY KEY NOT NULL,
+      value TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Create index for cleanup of old OAuth state
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_oauth_state_created_at ON oauth_state(created_at);
+    CREATE INDEX IF NOT EXISTS idx_oauth_sessions_updated_at ON oauth_sessions(updated_at);
+  `);
 }

@@ -66,10 +66,10 @@ router.post('/login', authLimiter, async (req: Request, res: Response) => {
 });
 
 // Handle logout
-router.post('/logout', (req: Request, res: Response) => {
+router.post('/logout', async (req: Request, res: Response) => {
   const sessionToken = req.cookies?.session;
   if (sessionToken) {
-    logout(sessionToken);
+    await logout(sessionToken);
   }
 
   // Clear cookie with same options for proper deletion
