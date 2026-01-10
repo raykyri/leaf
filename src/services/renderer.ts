@@ -292,6 +292,20 @@ function isValidRkey(rkey: string): boolean {
   return /^[a-zA-Z0-9._~-]+$/.test(rkey) && rkey.length <= 512;
 }
 
+// Validate AT-URI format (at://did/collection/rkey)
+function isValidAtUri(uri: string): boolean {
+  if (!uri.startsWith('at://') || uri.length > 8192) {
+    return false;
+  }
+  const parts = uri.slice(5).split('/');
+  if (parts.length < 2) {
+    return false;
+  }
+  const did = parts[0];
+  // Validate DID portion
+  return isValidDid(did);
+}
+
 function renderBskyPostBlock(block: { uri: string }): string {
   // Parse AT-URI to get the post URL
   // Format: at://did:plc:xxx/app.bsky.feed.post/xxx
@@ -337,9 +351,18 @@ function renderMathBlock(block: MathBlock, alignStyle: string): string {
   return `<div class="math-block"${alignStyle}><code class="math-tex">${escapeHtml(block.tex)}</code></div>`;
 }
 
+// Validate page ID format (UUID-like or reasonable identifier)
+function isValidPageId(id: string): boolean {
+  // Allow alphanumeric, hyphens, underscores, max 128 chars
+  return /^[a-zA-Z0-9_-]+$/.test(id) && id.length <= 128;
+}
+
 function renderPageBlock(block: PageBlock): string {
   // Page blocks reference other pages within the document by ID
   // We render a placeholder since the full page content would need to be looked up
+  if (!block.id || !isValidPageId(block.id)) {
+    return '<div class="page-embed">[Embedded page: invalid reference]</div>';
+  }
   return `<div class="page-embed" data-page-id="${escapeHtml(block.id)}">[Embedded page: ${escapeHtml(block.id)}]</div>`;
 }
 
@@ -347,6 +370,10 @@ function renderPollBlock(block: PollBlock): string {
   // Poll blocks reference external poll records
   // We render a placeholder with the poll reference info
   if (block.pollRef && block.pollRef.uri) {
+    // Validate AT-URI format for security
+    if (!isValidAtUri(block.pollRef.uri)) {
+      return '<div class="poll-embed">[Poll: invalid reference]</div>';
+    }
     return `<div class="poll-embed">[Poll: <a href="#" data-poll-uri="${escapeHtml(block.pollRef.uri)}">View poll</a>]</div>`;
   }
   return '<div class="poll-embed">[Poll]</div>';
