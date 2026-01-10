@@ -16,18 +16,7 @@ import type {
   Facet,
   ListItem
 } from '../types/leaflet.js';
-
-// HTML escape function to prevent XSS
-function escapeHtml(text: string): string {
-  const htmlEntities: Record<string, string> = {
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#39;'
-  };
-  return text.replace(/[&<>"']/g, (char) => htmlEntities[char]);
-}
+import { escapeHtml } from '../utils/html.js';
 
 // URL validation for safety
 function isValidUrl(url: string): boolean {
