@@ -52,16 +52,44 @@ TEST_APP_PASSWORD=xxxx-xxxx-xxxx-xxxx
 
 ATProto OAuth provides a secure way for users to authenticate without sharing their app passwords. To enable OAuth:
 
-1. **Set the PUBLIC_URL**: This must be the publicly accessible HTTPS URL of your application.
+1. **Set the PUBLIC_URL**: Set this to your application's URL.
    ```env
+   # For local development
+   PUBLIC_URL=http://localhost:3000
+
+   # For production
    PUBLIC_URL=https://yourdomain.com
    ```
 
-2. **Ensure HTTPS**: OAuth requires HTTPS in production. For local development, you can use `http://localhost:3000` but OAuth may not work with all PDS servers.
-
-3. **Deploy your app**: The OAuth client metadata is served at `/oauth/client-metadata.json`. ATProto authorization servers will fetch this to verify your client.
+2. **Deploy your app**: The OAuth client metadata is served at `/oauth/client-metadata.json`. ATProto authorization servers will fetch this to verify your client.
 
 **Note**: If `PUBLIC_URL` is not set, OAuth will be disabled and only app password login will be available.
+
+#### Local Development with OAuth
+
+OAuth works in local development using `http://localhost`. The ATProto OAuth spec explicitly allows:
+- `http://localhost` and `http://localhost:PORT`
+- `http://127.0.0.1` and `http://127.0.0.1:PORT`
+
+To test OAuth locally:
+```bash
+# Set PUBLIC_URL in your .env
+echo "PUBLIC_URL=http://localhost:3000" >> .env
+
+# Start the dev server
+npm run dev
+```
+
+Then visit `http://localhost:3000` and use "Sign in with Bluesky".
+
+#### Production Deployment
+
+For production, use HTTPS:
+```env
+PUBLIC_URL=https://yourdomain.com
+```
+
+Ensure your server is accessible at this URL so authorization servers can fetch the client metadata.
 
 ### Running the Application
 
