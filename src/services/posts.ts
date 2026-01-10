@@ -1,4 +1,5 @@
 import { AtpAgent } from '@atproto/api';
+import crypto from 'crypto';
 import * as db from '../database/index.js';
 import type { LeafletDocument, LinearDocumentPage, TextBlock } from '../types/leaflet.js';
 
@@ -38,15 +39,21 @@ export async function createPost(
     // Split by double newlines to create paragraphs
     const paragraphs = input.content.split(/\n\n+/).filter(p => p.trim());
 
+    // Create blocks with the correct Leaflet structure
+    // Block containers need the $type: 'pub.leaflet.pages.linearDocument#block'
     const blocks = paragraphs.map(paragraph => ({
+      $type: 'pub.leaflet.pages.linearDocument#block' as const,
       block: {
         $type: 'pub.leaflet.blocks.text',
-        value: paragraph.trim()
+        plaintext: paragraph.trim(),
+        facets: []
       } as TextBlock
     }));
 
+    // Pages need a unique id for Leaflet compatibility
     const page: LinearDocumentPage = {
       $type: 'pub.leaflet.pages.linearDocument',
+      id: crypto.randomUUID(),
       blocks
     };
 

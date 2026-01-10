@@ -161,21 +161,21 @@ function renderBlock(blockWithAlignment: BlockWithAlignment): string {
 }
 
 function renderTextBlock(block: TextBlock, alignStyle: string): string {
-  if (!block.value || block.value.trim() === '') {
+  if (!block.plaintext || block.plaintext.trim() === '') {
     return '<p>&nbsp;</p>';
   }
-  const content = applyFacets(block.value, block.facets);
+  const content = applyFacets(block.plaintext, block.facets);
   return `<p${alignStyle}>${content}</p>`;
 }
 
 function renderHeaderBlock(block: HeaderBlock, alignStyle: string): string {
   const level = Math.min(Math.max(block.level || 1, 1), 6);
-  const content = applyFacets(block.value, block.facets);
+  const content = applyFacets(block.plaintext, block.facets);
   return `<h${level}${alignStyle}>${content}</h${level}>`;
 }
 
 function renderBlockquoteBlock(block: BlockquoteBlock, alignStyle: string): string {
-  const content = applyFacets(block.value, block.facets);
+  const content = applyFacets(block.plaintext, block.facets);
   return `<blockquote${alignStyle}>${content}</blockquote>`;
 }
 
@@ -196,7 +196,19 @@ function renderUnorderedListBlock(block: UnorderedListBlock): string {
 }
 
 function renderListItem(item: ListItem): string {
-  const content = applyFacets(item.value, item.facets);
+  // List item content is a block (text, header, or image)
+  let content: string;
+  if (item.content.$type === 'pub.leaflet.blocks.text') {
+    const textBlock = item.content as TextBlock;
+    content = applyFacets(textBlock.plaintext, textBlock.facets);
+  } else if (item.content.$type === 'pub.leaflet.blocks.header') {
+    const headerBlock = item.content as HeaderBlock;
+    content = applyFacets(headerBlock.plaintext, headerBlock.facets);
+  } else {
+    // Image or other block type
+    content = '[Content]';
+  }
+
   let html = `<li>${content}`;
 
   if (item.children && item.children.length > 0) {
@@ -210,7 +222,7 @@ function renderListItem(item: ListItem): string {
 
 function renderCodeBlock(block: CodeBlock): string {
   const language = block.language ? ` class="language-${escapeHtml(block.language)}"` : '';
-  return `<pre><code${language}>${escapeHtml(block.value)}</code></pre>`;
+  return `<pre><code${language}>${escapeHtml(block.plaintext)}</code></pre>`;
 }
 
 function renderWebsiteBlock(block: { url: string; title?: string; description?: string }): string {
