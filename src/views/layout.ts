@@ -1,6 +1,20 @@
 // HTML layout templates
 
-export function layout(title: string, content: string, user?: { handle: string; csrfToken?: string }): string {
+export interface OpenGraphMeta {
+  title?: string;
+  description?: string;
+  type?: 'website' | 'article';
+  url?: string;
+  author?: string;
+  publishedTime?: string;
+}
+
+export function layout(
+  title: string,
+  content: string,
+  user?: { handle: string; csrfToken?: string },
+  og?: OpenGraphMeta
+): string {
   const nav = user
     ? `
       <nav>
@@ -20,12 +34,43 @@ export function layout(title: string, content: string, user?: { handle: string; 
       </nav>
     `;
 
+  // Build OpenGraph meta tags
+  const ogTitle = og?.title || title;
+  const ogDescription = og?.description || 'A minimalist blogging platform built on AT Protocol';
+  const ogType = og?.type || 'website';
+
+  let ogTags = `
+  <meta property="og:title" content="${escapeHtml(ogTitle)}">
+  <meta property="og:description" content="${escapeHtml(ogDescription)}">
+  <meta property="og:type" content="${ogType}">
+  <meta property="og:site_name" content="Leaflet Blog">
+  <meta name="description" content="${escapeHtml(ogDescription)}">`;
+
+  if (og?.url) {
+    ogTags += `\n  <meta property="og:url" content="${escapeHtml(og.url)}">`;
+  }
+
+  if (og?.author) {
+    ogTags += `\n  <meta property="article:author" content="${escapeHtml(og.author)}">`;
+  }
+
+  if (og?.publishedTime) {
+    ogTags += `\n  <meta property="article:published_time" content="${escapeHtml(og.publishedTime)}">`;
+  }
+
+  // Twitter Card tags
+  ogTags += `
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="${escapeHtml(ogTitle)}">
+  <meta name="twitter:description" content="${escapeHtml(ogDescription)}">`;
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${escapeHtml(title)} - Leaflet Blog</title>
+  ${ogTags}
   <style>
     :root {
       --primary: #1a1a2e;
@@ -36,6 +81,8 @@ export function layout(title: string, content: string, user?: { handle: string; 
       --bg: #0f0f1a;
       --card-bg: #1a1a2e;
       --border: #2a2a4a;
+      --danger: #8a3a3a;
+      --danger-hover: #a04a4a;
     }
 
     * {
@@ -86,7 +133,7 @@ export function layout(title: string, content: string, user?: { handle: string; 
       color: var(--text);
     }
 
-    .logout-btn {
+    .logout-btn, .secondary-btn {
       background: transparent;
       border: 1px solid var(--border);
       color: var(--text-muted);
@@ -96,8 +143,23 @@ export function layout(title: string, content: string, user?: { handle: string; 
       font-size: 0.875rem;
     }
 
-    .logout-btn:hover {
+    .logout-btn:hover, .secondary-btn:hover {
       background: var(--secondary);
+      color: var(--text);
+    }
+
+    .danger-btn {
+      background: transparent;
+      border: 1px solid var(--danger);
+      color: #ffaaaa;
+      padding: 0.25rem 0.75rem;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.875rem;
+    }
+
+    .danger-btn:hover {
+      background: var(--danger);
       color: var(--text);
     }
 
@@ -331,6 +393,19 @@ export function layout(title: string, content: string, user?: { handle: string; 
       color: var(--text-muted);
       font-size: 0.875rem;
       margin-top: 0.25rem;
+    }
+
+    .post-actions {
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+      margin-top: 2rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border);
+    }
+
+    .inline-form {
+      display: inline;
     }
   </style>
 </head>

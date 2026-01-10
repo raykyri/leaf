@@ -89,6 +89,13 @@ export function updateUserHandle(did: string, newHandle: string): boolean {
   return result.changes > 0;
 }
 
+export function updateUserDisplayName(userId: number, displayName: string | null): boolean {
+  const db = getDatabase();
+  const stmt = db.prepare('UPDATE users SET display_name = ? WHERE id = ?');
+  const result = stmt.run(displayName, userId);
+  return result.changes > 0;
+}
+
 // Session operations
 export interface Session {
   id: number;
@@ -127,6 +134,12 @@ export function deleteExpiredSessions(): void {
   const db = getDatabase();
   const stmt = db.prepare("DELETE FROM sessions WHERE expires_at <= datetime('now')");
   stmt.run();
+}
+
+export function updateSessionTokens(sessionId: number, accessJwt: string, refreshJwt: string): void {
+  const db = getDatabase();
+  const stmt = db.prepare('UPDATE sessions SET access_jwt = ?, refresh_jwt = ? WHERE id = ?');
+  stmt.run(accessJwt, refreshJwt, sessionId);
 }
 
 // Document operations

@@ -190,7 +190,7 @@ describe('Renderer', () => {
         blocks: [{
           block: {
             $type: 'pub.leaflet.blocks.image',
-            image: { ref: { $link: 'bafybeig...' }, mimeType: 'image/png', size: 1234 },
+            image: { $type: 'blob', ref: { $link: 'bafybeig...' }, mimeType: 'image/png', size: 1234 },
             alt: 'Test image',
             caption: 'A test caption'
           }

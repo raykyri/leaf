@@ -4,6 +4,7 @@ import cookieParser from 'cookie-parser';
 import { getDatabase, closeDatabase, deleteExpiredSessions } from './database/index.js';
 import { startJetstreamListener, stopJetstreamListener } from './services/jetstream.js';
 import { csrfProtection, getCsrfToken } from './middleware/csrf.js';
+import { generalLimiter, authLimiter } from './middleware/rateLimit.js';
 import authRoutes from './routes/auth.js';
 import postsRoutes from './routes/posts.js';
 import { loginPage, notFoundPage, errorPage } from './views/pages.js';
@@ -16,7 +17,13 @@ const PORT = parseInt(process.env.PORT || '3000', 10);
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 app.use(cookieParser());
+app.use(generalLimiter);
 app.use(csrfProtection);
+
+// Health check endpoint (no rate limiting, no CSRF)
+app.get('/healthz', (_req, res) => {
+  res.status(200).send('ok');
+});
 
 // Initialize database
 console.log('Initializing database...');

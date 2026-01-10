@@ -1,4 +1,4 @@
-import { layout, escapeHtml } from './layout.js';
+import { layout, escapeHtml, OpenGraphMeta } from './layout.js';
 import { renderDocumentContent } from '../services/renderer.js';
 import type { Document, User } from '../database/index.js';
 
@@ -70,10 +70,18 @@ export function postsListPage(
 
 export function postPage(
   post: Document,
-  author: { handle: string; display_name: string | null },
-  user?: { handle: string; csrfToken?: string }
+  author: { handle: string; display_name: string | null; did?: string },
+  user?: { handle: string; csrfToken?: string },
+  isOwner?: boolean
 ): string {
   const renderedContent = renderDocumentContent(post.content);
+
+  const deleteButton = isOwner && user?.csrfToken ? `
+    <form action="/posts/${encodeURIComponent(post.author)}/${encodeURIComponent(post.rkey)}/delete" method="POST" class="inline-form" onsubmit="return confirm('Are you sure you want to delete this post? This cannot be undone.');">
+      <input type="hidden" name="_csrf" value="${escapeHtml(user.csrfToken)}">
+      <button type="submit" class="danger-btn">Delete Post</button>
+    </form>
+  ` : '';
 
   const content = `
     <article>
@@ -89,12 +97,22 @@ export function postPage(
         ${renderedContent}
       </div>
     </article>
-    <div style="margin-top: 2rem;">
+    <div class="post-actions">
       <a href="/posts">&larr; Back to all posts</a>
+      ${deleteButton}
     </div>
   `;
 
-  return layout(post.title, content, user);
+  // OpenGraph metadata for the post
+  const og: OpenGraphMeta = {
+    title: post.title,
+    description: post.description || `A post by ${author.display_name || author.handle}`,
+    type: 'article',
+    author: author.display_name || author.handle,
+    publishedTime: post.published_at || undefined
+  };
+
+  return layout(post.title, content, user, og);
 }
 
 export function userPostsPage(
@@ -134,7 +152,13 @@ export function userPostsPage(
     ${posts.length > 0 ? pagination : ''}
   `;
 
-  return layout(`Posts by ${author.display_name || author.handle}`, content, currentUser);
+  const og: OpenGraphMeta = {
+    title: `Posts by ${author.display_name || author.handle}`,
+    description: `View blog posts by @${author.handle} on Leaflet Blog`,
+    type: 'website'
+  };
+
+  return layout(`Posts by ${author.display_name || author.handle}`, content, currentUser, og);
 }
 
 export function profilePage(
@@ -169,20 +193,53 @@ export function profilePage(
   `;
 
   const content = `
-    <h1 style="margin-bottom: 0.5rem;">My Posts</h1>
+    <h1 style="margin-bottom: 0.5rem;">${escapeHtml(user.display_name || 'My Posts')}</h1>
     <p style="color: var(--text-muted); margin-bottom: 1rem;">@${escapeHtml(user.handle)}</p>
-    <div style="margin-bottom: 1.5rem;">
-      <form action="/refresh" method="POST" style="display: inline;">
+    <div style="margin-bottom: 1.5rem; display: flex; gap: 0.5rem;">
+      <form action="/refresh" method="POST" class="inline-form">
         <input type="hidden" name="_csrf" value="${escapeHtml(csrfToken)}">
-        <button type="submit" class="logout-btn">Refresh from PDS</button>
+        <button type="submit" class="secondary-btn">Refresh from PDS</button>
       </form>
+      <a href="/profile/edit" class="secondary-btn" style="text-decoration: none; display: inline-block;">Edit Profile</a>
     </div>
     ${message ? `<div class="success">${escapeHtml(message)}</div>` : ''}
     ${postCards}
     ${posts.length > 0 ? pagination : ''}
   `;
 
-  return layout('My Posts', content, { handle: user.handle });
+  return layout('My Posts', content, { handle: user.handle, csrfToken });
+}
+
+export function editProfilePage(
+  user: User,
+  csrfToken: string,
+  message?: string,
+  error?: string
+): string {
+  const content = `
+    <div class="card">
+      <h2>Edit Profile</h2>
+      <p style="margin-bottom: 1rem; color: var(--text-muted);">
+        Update your display name for this blog. Your handle (@${escapeHtml(user.handle)}) is managed through Bluesky.
+      </p>
+      ${message ? `<div class="success">${escapeHtml(message)}</div>` : ''}
+      ${error ? `<div class="error">${escapeHtml(error)}</div>` : ''}
+      <form action="/profile/edit" method="POST">
+        <input type="hidden" name="_csrf" value="${escapeHtml(csrfToken)}">
+        <div>
+          <label for="display_name">Display Name</label>
+          <input type="text" id="display_name" name="display_name" maxlength="64" placeholder="Your display name" value="${escapeHtml(user.display_name || '')}">
+          <p class="hint">Leave empty to use your handle as your display name</p>
+        </div>
+        <div style="display: flex; gap: 1rem; align-items: center;">
+          <button type="submit">Save Changes</button>
+          <a href="/profile" style="color: var(--text-muted);">Cancel</a>
+        </div>
+      </form>
+    </div>
+  `;
+
+  return layout('Edit Profile', content, { handle: user.handle, csrfToken });
 }
 
 export function createPostPage(user: { handle: string }, csrfToken: string, error?: string): string {
@@ -211,7 +268,7 @@ Separate paragraphs with blank lines."></textarea>
     </div>
   `;
 
-  return layout('Create Post', content, user);
+  return layout('Create Post', content, { handle: user.handle, csrfToken });
 }
 
 export function notFoundPage(user?: { handle: string; csrfToken?: string }): string {
@@ -226,16 +283,17 @@ export function notFoundPage(user?: { handle: string; csrfToken?: string }): str
   return layout('Not Found', content, user);
 }
 
-export function errorPage(user?: { handle: string; csrfToken?: string }): string {
+export function errorPage(user?: { handle: string; csrfToken?: string }, message?: string): string {
+  const displayMessage = message || 'Something went wrong. Please try again.';
   const content = `
     <div class="empty-state">
-      <h1>500 - Server Error</h1>
-      <p>Something went wrong. Please try again.</p>
+      <h1>Error</h1>
+      <p>${escapeHtml(displayMessage)}</p>
       <p><a href="/">Go home</a></p>
     </div>
   `;
 
-  return layout('Server Error', content, user);
+  return layout('Error', content, user);
 }
 
 function formatDate(dateStr: string): string {
