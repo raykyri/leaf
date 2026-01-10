@@ -24,6 +24,13 @@ export function loginPage(error?: string): string {
         <button type="submit">Sign In</button>
       </form>
     </div>
+    <script>
+      document.addEventListener('keydown', function(e) {
+        if (e.altKey || e.metaKey || e.ctrlKey) {
+          e.preventDefault();
+        }
+      });
+    </script>
   `;
 
   return layout('Login', content);
