@@ -20,6 +20,9 @@ import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { initializeDatabase } from './database/schema.js';
+import { generateCsrfToken, validateCsrfToken } from './middleware/csrf.js';
+import { createComment, deleteComment, extractRkeyFromUri } from './services/comments.js';
+import { indexUserPDS } from './services/indexer.js';
 
 // Test configuration
 const TEST_HANDLE = process.env.TEST_HANDLE;
@@ -739,9 +742,7 @@ test('Indexing › should delete orphaned documents on resync', async t => {
     return;
   }
 
-  const { indexUserPDS } = await import('./services/indexer.js');
-
-  const agent = new AtpAgent({ service: 'https://bsky.social' });
+    const agent = new AtpAgent({ service: 'https://bsky.social' });
   await agent.login({
     identifier: TEST_HANDLE!,
     password: TEST_APP_PASSWORD!
@@ -882,9 +883,7 @@ test('CSRF Protection › should generate unique CSRF tokens', async t => {
     return;
   }
 
-  const { generateCsrfToken } = await import('./middleware/csrf.ts');
-
-  const token1 = generateCsrfToken('session1');
+    const token1 = generateCsrfToken('session1');
   const token2 = generateCsrfToken('session2');
 
   t.not(token1, token2);
@@ -897,9 +896,7 @@ test('CSRF Protection › should validate correct CSRF tokens', async t => {
     return;
   }
 
-  const { generateCsrfToken, validateCsrfToken } = await import('./middleware/csrf.ts');
-
-  const sessionToken = 'test-session-csrf';
+    const sessionToken = 'test-session-csrf';
   const csrfToken = generateCsrfToken(sessionToken);
 
   t.true(validateCsrfToken(sessionToken, csrfToken));
@@ -911,9 +908,7 @@ test('CSRF Protection › should reject invalid CSRF tokens', async t => {
     return;
   }
 
-  const { generateCsrfToken, validateCsrfToken } = await import('./middleware/csrf.ts');
-
-  const sessionToken = 'test-session-invalid';
+    const sessionToken = 'test-session-invalid';
   generateCsrfToken(sessionToken);
 
   t.false(validateCsrfToken(sessionToken, 'wrong-token'));
@@ -929,9 +924,7 @@ test('Comments › should create a comment on a document', async t => {
     return;
   }
 
-  const { createComment, extractRkeyFromUri } = await import('./services/comments.ts');
-
-  const agent = new AtpAgent({ service: 'https://bsky.social' });
+    const agent = new AtpAgent({ service: 'https://bsky.social' });
   await agent.login({
     identifier: TEST_HANDLE!,
     password: TEST_APP_PASSWORD!
@@ -1018,9 +1011,7 @@ test('Comments › should create a reply to a comment', async t => {
     return;
   }
 
-  const { createComment, extractRkeyFromUri } = await import('./services/comments.ts');
-
-  const agent = new AtpAgent({ service: 'https://bsky.social' });
+    const agent = new AtpAgent({ service: 'https://bsky.social' });
   await agent.login({
     identifier: TEST_HANDLE!,
     password: TEST_APP_PASSWORD!
@@ -1129,9 +1120,7 @@ test('Comments › should delete a comment', async t => {
     return;
   }
 
-  const { createComment, deleteComment, extractRkeyFromUri } = await import('./services/comments.ts');
-
-  const agent = new AtpAgent({ service: 'https://bsky.social' });
+    const agent = new AtpAgent({ service: 'https://bsky.social' });
   await agent.login({
     identifier: TEST_HANDLE!,
     password: TEST_APP_PASSWORD!
@@ -1211,9 +1200,7 @@ test('Comments › should create a comment with facets', async t => {
     return;
   }
 
-  const { createComment, extractRkeyFromUri } = await import('./services/comments.ts');
-
-  const agent = new AtpAgent({ service: 'https://bsky.social' });
+    const agent = new AtpAgent({ service: 'https://bsky.social' });
   await agent.login({
     identifier: TEST_HANDLE!,
     password: TEST_APP_PASSWORD!
@@ -1304,9 +1291,7 @@ test('Comments › should list comments for a document', async t => {
     return;
   }
 
-  const { createComment, extractRkeyFromUri } = await import('./services/comments.ts');
-
-  const agent = new AtpAgent({ service: 'https://bsky.social' });
+    const agent = new AtpAgent({ service: 'https://bsky.social' });
   await agent.login({
     identifier: TEST_HANDLE!,
     password: TEST_APP_PASSWORD!

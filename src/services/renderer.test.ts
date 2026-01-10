@@ -54,8 +54,8 @@ test('renderDocument › should clamp header levels to valid range (1-6)', t => 
   const pages: LeafletPage[] = [{
     $type: 'pub.leaflet.pages.linearDocument',
     blocks: [
-      { block: { $type: 'pub.leaflet.blocks.header', level: 0, plaintext: 'Too Low' } },
-      { block: { $type: 'pub.leaflet.blocks.header', level: 10, plaintext: 'Too High' } }
+      { block: { $type: 'pub.leaflet.blocks.header', level: 0 as unknown as 1, plaintext: 'Too Low' } },
+      { block: { $type: 'pub.leaflet.blocks.header', level: 10 as unknown as 6, plaintext: 'Too High' } }
     ]
   }];
 
