@@ -438,6 +438,45 @@ export function layout(
     .external-link::after {
       content: ' ↗';
     }
+
+    .draft-status {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 0.75rem;
+      background: var(--secondary);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      margin-bottom: 1rem;
+    }
+
+    .draft-indicator {
+      color: var(--text-muted);
+      font-size: 0.875rem;
+    }
+
+    .draft-indicator::before {
+      content: '●';
+      color: #4ade80;
+      margin-right: 0.5rem;
+    }
+
+    .clear-draft-btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.75rem;
+      margin-left: auto;
+    }
+
+    .clear-draft-btn:hover {
+      background: var(--danger);
+      border-color: var(--danger);
+      color: var(--text);
+    }
   </style>
 </head>
 <body>

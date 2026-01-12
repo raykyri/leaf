@@ -282,8 +282,12 @@ export function createPostPage(user: { handle: string }, csrfToken: string, erro
   const content = `
     <div class="card">
       <h2>Create New Post</h2>
+      <div id="draft-status" class="draft-status" style="display: none;">
+        <span class="draft-indicator">Draft saved</span>
+        <button type="button" id="clear-draft" class="clear-draft-btn">Clear draft</button>
+      </div>
       ${error ? `<div class="error">${escapeHtml(error)}</div>` : ''}
-      <form action="/create" method="POST">
+      <form id="create-form" action="/create" method="POST">
         <input type="hidden" name="_csrf" value="${escapeHtml(csrfToken)}">
         <div>
           <label for="title">Title</label>
@@ -302,6 +306,94 @@ Separate paragraphs with blank lines."></textarea>
         <button type="submit">Publish Post</button>
       </form>
     </div>
+    <script>
+      (function() {
+        const DRAFT_KEY = 'leaf_draft';
+        const titleInput = document.getElementById('title');
+        const descInput = document.getElementById('description');
+        const contentInput = document.getElementById('content');
+        const draftStatus = document.getElementById('draft-status');
+        const clearDraftBtn = document.getElementById('clear-draft');
+        const form = document.getElementById('create-form');
+
+        let saveTimeout = null;
+
+        // Load draft on page load
+        function loadDraft() {
+          try {
+            const saved = localStorage.getItem(DRAFT_KEY);
+            if (saved) {
+              const draft = JSON.parse(saved);
+              if (draft.title) titleInput.value = draft.title;
+              if (draft.description) descInput.value = draft.description;
+              if (draft.content) contentInput.value = draft.content;
+              updateDraftStatus(true);
+            }
+          } catch (e) {
+            console.error('Failed to load draft:', e);
+          }
+        }
+
+        // Save draft to localStorage
+        function saveDraft() {
+          try {
+            const draft = {
+              title: titleInput.value,
+              description: descInput.value,
+              content: contentInput.value,
+              savedAt: new Date().toISOString()
+            };
+            // Only save if there's actual content
+            if (draft.title || draft.content) {
+              localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+              updateDraftStatus(true);
+            }
+          } catch (e) {
+            console.error('Failed to save draft:', e);
+          }
+        }
+
+        // Debounced save
+        function debouncedSave() {
+          if (saveTimeout) clearTimeout(saveTimeout);
+          saveTimeout = setTimeout(saveDraft, 500);
+        }
+
+        // Update draft status indicator
+        function updateDraftStatus(hasDraft) {
+          draftStatus.style.display = hasDraft ? 'flex' : 'none';
+        }
+
+        // Clear draft
+        function clearDraft() {
+          try {
+            localStorage.removeItem(DRAFT_KEY);
+            titleInput.value = '';
+            descInput.value = '';
+            contentInput.value = '';
+            updateDraftStatus(false);
+          } catch (e) {
+            console.error('Failed to clear draft:', e);
+          }
+        }
+
+        // Event listeners
+        titleInput.addEventListener('input', debouncedSave);
+        descInput.addEventListener('input', debouncedSave);
+        contentInput.addEventListener('input', debouncedSave);
+        clearDraftBtn.addEventListener('click', clearDraft);
+
+        // Clear draft on successful form submission
+        form.addEventListener('submit', function() {
+          // Clear draft - if submission fails, error page will have empty form
+          // but user can use browser back to recover
+          localStorage.removeItem(DRAFT_KEY);
+        });
+
+        // Load draft on page load
+        loadDraft();
+      })();
+    </script>
   `;
 
   return layout('Create Post', content, { handle: user.handle, csrfToken });
