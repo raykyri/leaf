@@ -1,5 +1,7 @@
 // HTML layout templates
 
+import { escapeHtml } from '../utils/html.js';
+
 export interface OpenGraphMeta {
   title?: string;
   description?: string;
@@ -438,17 +440,6 @@ export function layout(
   </footer>
 </body>
 </html>`;
-}
-
-function escapeHtml(text: string): string {
-  const htmlEntities: Record<string, string> = {
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#39;'
-  };
-  return text.replace(/[&<>"']/g, (char) => htmlEntities[char]);
 }
 
 export { escapeHtml };
