@@ -133,6 +133,7 @@ export function postPage(
     </article>
     <div class="post-actions">
       <a href="/posts">&larr; Back to all posts</a>
+      <a href="https://leaflet.pub/p/${encodeURIComponent(post.author)}/${encodeURIComponent(post.rkey)}" target="_blank" rel="noopener" class="external-link">View on leaflet.pub</a>
       ${deleteButton}
     </div>
   `;
@@ -214,6 +215,7 @@ export function profilePage(
           </h2>
           <div class="post-meta">
             ${post.published_at ? formatDate(post.published_at) : ''}
+            <a href="https://leaflet.pub/p/${encodeURIComponent(post.author)}/${encodeURIComponent(post.rkey)}" target="_blank" rel="noopener" class="external-link" style="margin-left: 0.5rem;">leaflet.pub</a>
           </div>
           ${post.description ? `<p class="post-excerpt">${escapeHtml(post.description)}</p>` : ''}
         </article>

@@ -40,9 +40,8 @@ export async function createPost(
     const paragraphs = input.content.split(/\n\n+/).filter(p => p.trim());
 
     // Create blocks with the correct Leaflet structure
-    // Block containers need the $type: 'pub.leaflet.pages.linearDocument#block'
+    // Note: $type on block wrapper is optional and omitted to match official Leaflet format
     const blocks = paragraphs.map(paragraph => ({
-      $type: 'pub.leaflet.pages.linearDocument#block' as const,
       block: {
         $type: 'pub.leaflet.blocks.text',
         plaintext: paragraph.trim(),
