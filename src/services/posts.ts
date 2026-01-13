@@ -164,6 +164,14 @@ export interface PublishCanvasResult {
   uri?: string;
 }
 
+export interface SaveCanvasResult {
+  success: boolean;
+  error?: string;
+  uri?: string;
+  rkey?: string;
+  isNew?: boolean;
+}
+
 export async function publishCanvas(
   agent: AtpAgent,
   user: db.User,
@@ -237,6 +245,112 @@ export async function publishCanvas(
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to publish canvas'
+    };
+  }
+}
+
+// Save canvas to ATProto (create or update)
+// This is called when the user clicks "Save" in the canvas editor
+export async function saveCanvasToATProto(
+  agent: AtpAgent,
+  user: db.User,
+  canvas: db.Canvas
+): Promise<SaveCanvasResult> {
+  try {
+    const localBlocks: LocalCanvasBlock[] = JSON.parse(canvas.blocks);
+
+    // Convert local blocks to ATProto canvas blocks
+    const atprotoBlocks: CanvasBlockWithPosition[] = localBlocks.map(convertLocalBlockToATProto);
+
+    // Create the canvas page - use existing id or generate new one
+    const canvasPage: CanvasPage = {
+      $type: 'pub.leaflet.pages.canvas',
+      id: canvas.id, // Use canvas id as page id for consistency
+      blocks: atprotoBlocks
+    };
+
+    // Create the document
+    const document: LeafletDocument = {
+      $type: 'pub.leaflet.document',
+      title: canvas.title,
+      author: user.did,
+      pages: [canvasPage],
+      publishedAt: new Date().toISOString()
+    };
+
+    let uri: string;
+    let rkey: string;
+    let isNew = false;
+
+    if (canvas.rkey) {
+      // Update existing record
+      rkey = canvas.rkey;
+      uri = `at://${user.did}/${LEAFLET_DOCUMENT_COLLECTION}/${rkey}`;
+
+      await agent.com.atproto.repo.putRecord({
+        repo: user.did,
+        collection: LEAFLET_DOCUMENT_COLLECTION,
+        rkey,
+        record: document as unknown as Record<string, unknown>
+      });
+
+      console.log(`Updated canvas ${canvas.id} at ${uri} for user ${user.handle}`);
+    } else {
+      // Create new record
+      rkey = generateTid();
+      isNew = true;
+
+      const response = await agent.com.atproto.repo.createRecord({
+        repo: user.did,
+        collection: LEAFLET_DOCUMENT_COLLECTION,
+        rkey,
+        record: document as unknown as Record<string, unknown>
+      });
+
+      uri = response.data.uri;
+
+      // Update local canvas with ATProto URI and rkey
+      db.updateCanvasUri(canvas.id, uri, rkey);
+
+      console.log(`Created canvas ${canvas.id} as ${uri} for user ${user.handle}`);
+    }
+
+    return {
+      success: true,
+      uri,
+      rkey,
+      isNew
+    };
+  } catch (error) {
+    console.error('Error saving canvas to ATProto:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to save canvas to ATProto'
+    };
+  }
+}
+
+// Delete canvas from ATProto
+export async function deleteCanvasFromATProto(
+  agent: AtpAgent,
+  user: db.User,
+  rkey: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    await agent.com.atproto.repo.deleteRecord({
+      repo: user.did,
+      collection: LEAFLET_DOCUMENT_COLLECTION,
+      rkey
+    });
+
+    console.log(`Deleted canvas record ${rkey} from ATProto for user ${user.handle}`);
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error deleting canvas from ATProto:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to delete canvas from ATProto'
     };
   }
 }

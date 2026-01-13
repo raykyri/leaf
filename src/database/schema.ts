@@ -117,6 +117,7 @@ export function initializeDatabase(db: Database.Database): void {
   `);
 
   // Create local canvases table for canvas editor
+  // uri and rkey are used for ATProto sync - when set, the canvas is synced bidirectionally
   db.exec(`
     CREATE TABLE IF NOT EXISTS canvases (
       id TEXT PRIMARY KEY NOT NULL,
@@ -125,11 +126,25 @@ export function initializeDatabase(db: Database.Database): void {
       blocks TEXT NOT NULL DEFAULT '[]',
       width INTEGER NOT NULL DEFAULT 1200,
       height INTEGER NOT NULL DEFAULT 800,
+      uri TEXT UNIQUE,
+      rkey TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )
   `);
+
+  // Add uri and rkey columns if they don't exist (migration for existing databases)
+  try {
+    db.exec(`ALTER TABLE canvases ADD COLUMN uri TEXT UNIQUE`);
+  } catch {
+    // Column already exists
+  }
+  try {
+    db.exec(`ALTER TABLE canvases ADD COLUMN rkey TEXT`);
+  } catch {
+    // Column already exists
+  }
 
   // Create index for canvas lookups
   db.exec(`

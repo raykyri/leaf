@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import * as db from '../database/index.js';
 import { getSessionUser, getAuthenticatedAgent } from '../services/auth.js';
-import { publishCanvas } from '../services/posts.js';
+import { publishCanvas, saveCanvasToATProto, deleteCanvasFromATProto } from '../services/posts.js';
 import { getCsrfToken } from '../middleware/csrf.js';
 import {
   canvasListPage,
@@ -166,7 +166,7 @@ router.get('/api/canvases/:id', (req: Request, res: Response) => {
 });
 
 // API: Update canvas
-router.put('/api/canvases/:id', (req: Request, res: Response) => {
+router.put('/api/canvases/:id', async (req: Request, res: Response) => {
   const auth = getCurrentUser(req);
   if (!auth) {
     res.status(401).json({ error: 'Unauthorized' });
@@ -230,22 +230,48 @@ router.put('/api/canvases/:id', (req: Request, res: Response) => {
     updates.height = height;
   }
 
+  // Save locally first
   db.updateCanvas(canvasId, updates);
   const updatedCanvas = db.getCanvasById(canvasId)!;
 
+  // Sync to ATProto
+  let atprotoError: string | undefined;
+  try {
+    const agent = await getAuthenticatedAgent(auth.session, auth.user);
+    if (agent) {
+      const syncResult = await saveCanvasToATProto(agent, auth.user, updatedCanvas);
+      if (!syncResult.success) {
+        atprotoError = syncResult.error;
+        console.error(`Failed to sync canvas to ATProto: ${syncResult.error}`);
+      }
+    } else {
+      atprotoError = 'Unable to authenticate with ATProto';
+      console.error('Failed to get authenticated agent for canvas sync');
+    }
+  } catch (error) {
+    atprotoError = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Error syncing canvas to ATProto:', error);
+  }
+
+  // Re-fetch to get updated URI/rkey if they were set
+  const finalCanvas = db.getCanvasById(canvasId)!;
+
   res.json({
-    id: updatedCanvas.id,
-    title: updatedCanvas.title,
-    blocks: JSON.parse(updatedCanvas.blocks),
-    width: updatedCanvas.width,
-    height: updatedCanvas.height,
-    created_at: updatedCanvas.created_at,
-    updated_at: updatedCanvas.updated_at
+    id: finalCanvas.id,
+    title: finalCanvas.title,
+    blocks: JSON.parse(finalCanvas.blocks),
+    width: finalCanvas.width,
+    height: finalCanvas.height,
+    uri: finalCanvas.uri,
+    rkey: finalCanvas.rkey,
+    created_at: finalCanvas.created_at,
+    updated_at: finalCanvas.updated_at,
+    atproto_error: atprotoError // Include sync error if any (non-blocking)
   });
 });
 
 // Handle canvas deletion
-router.post('/canvases/:id/delete', (req: Request, res: Response) => {
+router.post('/canvases/:id/delete', async (req: Request, res: Response) => {
   const auth = getCurrentUser(req);
   if (!auth) {
     res.redirect('/');
@@ -268,6 +294,19 @@ router.post('/canvases/:id/delete', (req: Request, res: Response) => {
   if (canvas.user_id !== auth.user.id) {
     res.redirect('/canvases?message=You can only delete your own canvases');
     return;
+  }
+
+  // If canvas is synced to ATProto, delete from there too
+  if (canvas.rkey) {
+    try {
+      const agent = await getAuthenticatedAgent(auth.session, auth.user);
+      if (agent) {
+        await deleteCanvasFromATProto(agent, auth.user, canvas.rkey);
+      }
+    } catch (error) {
+      console.error('Error deleting canvas from ATProto:', error);
+      // Continue with local deletion even if ATProto deletion fails
+    }
   }
 
   db.deleteCanvas(canvasId);

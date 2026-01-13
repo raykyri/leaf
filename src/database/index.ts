@@ -370,6 +370,8 @@ export interface Canvas {
   blocks: string; // JSON serialized LocalCanvasBlock[]
   width: number;
   height: number;
+  uri: string | null; // ATProto URI when synced
+  rkey: string | null; // ATProto record key when synced
   created_at: string;
   updated_at: string;
 }
@@ -444,4 +446,63 @@ export function getCanvasCount(userId: number): number {
   const db = getDatabase();
   const stmt = db.prepare('SELECT COUNT(*) as count FROM canvases WHERE user_id = ?');
   return (stmt.get(userId) as { count: number }).count;
+}
+
+// Canvas ATProto sync functions
+export function updateCanvasUri(id: string, uri: string, rkey: string): boolean {
+  const db = getDatabase();
+  const stmt = db.prepare('UPDATE canvases SET uri = ?, rkey = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
+  const result = stmt.run(uri, rkey, id);
+  return result.changes > 0;
+}
+
+export function getCanvasByUri(uri: string): Canvas | null {
+  const db = getDatabase();
+  const stmt = db.prepare('SELECT * FROM canvases WHERE uri = ?');
+  return stmt.get(uri) as Canvas | null;
+}
+
+export function getCanvasByRkey(userId: number, rkey: string): Canvas | null {
+  const db = getDatabase();
+  const stmt = db.prepare('SELECT * FROM canvases WHERE user_id = ? AND rkey = ?');
+  return stmt.get(userId, rkey) as Canvas | null;
+}
+
+export function getCanvasUrisByUser(userId: number): string[] {
+  const db = getDatabase();
+  const stmt = db.prepare('SELECT uri FROM canvases WHERE user_id = ? AND uri IS NOT NULL');
+  const rows = stmt.all(userId) as { uri: string }[];
+  return rows.map(r => r.uri);
+}
+
+export function upsertCanvasFromATProto(
+  id: string,
+  userId: number,
+  uri: string,
+  rkey: string,
+  title: string,
+  blocks: string,
+  width: number,
+  height: number
+): Canvas {
+  const db = getDatabase();
+  const stmt = db.prepare(`
+    INSERT INTO canvases (id, user_id, uri, rkey, title, blocks, width, height)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(uri) DO UPDATE SET
+      title = excluded.title,
+      blocks = excluded.blocks,
+      width = excluded.width,
+      height = excluded.height,
+      updated_at = CURRENT_TIMESTAMP
+  `);
+  stmt.run(id, userId, uri, rkey, title, blocks, width, height);
+  return getCanvasByUri(uri)!;
+}
+
+export function deleteCanvasByUri(uri: string): boolean {
+  const db = getDatabase();
+  const stmt = db.prepare('DELETE FROM canvases WHERE uri = ?');
+  const result = stmt.run(uri);
+  return result.changes > 0;
 }
