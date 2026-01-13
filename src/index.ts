@@ -10,6 +10,7 @@ import postsRoutes from './routes/posts.js';
 import oauthRoutes from './routes/oauth.js';
 import { loginPage, notFoundPage, errorPage } from './views/pages.js';
 import { getSessionUser } from './services/auth.js';
+import { isOAuthConfigured } from './services/oauth-client.js';
 
 // Validate required environment variables
 if (!process.env.SESSION_SECRET) {
@@ -103,6 +104,18 @@ app.use((err: Error, req: express.Request, res: express.Response, _next: express
 // Start server
 const server = app.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
+
+  // Warn if OAuth is not configured
+  if (!isOAuthConfigured()) {
+    const cyan = '\x1b[36m';
+    const reset = '\x1b[0m';
+    console.log('');
+    console.log(`${cyan}OAuth is not configured, so only app password login is available.${reset}`);
+    console.log(`${cyan}To enable OAuth login, set PUBLIC_URL to your app's public URL.${reset}`);
+    console.log(`${cyan}  PUBLIC_URL=https://yourdomain.com${reset}`)
+    console.log(`${cyan}  PUBLIC_URL=https://127.0.0.1${reset}`)
+    console.log('');
+  }
 
   // Start Jetstream listener
   console.log('Starting Jetstream listener...');

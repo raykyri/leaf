@@ -80,8 +80,8 @@ export function csrfProtection(req: Request, res: Response, next: NextFunction):
 
   const sessionToken = req.cookies?.session;
 
-  // Login doesn't require CSRF (no session yet)
-  if (req.path === '/auth/login') {
+  // Login/OAuth doesn't require CSRF (no session yet, or starting new auth flow)
+  if (req.path === '/auth/login' || req.path === '/oauth/authorize') {
     return next();
   }
 
