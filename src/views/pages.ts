@@ -15,7 +15,7 @@ export function loginPage(error?: string): string {
       <form action="/oauth/authorize" method="POST">
         <div>
           <label for="oauth-handle">Handle</label>
-          <input type="text" id="oauth-handle" name="handle" placeholder="@username.bsky.social" required>
+          <input type="text" id="oauth-handle" name="handle" placeholder="username.bsky.social" required>
         </div>
         <button type="submit" class="primary-btn">Sign in with Bluesky</button>
       </form>
@@ -36,7 +36,7 @@ export function loginPage(error?: string): string {
       <form action="/auth/login" method="POST">
         <div>
           <label for="handle">Handle</label>
-          <input type="text" id="handle" name="handle" placeholder="@username.bsky.social" required>
+          <input type="text" id="handle" name="handle" placeholder="username.bsky.social" required>
         </div>
         <div>
           <label for="password">App Password</label>
@@ -51,13 +51,6 @@ export function loginPage(error?: string): string {
   const content = `
     ${oauthSection}
     ${appPasswordSection}
-    <script>
-      document.addEventListener('keydown', function(e) {
-        if (e.altKey || e.metaKey || e.ctrlKey) {
-          e.preventDefault();
-        }
-      });
-    </script>
   `;
 
   return layout('Login', content);
