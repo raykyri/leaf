@@ -113,7 +113,7 @@ const server = app.listen(PORT, () => {
     console.log(`${cyan}OAuth is not configured, so only app password login is available.${reset}`);
     console.log(`${cyan}To enable OAuth login, set PUBLIC_URL to your app's public URL.${reset}`);
     console.log(`${cyan}  PUBLIC_URL=https://yourdomain.com${reset}`)
-    console.log(`${cyan}  PUBLIC_URL=https://127.0.0.1${reset}`)
+    console.log(`${cyan}  PUBLIC_URL=http://localhost:3000${reset}`)
     console.log('');
   }
 

@@ -15,9 +15,41 @@ function getPublicUrl(): string {
   return url.replace(/\/$/, ''); // Remove trailing slash if present
 }
 
+// Check if a URL is a loopback address (localhost or 127.0.0.1 or [::1])
+function isLoopbackUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    const hostname = parsed.hostname;
+    return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1' || hostname === '[::1]';
+  } catch {
+    return false;
+  }
+}
+
 // Get the OAuth client metadata configuration
 function getClientMetadata() {
   const publicUrl = getPublicUrl();
+  const isLoopback = isLoopbackUrl(publicUrl);
+
+  // For loopback clients, ATProto OAuth spec requires:
+  // - client_id must use http://localhost (no port) as the origin
+  // - redirect_uris can use the actual loopback address (127.0.0.1, ::1, or localhost)
+  // - application_type must be 'native'
+  // See: https://atproto.com/specs/oauth#localhost-client-development
+  if (isLoopback) {
+    return {
+      client_name: 'Leaf Blog',
+      client_id: `http://localhost/oauth/client-metadata.json`,
+      client_uri: publicUrl,
+      redirect_uris: [`${publicUrl}/oauth/callback`] as [`${string}`],
+      scope: 'atproto transition:generic',
+      grant_types: ['authorization_code', 'refresh_token'] as ['authorization_code', 'refresh_token'],
+      response_types: ['code'] as ['code'],
+      application_type: 'native' as const,
+      token_endpoint_auth_method: 'none' as const,
+      dpop_bound_access_tokens: true,
+    };
+  }
 
   return {
     client_name: 'Leaf Blog',

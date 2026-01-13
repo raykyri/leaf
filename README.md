@@ -67,20 +67,22 @@ ATProto OAuth provides a secure way for users to authenticate without sharing th
 
 #### Local Development with OAuth
 
-OAuth works in local development using `http://localhost`. The ATProto OAuth spec explicitly allows:
-- `http://localhost` and `http://localhost:PORT`
-- `http://127.0.0.1` and `http://127.0.0.1:PORT`
+OAuth works in local development using loopback addresses. You can use:
+- `http://localhost:PORT` (e.g., `http://localhost:3000`)
+- `http://127.0.0.1:PORT` (e.g., `http://127.0.0.1:3000`)
+
+The app automatically configures the OAuth client metadata according to the ATProto spec for loopback clients.
 
 To test OAuth locally:
 ```bash
-# Set PUBLIC_URL in your .env
+# Set PUBLIC_URL in your .env (either localhost or 127.0.0.1 works)
 echo "PUBLIC_URL=http://localhost:3000" >> .env
 
 # Start the dev server
 npm run dev
 ```
 
-Then visit `http://localhost:3000` and use "Sign in with Bluesky".
+Then visit your configured URL and use "Sign in with Bluesky".
 
 #### Production Deployment
 
