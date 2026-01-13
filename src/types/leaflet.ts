@@ -83,7 +83,17 @@ export interface LinearDocumentPage {
 export interface CanvasPage {
   $type: 'pub.leaflet.pages.canvas';
   id?: string;
-  // Canvas-specific properties (not fully implementing for MVP)
+  blocks: CanvasBlockWithPosition[];
+}
+
+export interface CanvasBlockWithPosition {
+  $type?: 'pub.leaflet.pages.canvas#block';
+  block: Block;
+  x: number;
+  y: number;
+  width: number;
+  height?: number;
+  rotation?: number;
 }
 
 export interface BlockWithAlignment {
@@ -336,4 +346,25 @@ export interface QuoteRange {
 export interface QuotePosition {
   block: number[]; // Array of integers navigating block tree
   offset: number; // Character position within block
+}
+
+// Local canvas types for the editor (not ATProto-synced)
+export interface LocalCanvas {
+  id: string;
+  title: string;
+  blocks: LocalCanvasBlock[];
+  width: number;
+  height: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LocalCanvasBlock {
+  id: string;
+  type: 'text';
+  content: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 }

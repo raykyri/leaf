@@ -8,6 +8,7 @@ import { generalLimiter, authLimiter } from './middleware/rateLimit.js';
 import authRoutes from './routes/auth.js';
 import postsRoutes from './routes/posts.js';
 import oauthRoutes from './routes/oauth.js';
+import canvasesRoutes from './routes/canvases.js';
 import { loginPage, notFoundPage, errorPage } from './views/pages.js';
 import { getSessionUser } from './services/auth.js';
 import { isOAuthConfigured } from './services/oauth-client.js';
@@ -52,6 +53,7 @@ cleanupOldOAuthSessions();
 // Routes
 app.use('/auth', authRoutes);
 app.use('/oauth', oauthRoutes);
+app.use('/', canvasesRoutes);
 app.use('/', postsRoutes);
 
 // Home page

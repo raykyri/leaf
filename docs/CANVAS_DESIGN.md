@@ -2,115 +2,73 @@
 
 ## Overview
 
-This document outlines the design for implementing canvas page support in the Leaf ATProto appview, based on analysis of the [hyperlink-academy/leaflet](https://github.com/hyperlink-academy/leaflet) project's canvas implementation.
+This document describes the canvas functionality implemented in the Leaf ATProto appview, including both:
+1. **ATProto Canvas Support**: Types and rendering for `pub.leaflet.pages.canvas` from the Leaflet lexicon
+2. **Local Canvas Editor**: A standalone canvas creation and editing tool for local use
 
-**Key Finding: Leaflet's canvases ARE on ATProto.** Canvas pages are defined in the `pub.leaflet.pages.canvas` lexicon and are a first-class page type alongside linear documents.
+## Implementation Status
 
-## Current State
+### Completed Features
 
-### Leaf (This Repository)
+| Feature | Status | Description |
+|---------|--------|-------------|
+| ATProto canvas types | Done | Full type definitions for `pub.leaflet.pages.canvas` |
+| Local canvas database | Done | SQLite table for storing local canvases |
+| Canvas CRUD routes | Done | Create, read, update, delete operations |
+| Canvas API endpoints | Done | REST API for canvas data |
+| Interactive editor | Done | Drag, resize, edit text blocks |
+| Zoom controls | Done | Fixed zoom levels (25%-200%) |
+| Full-width layout | Done | Dedicated canvas layout with toolbar |
 
-The local repository is an ATProto appview that:
-- Indexes `pub.leaflet.document` and `pub.leaflet.publication` records from user PDS repositories
-- Subscribes to Jetstream for real-time updates
-- Renders documents server-side as HTML
-- Supports 14 block types and 2 page types (linear document + canvas stub)
+## Architecture
 
-**Current Canvas Support:**
-```typescript
-// src/types/leaflet.ts:83-87
-export interface CanvasPage {
-  $type: 'pub.leaflet.pages.canvas';
-  id?: string;
-  // Canvas-specific properties (not fully implementing for MVP)
-}
+### Local Canvas System
+
+The local canvas system is separate from ATProto and provides a standalone canvas editing experience:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     Local Canvas System                         │
+│                                                                 │
+│  ┌───────────────┐    ┌───────────────┐    ┌───────────────┐   │
+│  │   Routes      │───▶│   Database    │───▶│   SQLite      │   │
+│  │ /canvases/*   │    │   Operations  │    │   canvases    │   │
+│  └───────────────┘    └───────────────┘    └───────────────┘   │
+│         │                                                       │
+│         ▼                                                       │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │                  Canvas Editor (JS)                        │ │
+│  │  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐      │ │
+│  │  │  Zoom   │  │  Drag   │  │ Resize  │  │  Edit   │      │ │
+│  │  │ Control │  │ Blocks  │  │ Blocks  │  │  Text   │      │ │
+│  │  └─────────┘  └─────────┘  └─────────┘  └─────────┘      │ │
+│  └───────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-```typescript
-// src/services/renderer.ts:372-379
-// Canvas pages currently render as:
-'<p><em>[Canvas page - not fully supported]</em></p>'
+### Database Schema
+
+```sql
+CREATE TABLE canvases (
+  id TEXT PRIMARY KEY NOT NULL,       -- 16-char hex ID
+  user_id INTEGER NOT NULL,           -- Foreign key to users
+  title TEXT NOT NULL,                -- Canvas title (max 128 chars)
+  blocks TEXT NOT NULL DEFAULT '[]',  -- JSON array of LocalCanvasBlock
+  width INTEGER NOT NULL DEFAULT 1200,
+  height INTEGER NOT NULL DEFAULT 800,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
 ```
 
-### Leaflet (hyperlink-academy/leaflet)
+### Type Definitions
 
-Leaflet is a full-featured publishing platform with:
-- Real-time collaboration via Replicache
-- Supabase backend for data persistence
-- ATProto appview for network indexing
-- Interactive canvas editor with drag, resize, and rotate
-
-## Lexicon Analysis
-
-### Canvas Page Schema (`pub.leaflet.pages.canvas`)
+#### ATProto Canvas Types (Leaflet-compatible)
 
 ```typescript
-interface CanvasPage {
-  $type: 'pub.leaflet.pages.canvas';
-  id?: string;
-  blocks: CanvasBlock[];
-}
+// src/types/leaflet.ts
 
-interface CanvasBlock {
-  block: Block;  // Same block union as linear documents
-  x: number;     // X coordinate (integer)
-  y: number;     // Y coordinate (integer)
-  width: number; // Block width (integer)
-  height?: number;    // Optional height (integer)
-  rotation?: number;  // Rotation in degrees (integer)
-}
-```
-
-### Linear Document Page Schema (`pub.leaflet.pages.linearDocument`)
-
-```typescript
-interface LinearDocumentPage {
-  $type: 'pub.leaflet.pages.linearDocument';
-  id?: string;
-  blocks: BlockWithAlignment[];
-}
-
-interface BlockWithAlignment {
-  block: Block;
-  alignment?: 'left' | 'center' | 'right' | 'justify';
-}
-```
-
-### Key Differences
-
-| Aspect | Linear Document | Canvas |
-|--------|-----------------|--------|
-| Block positioning | Sequential (array order) | Absolute (x, y coordinates) |
-| Sizing | Content-driven | Explicit width/height |
-| Rotation | Not supported | Supported (degrees) |
-| Alignment | Text alignment per block | N/A (use positioning) |
-| Rendering | Vertical flow | 2D spatial layout |
-
-### Shared Block Types
-
-Both page types support the same 14 block types:
-1. `pub.leaflet.blocks.text` - Plain text with facets
-2. `pub.leaflet.blocks.header` - Headers (h1-h6)
-3. `pub.leaflet.blocks.blockquote` - Quoted text
-4. `pub.leaflet.blocks.image` - Images with alt text
-5. `pub.leaflet.blocks.code` - Code with syntax highlighting
-6. `pub.leaflet.blocks.math` - LaTeX/TeX expressions
-7. `pub.leaflet.blocks.horizontalRule` - Visual dividers
-8. `pub.leaflet.blocks.unorderedList` - Bullet lists
-9. `pub.leaflet.blocks.website` - Link embeds
-10. `pub.leaflet.blocks.bskyPost` - Bluesky post embeds
-11. `pub.leaflet.blocks.button` - Clickable buttons
-12. `pub.leaflet.blocks.iframe` - Embedded content
-13. `pub.leaflet.blocks.poll` - Poll references
-14. `pub.leaflet.blocks.page` - Page references
-
-## Implementation Plan
-
-### Phase 1: Type Definitions
-
-Update `src/types/leaflet.ts` with complete canvas types:
-
-```typescript
 export interface CanvasPage {
   $type: 'pub.leaflet.pages.canvas';
   id?: string;
@@ -124,278 +82,220 @@ export interface CanvasBlockWithPosition {
   y: number;
   width: number;
   height?: number;
-  rotation?: number;
+  rotation?: number;  // Not currently rendered (per requirements)
 }
 ```
 
-### Phase 2: Renderer Implementation
-
-Update `src/services/renderer.ts` to render canvas pages:
+#### Local Canvas Types
 
 ```typescript
-function renderCanvasPage(page: CanvasPage): string {
-  // Sort blocks by y-position, then x-position for consistent rendering
-  const sortedBlocks = [...page.blocks].sort((a, b) => {
-    if (a.y !== b.y) return a.y - b.y;
-    return a.x - b.x;
-  });
+// src/types/leaflet.ts
 
-  // Calculate canvas dimensions
-  const maxX = Math.max(...sortedBlocks.map(b => b.x + b.width));
-  const maxY = Math.max(...sortedBlocks.map(b => b.y + (b.height || 200)));
-
-  const blocksHtml = sortedBlocks.map(block => {
-    const style = buildCanvasBlockStyle(block);
-    const content = renderBlock({ block: block.block });
-    return `<div class="canvas-block" style="${style}">${content}</div>`;
-  }).join('\n');
-
-  return `
-    <div class="canvas-page" style="position: relative; width: ${maxX}px; min-height: ${maxY}px;">
-      ${blocksHtml}
-    </div>
-  `;
+export interface LocalCanvas {
+  id: string;
+  title: string;
+  blocks: LocalCanvasBlock[];
+  width: number;
+  height: number;
+  created_at: string;
+  updated_at: string;
 }
 
-function buildCanvasBlockStyle(block: CanvasBlockWithPosition): string {
-  const styles = [
-    'position: absolute',
-    `left: ${block.x}px`,
-    `top: ${block.y}px`,
-    `width: ${block.width}px`,
-  ];
-
-  if (block.height) {
-    styles.push(`height: ${block.height}px`);
-  }
-
-  if (block.rotation) {
-    styles.push(`transform: rotate(${block.rotation}deg)`);
-  }
-
-  return styles.join('; ');
+export interface LocalCanvasBlock {
+  id: string;
+  type: 'text';
+  content: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 }
 ```
 
-### Phase 3: CSS Styling
+## Routes
 
-Add canvas-specific styles to the rendered output:
+### Web Routes
 
-```css
-.canvas-page {
-  position: relative;
-  overflow: visible;
-}
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/canvases` | List user's canvases |
+| GET | `/canvases/new` | Create canvas form |
+| POST | `/canvases/new` | Create new canvas |
+| GET | `/canvases/:id` | Canvas editor page |
+| POST | `/canvases/:id/delete` | Delete canvas |
 
-.canvas-block {
-  position: absolute;
-  box-sizing: border-box;
-  overflow: hidden;
-}
+### API Routes
 
-/* Ensure block content respects container width */
-.canvas-block > * {
-  max-width: 100%;
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/canvases/:id` | Get canvas JSON |
+| PUT | `/api/canvases/:id` | Update canvas (title, blocks) |
+
+### API Request/Response
+
+#### GET /api/canvases/:id
+
+Response:
+```json
+{
+  "id": "a1b2c3d4e5f6g7h8",
+  "title": "My Canvas",
+  "blocks": [
+    {
+      "id": "blk_abc123",
+      "type": "text",
+      "content": "Hello World",
+      "x": 100,
+      "y": 50,
+      "width": 200,
+      "height": 100
+    }
+  ],
+  "width": 1200,
+  "height": 800,
+  "created_at": "2024-01-01T00:00:00.000Z",
+  "updated_at": "2024-01-01T00:00:00.000Z"
 }
 ```
 
-### Phase 4: Database Considerations
+#### PUT /api/canvases/:id
 
-No database schema changes required. The current schema stores pages as JSON in the `content` field, which already supports arbitrary page structures.
-
-### Phase 5: Testing
-
-Add test cases for:
-1. Canvas page type detection
-2. Block positioning and sizing
-3. Rotation transformations
-4. Mixed document rendering (linear + canvas pages)
-5. Edge cases (empty canvas, overlapping blocks, negative coordinates)
-
-## Rendering Approaches
-
-### Option A: Static HTML (Recommended for MVP)
-
-Render canvas as static positioned HTML:
-- Pros: Simple, no JavaScript required, SEO-friendly
-- Cons: No interactivity, fixed viewport
-
-### Option B: SVG Rendering
-
-Render canvas as SVG:
-- Pros: Better scaling, precise positioning
-- Cons: More complex, text handling challenges
-
-### Option C: Canvas Element
-
-Render to HTML5 `<canvas>`:
-- Pros: Full rendering control
-- Cons: Not SEO-friendly, requires JavaScript, accessibility issues
-
-**Recommendation:** Start with Option A for the appview (read-only display). Interactive editing would require a separate frontend implementation.
-
-## Security Considerations
-
-1. **XSS Prevention**: Continue using `escapeHtml()` for all text content
-2. **URL Validation**: Validate URLs in positioned blocks
-3. **Size Limits**: Consider maximum canvas dimensions to prevent DoS
-4. **Rotation Limits**: Sanitize rotation values (0-360 degrees)
-
-## Data Flow
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                        ATProto Network                          │
-│  ┌─────────────────────────────────────────────────────────┐   │
-│  │              pub.leaflet.document Record                 │   │
-│  │  {                                                       │   │
-│  │    "pages": [                                            │   │
-│  │      { "$type": "pub.leaflet.pages.linearDocument", ...},│   │
-│  │      { "$type": "pub.leaflet.pages.canvas",              │   │
-│  │        "blocks": [                                       │   │
-│  │          { "block": {...}, "x": 100, "y": 50, "width": 200}│  │
-│  │        ]                                                 │   │
-│  │      }                                                   │   │
-│  │    ]                                                     │   │
-│  │  }                                                       │   │
-│  └─────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                      Leaf Appview                               │
-│  ┌───────────────┐    ┌───────────────┐    ┌───────────────┐   │
-│  │   Jetstream   │───▶│    Indexer    │───▶│   Database    │   │
-│  │   Listener    │    │               │    │   (SQLite)    │   │
-│  └───────────────┘    └───────────────┘    └───────────────┘   │
-│                                                    │            │
-│                                                    ▼            │
-│                              ┌───────────────────────────────┐  │
-│                              │         Renderer              │  │
-│                              │  ┌─────────────────────────┐  │  │
-│                              │  │  renderPage()           │  │  │
-│                              │  │    ├─ LinearDocument    │  │  │
-│                              │  │    └─ Canvas ◀── NEW    │  │  │
-│                              │  └─────────────────────────┘  │  │
-│                              └───────────────────────────────┘  │
-│                                                    │            │
-│                                                    ▼            │
-│                                              HTML Output        │
-└─────────────────────────────────────────────────────────────────┘
+Request:
+```json
+{
+  "title": "Updated Title",
+  "blocks": [/* block array */]
+}
 ```
 
-## Compatibility Notes
+## Canvas Editor Features
 
-### With Leaflet
+### User Interface
 
-This implementation aims to be compatible with Leaflet's ATProto records:
-- Same lexicon schemas (`pub.leaflet.pages.canvas`)
-- Same block types
-- Same positioning semantics
+The canvas editor provides a full-width interface with:
 
-### Limitations vs Leaflet
+1. **Toolbar**
+   - Back button (return to canvas list)
+   - Title input (editable)
+   - Add Text Block button
+   - Zoom controls (-/+)
+   - Save button
+   - Delete button
 
-| Feature | Leaflet | Leaf Appview |
-|---------|---------|--------------|
-| Real-time editing | ✓ (Replicache) | ✗ (read-only) |
-| Drag & resize | ✓ | ✗ |
-| Rotation editing | ✓ | ✗ (display only) |
-| Background patterns | ✓ (dot/grid/plain) | ✗ (future) |
-| Interactive blocks | ✓ | ✗ |
+2. **Viewport**
+   - Scrollable canvas area
+   - Dark background for contrast
+   - Canvas surface with border and shadow
 
-## File Changes Required
+3. **Status Bar**
+   - Status message (Ready/Unsaved changes/Saving/Saved)
+   - Canvas dimensions
 
-1. **`src/types/leaflet.ts`**
-   - Add `CanvasBlockWithPosition` interface
-   - Update `CanvasPage` interface with `blocks` property
+### Block Operations
 
-2. **`src/services/renderer.ts`**
-   - Add `renderCanvasPage()` function
-   - Add `buildCanvasBlockStyle()` helper
-   - Update `renderPage()` to dispatch to canvas renderer
+| Operation | Interaction |
+|-----------|-------------|
+| Select | Click on block |
+| Move | Drag block |
+| Resize | Drag corner handle |
+| Edit text | Double-click block |
+| Delete | Select + Delete/Backspace key |
 
-3. **`src/services/renderer.test.ts`**
-   - Add canvas rendering tests
-   - Add positioning tests
-   - Add rotation tests
+### Zoom Levels
 
-4. **`src/views/layout.ts`** (optional)
-   - Add canvas-specific CSS styles
+Fixed zoom levels for consistent rendering:
 
-## Estimated Effort
+| Level | Scale |
+|-------|-------|
+| 25% | 0.25x |
+| 50% | 0.5x |
+| 75% | 0.75x |
+| 100% | 1.0x (default) |
+| 125% | 1.25x |
+| 150% | 1.5x |
+| 200% | 2.0x |
 
-| Phase | Complexity | Estimate |
-|-------|------------|----------|
-| Type definitions | Low | Small |
-| Basic renderer | Medium | Medium |
-| CSS styling | Low | Small |
-| Testing | Medium | Medium |
-| **Total** | | **Medium** |
+### Keyboard Shortcuts
+
+| Key | Action |
+|-----|--------|
+| Delete/Backspace | Delete selected block |
+| Escape | Stop editing text |
+
+## File Structure
+
+```
+src/
+├── database/
+│   ├── schema.ts      # Added canvases table
+│   └── index.ts       # Added canvas CRUD operations
+├── routes/
+│   └── canvases.ts    # NEW: Canvas routes and API
+├── types/
+│   └── leaflet.ts     # Added canvas type definitions
+└── views/
+    ├── layout.ts      # Added canvasLayout() function
+    └── pages.ts       # Added canvas page templates
+```
+
+## Navigation
+
+The "Canvases" link appears in the main navigation for logged-in users:
+
+```
+All Posts | My Posts | Canvases | New Post | Logout
+```
+
+## Comparison with Leaflet
+
+| Feature | Leaflet | Leaf (Implemented) |
+|---------|---------|-------------------|
+| Real-time collaboration | Yes (Replicache) | No |
+| ATProto sync | Yes | No (local only) |
+| Drag blocks | Yes | Yes |
+| Resize blocks | Yes | Yes |
+| Rotate blocks | Yes | No |
+| Text blocks | Yes | Yes |
+| Image blocks | Yes | No |
+| Other block types | Yes | No |
+| Zoom | Yes | Yes (fixed levels) |
+| Background patterns | Yes | No |
+
+## Security
+
+1. **Authentication**: All canvas routes require login
+2. **Authorization**: Users can only access their own canvases
+3. **CSRF**: All mutations protected by CSRF tokens
+4. **Input Validation**: Title length, canvas dimensions, block structure
+5. **XSS Prevention**: All output escaped with `escapeHtml()`
 
 ## Future Enhancements
 
-1. **Background Patterns**: Support `canvas/background-pattern` (dot, grid, plain)
-2. **Zoom/Pan**: Allow viewport navigation for large canvases
-3. **Responsive Scaling**: Scale canvas to fit viewport
-4. **Block Shadows**: Visual depth for overlapping blocks
-5. **Export Options**: PNG/PDF export of canvas pages
+1. **Additional Block Types**: Images, headers, code blocks
+2. **ATProto Publishing**: Convert local canvas to `pub.leaflet.pages.canvas`
+3. **Collaboration**: Real-time editing with multiple users
+4. **Export**: PNG, PDF, or SVG export
+5. **Templates**: Pre-made canvas layouts
+6. **Grid/Snap**: Align blocks to grid
+7. **Undo/Redo**: History management
+8. **Copy/Paste**: Duplicate blocks
+
+## Usage Example
+
+1. Navigate to `/canvases`
+2. Click "New Canvas"
+3. Enter a title and click "Create Canvas"
+4. In the editor:
+   - Click "+ Add Text Block" to add blocks
+   - Drag blocks to position them
+   - Double-click to edit text
+   - Drag corner handle to resize
+   - Use +/- buttons to zoom
+   - Click "Save" to persist changes
+5. Navigate away or close - unsaved changes will prompt
 
 ## References
 
 - [Leaflet Repository](https://github.com/hyperlink-academy/leaflet)
 - [Canvas Lexicon](https://github.com/hyperlink-academy/leaflet/blob/main/lexicons/pub/leaflet/pages/canvas.json)
 - [ATProto Lexicon Docs](https://atproto.com/specs/lexicon)
-
-## Appendix: Sample Canvas Document
-
-```json
-{
-  "$type": "pub.leaflet.document",
-  "title": "My Canvas Document",
-  "author": "did:plc:example",
-  "pages": [
-    {
-      "$type": "pub.leaflet.pages.canvas",
-      "id": "canvas-1",
-      "blocks": [
-        {
-          "block": {
-            "$type": "pub.leaflet.blocks.header",
-            "plaintext": "Welcome",
-            "level": 1
-          },
-          "x": 100,
-          "y": 50,
-          "width": 300
-        },
-        {
-          "block": {
-            "$type": "pub.leaflet.blocks.text",
-            "plaintext": "This is positioned text on a canvas."
-          },
-          "x": 100,
-          "y": 150,
-          "width": 400
-        },
-        {
-          "block": {
-            "$type": "pub.leaflet.blocks.image",
-            "image": {
-              "$type": "blob",
-              "ref": { "$link": "bafkrei..." },
-              "mimeType": "image/png",
-              "size": 12345
-            },
-            "alt": "Example image"
-          },
-          "x": 550,
-          "y": 50,
-          "width": 200,
-          "height": 200,
-          "rotation": 5
-        }
-      ]
-    }
-  ]
-}
-```

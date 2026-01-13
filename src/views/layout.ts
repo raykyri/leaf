@@ -22,6 +22,7 @@ export function layout(
       <nav>
         <a href="/posts">All Posts</a>
         <a href="/profile">My Posts</a>
+        <a href="/canvases">Canvases</a>
         <a href="/create">New Post</a>
         <form action="/auth/logout" method="POST" style="display: inline;">
           ${user.csrfToken ? `<input type="hidden" name="_csrf" value="${escapeHtml(user.csrfToken)}">` : ''}
@@ -458,3 +459,601 @@ export function layout(
 }
 
 export { escapeHtml };
+
+// Canvas-specific layout (full-width, includes canvas editor JS)
+export function canvasLayout(
+  title: string,
+  content: string,
+  user?: { handle: string; csrfToken?: string }
+): string {
+  const nav = user
+    ? `
+      <nav>
+        <a href="/posts">All Posts</a>
+        <a href="/profile">My Posts</a>
+        <a href="/canvases">Canvases</a>
+        <a href="/create">New Post</a>
+        <form action="/auth/logout" method="POST" style="display: inline;">
+          ${user.csrfToken ? `<input type="hidden" name="_csrf" value="${escapeHtml(user.csrfToken)}">` : ''}
+          <button type="submit" class="logout-btn">Logout (${escapeHtml(user.handle)})</button>
+        </form>
+      </nav>
+    `
+    : `
+      <nav>
+        <a href="/posts">All Posts</a>
+        <a href="/">Login</a>
+      </nav>
+    `;
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${escapeHtml(title)} - Leaflet Canvas</title>
+  <style>
+    :root {
+      --primary: #1a1a2e;
+      --secondary: #16213e;
+      --accent: #0f3460;
+      --text: #e5e5e5;
+      --text-muted: #a0a0a0;
+      --bg: #0f0f1a;
+      --card-bg: #1a1a2e;
+      --border: #2a2a4a;
+      --danger: #8a3a3a;
+      --danger-hover: #a04a4a;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      line-height: 1.6;
+      color: var(--text);
+      background: var(--bg);
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      background: var(--primary);
+      padding: 0.75rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    header h1 {
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+    }
+
+    header h1 a {
+      color: var(--text);
+      text-decoration: none;
+    }
+
+    nav {
+      display: flex;
+      gap: 1.25rem;
+      align-items: center;
+      flex-wrap: wrap;
+      font-size: 0.875rem;
+    }
+
+    nav a {
+      color: var(--text-muted);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    nav a:hover {
+      color: var(--text);
+    }
+
+    .logout-btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      padding: 0.2rem 0.6rem;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.8rem;
+    }
+
+    .logout-btn:hover {
+      background: var(--secondary);
+      color: var(--text);
+    }
+
+    #canvas-app {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .canvas-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.5rem 1rem;
+      background: var(--secondary);
+      border-bottom: 1px solid var(--border);
+      gap: 1rem;
+      flex-shrink: 0;
+    }
+
+    .toolbar-left, .toolbar-center, .toolbar-right {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .toolbar-btn {
+      background: var(--primary);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.4rem 0.8rem;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.875rem;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+
+    .toolbar-btn:hover {
+      background: var(--accent);
+    }
+
+    .toolbar-btn.primary {
+      background: #1d4ed8;
+      border-color: #1d4ed8;
+    }
+
+    .toolbar-btn.primary:hover {
+      background: #2563eb;
+    }
+
+    .toolbar-btn.danger {
+      background: transparent;
+      border-color: var(--danger);
+      color: #ffaaaa;
+    }
+
+    .toolbar-btn.danger:hover {
+      background: var(--danger);
+      color: var(--text);
+    }
+
+    .canvas-title-input {
+      background: var(--primary);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.4rem 0.8rem;
+      border-radius: 4px;
+      font-size: 0.875rem;
+      width: 200px;
+    }
+
+    .canvas-title-input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .zoom-controls {
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+    }
+
+    #zoom-level {
+      min-width: 50px;
+      text-align: center;
+      font-size: 0.875rem;
+      color: var(--text-muted);
+    }
+
+    .canvas-viewport {
+      flex: 1;
+      overflow: auto;
+      background: #0a0a12;
+      display: flex;
+      align-items: flex-start;
+      justify-content: flex-start;
+      padding: 2rem;
+    }
+
+    .canvas-container {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      position: relative;
+      transform-origin: top left;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    }
+
+    .canvas-block {
+      position: absolute;
+      background: var(--secondary);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      cursor: move;
+      user-select: none;
+      overflow: hidden;
+    }
+
+    .canvas-block:hover {
+      border-color: var(--accent);
+    }
+
+    .canvas-block.selected {
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
+    }
+
+    .canvas-block.editing {
+      cursor: text;
+    }
+
+    .canvas-block-content {
+      padding: 0.5rem;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+
+    .canvas-block-content:focus {
+      outline: none;
+    }
+
+    .canvas-block .resize-handle {
+      position: absolute;
+      width: 10px;
+      height: 10px;
+      background: #3b82f6;
+      border-radius: 2px;
+      cursor: se-resize;
+      right: -5px;
+      bottom: -5px;
+      opacity: 0;
+    }
+
+    .canvas-block:hover .resize-handle,
+    .canvas-block.selected .resize-handle {
+      opacity: 1;
+    }
+
+    .status-bar {
+      display: flex;
+      justify-content: space-between;
+      padding: 0.25rem 1rem;
+      background: var(--primary);
+      border-top: 1px solid var(--border);
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      flex-shrink: 0;
+    }
+
+    .inline-form {
+      display: inline;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1><a href="/">Leaflet Blog</a></h1>
+    ${nav}
+  </header>
+  ${content}
+  <script>
+    (function() {
+      // Canvas Editor JavaScript
+      const app = document.getElementById('canvas-app');
+      if (!app) return;
+
+      const canvasId = app.dataset.canvasId;
+      const csrfToken = app.dataset.csrfToken;
+      let canvasTitle = app.dataset.canvasTitle;
+      let blocks = JSON.parse(app.dataset.canvasBlocks || '[]');
+      let canvasWidth = parseInt(app.dataset.canvasWidth) || 1200;
+      let canvasHeight = parseInt(app.dataset.canvasHeight) || 800;
+
+      const container = document.getElementById('canvas-container');
+      const titleInput = document.getElementById('canvas-title');
+      const addBlockBtn = document.getElementById('add-block-btn');
+      const saveBtn = document.getElementById('save-btn');
+      const zoomInBtn = document.getElementById('zoom-in-btn');
+      const zoomOutBtn = document.getElementById('zoom-out-btn');
+      const zoomLevelSpan = document.getElementById('zoom-level');
+      const statusMessage = document.getElementById('status-message');
+
+      // Zoom levels
+      const zoomLevels = [25, 50, 75, 100, 125, 150, 200];
+      let currentZoomIndex = 3; // Start at 100%
+
+      let selectedBlock = null;
+      let isDirty = false;
+
+      // Generate unique ID
+      function generateId() {
+        return 'blk_' + Math.random().toString(36).substr(2, 9);
+      }
+
+      // Update status message
+      function setStatus(msg) {
+        statusMessage.textContent = msg;
+      }
+
+      // Mark as dirty (unsaved changes)
+      function markDirty() {
+        isDirty = true;
+        setStatus('Unsaved changes');
+      }
+
+      // Apply zoom
+      function applyZoom() {
+        const zoom = zoomLevels[currentZoomIndex];
+        container.style.transform = 'scale(' + (zoom / 100) + ')';
+        zoomLevelSpan.textContent = zoom + '%';
+      }
+
+      // Render all blocks
+      function renderBlocks() {
+        container.innerHTML = '';
+        blocks.forEach(function(block) {
+          renderBlock(block);
+        });
+      }
+
+      // Render a single block
+      function renderBlock(block) {
+        const el = document.createElement('div');
+        el.className = 'canvas-block';
+        el.dataset.blockId = block.id;
+        el.style.left = block.x + 'px';
+        el.style.top = block.y + 'px';
+        el.style.width = block.width + 'px';
+        el.style.height = block.height + 'px';
+
+        const content = document.createElement('div');
+        content.className = 'canvas-block-content';
+        content.textContent = block.content;
+        content.contentEditable = 'false';
+        el.appendChild(content);
+
+        const resizeHandle = document.createElement('div');
+        resizeHandle.className = 'resize-handle';
+        el.appendChild(resizeHandle);
+
+        // Selection
+        el.addEventListener('mousedown', function(e) {
+          if (e.target === resizeHandle) return;
+          selectBlock(el, block);
+        });
+
+        // Double-click to edit
+        el.addEventListener('dblclick', function(e) {
+          startEditing(el, content, block);
+        });
+
+        // Drag handling
+        let isDragging = false;
+        let startX, startY, origX, origY;
+
+        el.addEventListener('mousedown', function(e) {
+          if (e.target === resizeHandle || content.contentEditable === 'true') return;
+          isDragging = true;
+          startX = e.clientX;
+          startY = e.clientY;
+          origX = block.x;
+          origY = block.y;
+          el.style.zIndex = '1000';
+          e.preventDefault();
+        });
+
+        document.addEventListener('mousemove', function(e) {
+          if (!isDragging) return;
+          const zoom = zoomLevels[currentZoomIndex] / 100;
+          const dx = (e.clientX - startX) / zoom;
+          const dy = (e.clientY - startY) / zoom;
+          block.x = Math.max(0, Math.round(origX + dx));
+          block.y = Math.max(0, Math.round(origY + dy));
+          el.style.left = block.x + 'px';
+          el.style.top = block.y + 'px';
+          markDirty();
+        });
+
+        document.addEventListener('mouseup', function() {
+          if (isDragging) {
+            isDragging = false;
+            el.style.zIndex = '';
+          }
+        });
+
+        // Resize handling
+        let isResizing = false;
+        let resizeStartX, resizeStartY, origWidth, origHeight;
+
+        resizeHandle.addEventListener('mousedown', function(e) {
+          isResizing = true;
+          resizeStartX = e.clientX;
+          resizeStartY = e.clientY;
+          origWidth = block.width;
+          origHeight = block.height;
+          e.stopPropagation();
+          e.preventDefault();
+        });
+
+        document.addEventListener('mousemove', function(e) {
+          if (!isResizing) return;
+          const zoom = zoomLevels[currentZoomIndex] / 100;
+          const dx = (e.clientX - resizeStartX) / zoom;
+          const dy = (e.clientY - resizeStartY) / zoom;
+          block.width = Math.max(50, Math.round(origWidth + dx));
+          block.height = Math.max(30, Math.round(origHeight + dy));
+          el.style.width = block.width + 'px';
+          el.style.height = block.height + 'px';
+          markDirty();
+        });
+
+        document.addEventListener('mouseup', function() {
+          isResizing = false;
+        });
+
+        container.appendChild(el);
+      }
+
+      // Select a block
+      function selectBlock(el, block) {
+        // Deselect previous
+        if (selectedBlock) {
+          selectedBlock.classList.remove('selected');
+        }
+        selectedBlock = el;
+        el.classList.add('selected');
+      }
+
+      // Start editing a block
+      function startEditing(el, content, block) {
+        el.classList.add('editing');
+        content.contentEditable = 'true';
+        content.focus();
+
+        // Select all text
+        const range = document.createRange();
+        range.selectNodeContents(content);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+
+        function stopEditing() {
+          content.contentEditable = 'false';
+          el.classList.remove('editing');
+          block.content = content.textContent;
+          markDirty();
+          content.removeEventListener('blur', stopEditing);
+          content.removeEventListener('keydown', handleKey);
+        }
+
+        function handleKey(e) {
+          if (e.key === 'Escape') {
+            stopEditing();
+          }
+        }
+
+        content.addEventListener('blur', stopEditing);
+        content.addEventListener('keydown', handleKey);
+      }
+
+      // Add new block
+      addBlockBtn.addEventListener('click', function() {
+        const newBlock = {
+          id: generateId(),
+          type: 'text',
+          content: 'New text block',
+          x: 50 + Math.random() * 100,
+          y: 50 + Math.random() * 100,
+          width: 200,
+          height: 100
+        };
+        blocks.push(newBlock);
+        renderBlock(newBlock);
+        markDirty();
+      });
+
+      // Save canvas
+      saveBtn.addEventListener('click', function() {
+        setStatus('Saving...');
+        saveBtn.disabled = true;
+
+        fetch('/api/canvases/' + canvasId, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            title: titleInput.value,
+            blocks: blocks
+          })
+        })
+        .then(function(res) {
+          if (!res.ok) throw new Error('Save failed');
+          return res.json();
+        })
+        .then(function(data) {
+          isDirty = false;
+          setStatus('Saved');
+          canvasTitle = data.title;
+        })
+        .catch(function(err) {
+          setStatus('Error saving: ' + err.message);
+        })
+        .finally(function() {
+          saveBtn.disabled = false;
+        });
+      });
+
+      // Zoom controls
+      zoomInBtn.addEventListener('click', function() {
+        if (currentZoomIndex < zoomLevels.length - 1) {
+          currentZoomIndex++;
+          applyZoom();
+        }
+      });
+
+      zoomOutBtn.addEventListener('click', function() {
+        if (currentZoomIndex > 0) {
+          currentZoomIndex--;
+          applyZoom();
+        }
+      });
+
+      // Title change
+      titleInput.addEventListener('input', function() {
+        markDirty();
+      });
+
+      // Delete selected block with Delete/Backspace key
+      document.addEventListener('keydown', function(e) {
+        if ((e.key === 'Delete' || e.key === 'Backspace') && selectedBlock && document.activeElement.tagName !== 'INPUT') {
+          const blockId = selectedBlock.dataset.blockId;
+          const editableContent = selectedBlock.querySelector('.canvas-block-content');
+          if (editableContent && editableContent.contentEditable === 'true') return;
+
+          blocks = blocks.filter(function(b) { return b.id !== blockId; });
+          selectedBlock.remove();
+          selectedBlock = null;
+          markDirty();
+        }
+      });
+
+      // Warn on unsaved changes
+      window.addEventListener('beforeunload', function(e) {
+        if (isDirty) {
+          e.preventDefault();
+          e.returnValue = '';
+        }
+      });
+
+      // Initial render
+      renderBlocks();
+      applyZoom();
+      setStatus('Ready');
+    })();
+  </script>
+</body>
+</html>`;
+}
