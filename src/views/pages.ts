@@ -430,6 +430,10 @@ export function canvasEditorPage(
             <button id="zoom-in-btn" class="toolbar-btn">+</button>
           </div>
           <button id="save-btn" class="toolbar-btn primary">Save</button>
+          <form action="/canvases/${escapeHtml(canvas.id)}/publish" method="POST" class="inline-form" onsubmit="return confirm('Publish this canvas to ATProto? This will create a Leaflet document on your PDS.');">
+            <input type="hidden" name="_csrf" value="${escapeHtml(user.csrfToken || '')}">
+            <button type="submit" class="toolbar-btn" style="background: #059669; border-color: #059669;">Publish to ATProto</button>
+          </form>
           <form action="/canvases/${escapeHtml(canvas.id)}/delete" method="POST" class="inline-form" onsubmit="return confirm('Are you sure you want to delete this canvas?');">
             <input type="hidden" name="_csrf" value="${escapeHtml(user.csrfToken || '')}">
             <button type="submit" class="toolbar-btn danger">Delete</button>

@@ -123,6 +123,7 @@ export interface LocalCanvasBlock {
 | POST | `/canvases/new` | Create new canvas |
 | GET | `/canvases/:id` | Canvas editor page |
 | POST | `/canvases/:id/delete` | Delete canvas |
+| POST | `/canvases/:id/publish` | Publish canvas to ATProto |
 
 ### API Routes
 
@@ -180,6 +181,7 @@ The canvas editor provides a full-width interface with:
    - Add Text Block button
    - Zoom controls (-/+)
    - Save button
+   - Publish to ATProto button
    - Delete button
 
 2. **Viewport**
@@ -269,16 +271,68 @@ All Posts | My Posts | Canvases | New Post | Logout
 4. **Input Validation**: Title length, canvas dimensions, block structure
 5. **XSS Prevention**: All output escaped with `escapeHtml()`
 
+## ATProto Integration
+
+### Publishing to Leaflet Format
+
+Local canvases can be published to ATProto as `pub.leaflet.document` records with `pub.leaflet.pages.canvas` page type. This makes them compatible with the official Leaflet app.
+
+**Conversion Process:**
+
+```
+Local Canvas → ATProto Document
+─────────────────────────────────
+LocalCanvasBlock {          CanvasBlockWithPosition {
+  id: "blk_abc123"            block: {
+  type: "text"         →        $type: "pub.leaflet.blocks.text"
+  content: "Hello"              plaintext: "Hello"
+  x: 100                        facets: []
+  y: 50                       }
+  width: 200                  x: 100
+  height: 100                 y: 50
+}                             width: 200
+                              height: 100
+                            }
+```
+
+**Publishing Flow:**
+
+1. User clicks "Publish to ATProto" button
+2. System gets authenticated ATProto agent (app password or OAuth)
+3. Local blocks are converted to Leaflet format
+4. Document is created on user's PDS via `com.atproto.repo.createRecord`
+5. Document is indexed locally for display
+6. User is redirected to the published post
+
+**Implementation:**
+
+```typescript
+// src/services/posts.ts
+export async function publishCanvas(
+  agent: AtpAgent,
+  user: db.User,
+  input: { canvasId: string }
+): Promise<PublishCanvasResult>
+```
+
+### Compatibility
+
+Published canvases are fully compatible with:
+- Leaflet.pub (official Leaflet app)
+- Any ATProto appview that supports `pub.leaflet.pages.canvas`
+- The local Leaf appview post viewer
+
 ## Future Enhancements
 
 1. **Additional Block Types**: Images, headers, code blocks
-2. **ATProto Publishing**: Convert local canvas to `pub.leaflet.pages.canvas`
+2. **Import from ATProto**: Load existing Leaflet canvases for editing
 3. **Collaboration**: Real-time editing with multiple users
 4. **Export**: PNG, PDF, or SVG export
 5. **Templates**: Pre-made canvas layouts
 6. **Grid/Snap**: Align blocks to grid
 7. **Undo/Redo**: History management
 8. **Copy/Paste**: Duplicate blocks
+9. **Sync Changes**: Update published canvas instead of creating new
 
 ## Usage Example
 
@@ -292,7 +346,8 @@ All Posts | My Posts | Canvases | New Post | Logout
    - Drag corner handle to resize
    - Use +/- buttons to zoom
    - Click "Save" to persist changes
-5. Navigate away or close - unsaved changes will prompt
+5. Click "Publish to ATProto" to publish as a Leaflet document
+6. Navigate away or close - unsaved changes will prompt
 
 ## References
 

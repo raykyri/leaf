@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import * as db from '../database/index.js';
-import { getSessionUser } from '../services/auth.js';
+import { getSessionUser, getAuthenticatedAgent } from '../services/auth.js';
+import { publishCanvas } from '../services/posts.js';
 import { getCsrfToken } from '../middleware/csrf.js';
 import {
   canvasListPage,
@@ -271,6 +272,56 @@ router.post('/canvases/:id/delete', (req: Request, res: Response) => {
 
   db.deleteCanvas(canvasId);
   res.redirect('/canvases?message=Canvas deleted successfully');
+});
+
+// Publish canvas to ATProto (Leaflet format)
+router.post('/canvases/:id/publish', async (req: Request, res: Response) => {
+  const auth = getCurrentUser(req);
+  if (!auth) {
+    res.redirect('/');
+    return;
+  }
+
+  const canvasId = getParam(req.params, 'id');
+  const csrfToken = getCsrfToken(req.cookies?.session);
+
+  if (!isValidCanvasId(canvasId)) {
+    res.status(400).send(errorPage({ handle: auth.user.handle, csrfToken }, 'Invalid canvas identifier'));
+    return;
+  }
+
+  const canvas = db.getCanvasById(canvasId);
+  if (!canvas) {
+    res.status(404).send(notFoundPage({ handle: auth.user.handle, csrfToken }));
+    return;
+  }
+
+  if (canvas.user_id !== auth.user.id) {
+    res.status(403).send(errorPage({ handle: auth.user.handle, csrfToken }, 'You do not own this canvas'));
+    return;
+  }
+
+  // Get authenticated agent
+  const agent = await getAuthenticatedAgent(auth.session, auth.user);
+  if (!agent) {
+    res.status(401).send(errorPage({ handle: auth.user.handle, csrfToken }, 'Unable to authenticate with ATProto. Please log in again.'));
+    return;
+  }
+
+  // Publish the canvas
+  const result = await publishCanvas(agent, auth.user, { canvasId });
+
+  if (!result.success) {
+    res.status(500).send(errorPage({ handle: auth.user.handle, csrfToken }, result.error || 'Failed to publish canvas'));
+    return;
+  }
+
+  // Redirect to the published post
+  if (result.document) {
+    res.redirect(`/posts/${auth.user.did}/${result.document.rkey}?message=Canvas published successfully to ATProto`);
+  } else {
+    res.redirect(`/canvases?message=Canvas published successfully`);
+  }
 });
 
 export default router;
