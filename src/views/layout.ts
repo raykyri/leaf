@@ -637,6 +637,11 @@ export function canvasLayout(
       color: var(--text);
     }
 
+    .toolbar-btn.active {
+      background: #1d4ed8;
+      border-color: #1d4ed8;
+    }
+
     .canvas-title-input {
       background: var(--primary);
       border: 1px solid var(--border);
@@ -681,6 +686,12 @@ export function canvasLayout(
       position: relative;
       transform-origin: top left;
       box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    }
+
+    .canvas-container.show-grid {
+      background-image: radial-gradient(circle, rgba(255, 255, 255, 0.15) 1px, transparent 1px);
+      background-size: 20px 20px;
+      background-position: 0 0;
     }
 
     .canvas-block {
@@ -779,13 +790,24 @@ export function canvasLayout(
       const zoomOutBtn = document.getElementById('zoom-out-btn');
       const zoomLevelSpan = document.getElementById('zoom-level');
       const statusMessage = document.getElementById('status-message');
+      const snapGridBtn = document.getElementById('snap-grid-btn');
 
       // Zoom levels
       const zoomLevels = [25, 50, 75, 100, 125, 150, 200];
       let currentZoomIndex = 3; // Start at 100%
 
+      // Grid configuration
+      const GRID_SIZE = 20; // Grid cell size in pixels
+      let snapToGridEnabled = true;
+
       let selectedBlock = null;
       let isDirty = false;
+
+      // Snap value to grid
+      function snapToGrid(value) {
+        if (!snapToGridEnabled) return Math.round(value);
+        return Math.round(value / GRID_SIZE) * GRID_SIZE;
+      }
 
       // Generate unique ID
       function generateId() {
@@ -869,8 +891,8 @@ export function canvasLayout(
           const zoom = zoomLevels[currentZoomIndex] / 100;
           const dx = (e.clientX - startX) / zoom;
           const dy = (e.clientY - startY) / zoom;
-          block.x = Math.max(0, Math.round(origX + dx));
-          block.y = Math.max(0, Math.round(origY + dy));
+          block.x = Math.max(0, snapToGrid(origX + dx));
+          block.y = Math.max(0, snapToGrid(origY + dy));
           el.style.left = block.x + 'px';
           el.style.top = block.y + 'px';
           markDirty();
@@ -902,8 +924,8 @@ export function canvasLayout(
           const zoom = zoomLevels[currentZoomIndex] / 100;
           const dx = (e.clientX - resizeStartX) / zoom;
           const dy = (e.clientY - resizeStartY) / zoom;
-          block.width = Math.max(50, Math.round(origWidth + dx));
-          block.height = Math.max(30, Math.round(origHeight + dy));
+          block.width = Math.max(GRID_SIZE * 2, snapToGrid(origWidth + dx));
+          block.height = Math.max(GRID_SIZE * 2, snapToGrid(origHeight + dy));
           el.style.width = block.width + 'px';
           el.style.height = block.height + 'px';
           markDirty();
@@ -960,14 +982,17 @@ export function canvasLayout(
 
       // Add new block
       addBlockBtn.addEventListener('click', function() {
+        // Find a position that doesn't overlap with existing blocks
+        const baseX = snapToGrid(40 + Math.random() * 80);
+        const baseY = snapToGrid(40 + Math.random() * 80);
         const newBlock = {
           id: generateId(),
           type: 'text',
           content: 'New text block',
-          x: 50 + Math.random() * 100,
-          y: 50 + Math.random() * 100,
-          width: 200,
-          height: 100
+          x: baseX,
+          y: baseY,
+          width: GRID_SIZE * 10, // 200px when GRID_SIZE is 20
+          height: GRID_SIZE * 5  // 100px when GRID_SIZE is 20
         };
         blocks.push(newBlock);
         renderBlock(newBlock);
@@ -1021,6 +1046,22 @@ export function canvasLayout(
         }
       });
 
+      // Snap to grid toggle
+      function updateSnapGridState() {
+        if (snapToGridEnabled) {
+          snapGridBtn.classList.add('active');
+          container.classList.add('show-grid');
+        } else {
+          snapGridBtn.classList.remove('active');
+          container.classList.remove('show-grid');
+        }
+      }
+
+      snapGridBtn.addEventListener('click', function() {
+        snapToGridEnabled = !snapToGridEnabled;
+        updateSnapGridState();
+      });
+
       // Title change
       titleInput.addEventListener('input', function() {
         markDirty();
@@ -1051,6 +1092,7 @@ export function canvasLayout(
       // Initial render
       renderBlocks();
       applyZoom();
+      updateSnapGridState();
       setStatus('Ready');
     })();
   </script>
