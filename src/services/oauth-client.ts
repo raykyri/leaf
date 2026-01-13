@@ -37,11 +37,16 @@ function getClientMetadata() {
   // - application_type must be 'native'
   // See: https://atproto.com/specs/oauth#localhost-client-development
   if (isLoopback) {
+    // For loopback clients, client_id must be exactly "http://localhost" (no path allowed)
+    // Redirect URIs and scope can be passed as query params if needed
+    const parsedUrl = new URL(publicUrl);
+    const redirectUri = `http://127.0.0.1${parsedUrl.port ? ':' + parsedUrl.port : ''}/oauth/callback`;
+
     return {
       client_name: 'Leaf Blog',
-      client_id: `http://localhost/oauth/client-metadata.json`,
+      client_id: `http://localhost?redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent('atproto transition:generic')}`,
       client_uri: publicUrl,
-      redirect_uris: [`${publicUrl}/oauth/callback`] as [`${string}`],
+      redirect_uris: [redirectUri] as [`${string}`],
       scope: 'atproto transition:generic',
       grant_types: ['authorization_code', 'refresh_token'] as ['authorization_code', 'refresh_token'],
       response_types: ['code'] as ['code'],
