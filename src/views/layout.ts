@@ -637,6 +637,22 @@ export function canvasLayout(
       color: var(--text);
     }
 
+    .toolbar-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .toolbar-btn:disabled:hover {
+      background: var(--primary);
+    }
+
+    .toolbar-separator {
+      width: 1px;
+      height: 24px;
+      background: var(--border);
+      margin: 0 0.25rem;
+    }
+
     .canvas-title-input {
       background: var(--primary);
       border: 1px solid var(--border);
@@ -779,13 +795,105 @@ export function canvasLayout(
       const zoomOutBtn = document.getElementById('zoom-out-btn');
       const zoomLevelSpan = document.getElementById('zoom-level');
       const statusMessage = document.getElementById('status-message');
+      const undoBtn = document.getElementById('undo-btn');
+      const redoBtn = document.getElementById('redo-btn');
+      const duplicateBtn = document.getElementById('duplicate-btn');
 
       // Zoom levels
       const zoomLevels = [25, 50, 75, 100, 125, 150, 200];
       let currentZoomIndex = 3; // Start at 100%
 
       let selectedBlock = null;
+      let selectedBlockId = null;
       let isDirty = false;
+
+      // History stacks for undo/redo
+      const undoStack = [];
+      const redoStack = [];
+      const MAX_HISTORY = 50;
+
+      // Save current state to undo stack
+      function saveState() {
+        // Deep clone the blocks array
+        const state = JSON.stringify(blocks);
+        undoStack.push(state);
+        // Limit history size
+        if (undoStack.length > MAX_HISTORY) {
+          undoStack.shift();
+        }
+        // Clear redo stack when new action is performed
+        redoStack.length = 0;
+        updateHistoryButtons();
+      }
+
+      // Update undo/redo button states
+      function updateHistoryButtons() {
+        undoBtn.disabled = undoStack.length === 0;
+        redoBtn.disabled = redoStack.length === 0;
+      }
+
+      // Update duplicate button state
+      function updateDuplicateButton() {
+        duplicateBtn.disabled = !selectedBlockId;
+      }
+
+      // Undo last action
+      function undo() {
+        if (undoStack.length === 0) return;
+        // Save current state to redo stack
+        redoStack.push(JSON.stringify(blocks));
+        // Restore previous state
+        blocks = JSON.parse(undoStack.pop());
+        selectedBlock = null;
+        selectedBlockId = null;
+        renderBlocks();
+        markDirty();
+        updateHistoryButtons();
+        updateDuplicateButton();
+      }
+
+      // Redo previously undone action
+      function redo() {
+        if (redoStack.length === 0) return;
+        // Save current state to undo stack
+        undoStack.push(JSON.stringify(blocks));
+        // Restore next state
+        blocks = JSON.parse(redoStack.pop());
+        selectedBlock = null;
+        selectedBlockId = null;
+        renderBlocks();
+        markDirty();
+        updateHistoryButtons();
+        updateDuplicateButton();
+      }
+
+      // Duplicate selected block
+      function duplicateBlock() {
+        if (!selectedBlockId) return;
+        const sourceBlock = blocks.find(function(b) { return b.id === selectedBlockId; });
+        if (!sourceBlock) return;
+
+        saveState();
+
+        const newBlock = {
+          id: generateId(),
+          type: sourceBlock.type,
+          content: sourceBlock.content,
+          x: sourceBlock.x + 20,
+          y: sourceBlock.y + 20,
+          width: sourceBlock.width,
+          height: sourceBlock.height
+        };
+        blocks.push(newBlock);
+        renderBlock(newBlock);
+        markDirty();
+
+        // Select the new block
+        const newEl = container.querySelector('[data-block-id=\"' + newBlock.id + '\"]');
+        if (newEl) {
+          selectBlock(newEl, newBlock);
+        }
+      }
 
       // Generate unique ID
       function generateId() {
@@ -851,11 +959,13 @@ export function canvasLayout(
 
         // Drag handling
         let isDragging = false;
+        let dragStateSaved = false;
         let startX, startY, origX, origY;
 
         el.addEventListener('mousedown', function(e) {
           if (e.target === resizeHandle || content.contentEditable === 'true') return;
           isDragging = true;
+          dragStateSaved = false;
           startX = e.clientX;
           startY = e.clientY;
           origX = block.x;
@@ -866,6 +976,11 @@ export function canvasLayout(
 
         document.addEventListener('mousemove', function(e) {
           if (!isDragging) return;
+          // Save state only on first move
+          if (!dragStateSaved) {
+            saveState();
+            dragStateSaved = true;
+          }
           const zoom = zoomLevels[currentZoomIndex] / 100;
           const dx = (e.clientX - startX) / zoom;
           const dy = (e.clientY - startY) / zoom;
@@ -879,16 +994,19 @@ export function canvasLayout(
         document.addEventListener('mouseup', function() {
           if (isDragging) {
             isDragging = false;
+            dragStateSaved = false;
             el.style.zIndex = '';
           }
         });
 
         // Resize handling
         let isResizing = false;
+        let resizeStateSaved = false;
         let resizeStartX, resizeStartY, origWidth, origHeight;
 
         resizeHandle.addEventListener('mousedown', function(e) {
           isResizing = true;
+          resizeStateSaved = false;
           resizeStartX = e.clientX;
           resizeStartY = e.clientY;
           origWidth = block.width;
@@ -899,6 +1017,11 @@ export function canvasLayout(
 
         document.addEventListener('mousemove', function(e) {
           if (!isResizing) return;
+          // Save state only on first resize
+          if (!resizeStateSaved) {
+            saveState();
+            resizeStateSaved = true;
+          }
           const zoom = zoomLevels[currentZoomIndex] / 100;
           const dx = (e.clientX - resizeStartX) / zoom;
           const dy = (e.clientY - resizeStartY) / zoom;
@@ -910,7 +1033,10 @@ export function canvasLayout(
         });
 
         document.addEventListener('mouseup', function() {
-          isResizing = false;
+          if (isResizing) {
+            isResizing = false;
+            resizeStateSaved = false;
+          }
         });
 
         container.appendChild(el);
@@ -923,11 +1049,17 @@ export function canvasLayout(
           selectedBlock.classList.remove('selected');
         }
         selectedBlock = el;
+        selectedBlockId = block.id;
         el.classList.add('selected');
+        updateDuplicateButton();
       }
 
       // Start editing a block
       function startEditing(el, content, block) {
+        // Save state before editing
+        saveState();
+        const originalContent = block.content;
+
         el.classList.add('editing');
         content.contentEditable = 'true';
         content.focus();
@@ -942,8 +1074,16 @@ export function canvasLayout(
         function stopEditing() {
           content.contentEditable = 'false';
           el.classList.remove('editing');
-          block.content = content.textContent;
-          markDirty();
+          const newContent = content.textContent;
+          // Only mark dirty if content actually changed
+          if (newContent !== originalContent) {
+            block.content = newContent;
+            markDirty();
+          } else {
+            // Remove the saved state since nothing changed
+            undoStack.pop();
+            updateHistoryButtons();
+          }
           content.removeEventListener('blur', stopEditing);
           content.removeEventListener('keydown', handleKey);
         }
@@ -960,6 +1100,7 @@ export function canvasLayout(
 
       // Add new block
       addBlockBtn.addEventListener('click', function() {
+        saveState();
         const newBlock = {
           id: generateId(),
           type: 'text',
@@ -1021,22 +1162,63 @@ export function canvasLayout(
         }
       });
 
+      // Undo/Redo/Duplicate button handlers
+      undoBtn.addEventListener('click', function() {
+        undo();
+      });
+
+      redoBtn.addEventListener('click', function() {
+        redo();
+      });
+
+      duplicateBtn.addEventListener('click', function() {
+        duplicateBlock();
+      });
+
       // Title change
       titleInput.addEventListener('input', function() {
         markDirty();
       });
 
-      // Delete selected block with Delete/Backspace key
+      // Keyboard shortcuts
       document.addEventListener('keydown', function(e) {
-        if ((e.key === 'Delete' || e.key === 'Backspace') && selectedBlock && document.activeElement.tagName !== 'INPUT') {
+        const isEditing = document.activeElement.tagName === 'INPUT' ||
+                          document.activeElement.contentEditable === 'true';
+
+        // Undo: Ctrl+Z (not when editing text)
+        if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey && !isEditing) {
+          e.preventDefault();
+          undo();
+          return;
+        }
+
+        // Redo: Ctrl+Y or Ctrl+Shift+Z (not when editing text)
+        if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey)) && !isEditing) {
+          e.preventDefault();
+          redo();
+          return;
+        }
+
+        // Duplicate: Ctrl+D (not when editing text)
+        if ((e.ctrlKey || e.metaKey) && e.key === 'd' && !isEditing) {
+          e.preventDefault();
+          duplicateBlock();
+          return;
+        }
+
+        // Delete selected block with Delete/Backspace key
+        if ((e.key === 'Delete' || e.key === 'Backspace') && selectedBlock && !isEditing) {
           const blockId = selectedBlock.dataset.blockId;
           const editableContent = selectedBlock.querySelector('.canvas-block-content');
           if (editableContent && editableContent.contentEditable === 'true') return;
 
+          saveState();
           blocks = blocks.filter(function(b) { return b.id !== blockId; });
           selectedBlock.remove();
           selectedBlock = null;
+          selectedBlockId = null;
           markDirty();
+          updateDuplicateButton();
         }
       });
 

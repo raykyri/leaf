@@ -421,7 +421,11 @@ export function canvasEditorPage(
           <input type="text" id="canvas-title" value="${escapeHtml(canvas.title)}" class="canvas-title-input">
         </div>
         <div class="toolbar-center">
+          <button id="undo-btn" class="toolbar-btn" title="Undo (Ctrl+Z)" disabled>Undo</button>
+          <button id="redo-btn" class="toolbar-btn" title="Redo (Ctrl+Y)" disabled>Redo</button>
+          <span class="toolbar-separator"></span>
           <button id="add-block-btn" class="toolbar-btn">+ Add Text Block</button>
+          <button id="duplicate-btn" class="toolbar-btn" title="Duplicate (Ctrl+D)" disabled>Duplicate</button>
         </div>
         <div class="toolbar-right">
           <div class="zoom-controls">
