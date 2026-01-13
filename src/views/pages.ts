@@ -422,6 +422,7 @@ export function canvasEditorPage(
         </div>
         <div class="toolbar-center">
           <button id="add-block-btn" class="toolbar-btn">+ Add Text Block</button>
+          <button id="snap-grid-btn" class="toolbar-btn active" title="Toggle snap to grid">Snap to Grid</button>
         </div>
         <div class="toolbar-right">
           <div class="zoom-controls">
@@ -441,7 +442,7 @@ export function canvasEditorPage(
         </div>
       </div>
       <div class="canvas-viewport">
-        <div id="canvas-container" class="canvas-container" style="width: ${canvas.width}px; height: ${canvas.height}px;">
+        <div id="canvas-container" class="canvas-container show-grid" style="width: ${canvas.width}px; height: ${canvas.height}px;">
           <!-- Blocks will be rendered here by JavaScript -->
         </div>
       </div>

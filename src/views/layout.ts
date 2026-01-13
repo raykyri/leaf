@@ -617,6 +617,11 @@ export function canvasLayout(
       background: var(--accent);
     }
 
+    .toolbar-btn.active {
+      background: #1d4ed8;
+      border-color: #1d4ed8;
+    }
+
     .toolbar-btn.primary {
       background: #1d4ed8;
       border-color: #1d4ed8;
@@ -681,6 +686,13 @@ export function canvasLayout(
       position: relative;
       transform-origin: top left;
       box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    }
+
+    .canvas-container.show-grid {
+      background-image:
+        linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+      background-size: 20px 20px;
     }
 
     .canvas-block {
@@ -774,6 +786,7 @@ export function canvasLayout(
       const container = document.getElementById('canvas-container');
       const titleInput = document.getElementById('canvas-title');
       const addBlockBtn = document.getElementById('add-block-btn');
+      const snapGridBtn = document.getElementById('snap-grid-btn');
       const saveBtn = document.getElementById('save-btn');
       const zoomInBtn = document.getElementById('zoom-in-btn');
       const zoomOutBtn = document.getElementById('zoom-out-btn');
@@ -783,6 +796,15 @@ export function canvasLayout(
       // Zoom levels
       const zoomLevels = [25, 50, 75, 100, 125, 150, 200];
       let currentZoomIndex = 3; // Start at 100%
+
+      // Grid settings
+      const GRID_SIZE = 20;
+      let snapToGrid = true;
+
+      // Snap value to grid
+      function snap(value) {
+        return snapToGrid ? Math.round(value / GRID_SIZE) * GRID_SIZE : Math.round(value);
+      }
 
       let selectedBlock = null;
       let isDirty = false;
@@ -869,8 +891,8 @@ export function canvasLayout(
           const zoom = zoomLevels[currentZoomIndex] / 100;
           const dx = (e.clientX - startX) / zoom;
           const dy = (e.clientY - startY) / zoom;
-          block.x = Math.max(0, Math.round(origX + dx));
-          block.y = Math.max(0, Math.round(origY + dy));
+          block.x = Math.max(0, snap(origX + dx));
+          block.y = Math.max(0, snap(origY + dy));
           el.style.left = block.x + 'px';
           el.style.top = block.y + 'px';
           markDirty();
@@ -902,8 +924,8 @@ export function canvasLayout(
           const zoom = zoomLevels[currentZoomIndex] / 100;
           const dx = (e.clientX - resizeStartX) / zoom;
           const dy = (e.clientY - resizeStartY) / zoom;
-          block.width = Math.max(50, Math.round(origWidth + dx));
-          block.height = Math.max(30, Math.round(origHeight + dy));
+          block.width = Math.max(GRID_SIZE * 2, snap(origWidth + dx));
+          block.height = Math.max(GRID_SIZE * 2, snap(origHeight + dy));
           el.style.width = block.width + 'px';
           el.style.height = block.height + 'px';
           markDirty();
@@ -964,10 +986,10 @@ export function canvasLayout(
           id: generateId(),
           type: 'text',
           content: 'New text block',
-          x: 50 + Math.random() * 100,
-          y: 50 + Math.random() * 100,
-          width: 200,
-          height: 100
+          x: snap(40 + Math.random() * 100),
+          y: snap(40 + Math.random() * 100),
+          width: GRID_SIZE * 10,
+          height: GRID_SIZE * 5
         };
         blocks.push(newBlock);
         renderBlock(newBlock);
@@ -1019,6 +1041,13 @@ export function canvasLayout(
           currentZoomIndex--;
           applyZoom();
         }
+      });
+
+      // Snap to grid toggle
+      snapGridBtn.addEventListener('click', function() {
+        snapToGrid = !snapToGrid;
+        snapGridBtn.classList.toggle('active', snapToGrid);
+        container.classList.toggle('show-grid', snapToGrid);
       });
 
       // Title change
