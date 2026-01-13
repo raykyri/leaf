@@ -361,3 +361,87 @@ export function cleanupOldOAuthSessions(maxAgeDays: number = 30): void {
   const stmt = db.prepare("DELETE FROM oauth_sessions WHERE updated_at < datetime('now', '-' || ? || ' days')");
   stmt.run(maxAgeDays);
 }
+
+// Canvas operations
+export interface Canvas {
+  id: string;
+  user_id: number;
+  title: string;
+  blocks: string; // JSON serialized LocalCanvasBlock[]
+  width: number;
+  height: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export function createCanvas(id: string, userId: number, title: string, width = 1200, height = 800): Canvas {
+  const db = getDatabase();
+  const stmt = db.prepare(`
+    INSERT INTO canvases (id, user_id, title, blocks, width, height)
+    VALUES (?, ?, ?, '[]', ?, ?)
+  `);
+  stmt.run(id, userId, title, width, height);
+  return getCanvasById(id)!;
+}
+
+export function getCanvasById(id: string): Canvas | null {
+  const db = getDatabase();
+  const stmt = db.prepare('SELECT * FROM canvases WHERE id = ?');
+  return stmt.get(id) as Canvas | null;
+}
+
+export function getCanvasesByUser(userId: number, limit = 50, offset = 0): Canvas[] {
+  const db = getDatabase();
+  const stmt = db.prepare(`
+    SELECT * FROM canvases
+    WHERE user_id = ?
+    ORDER BY updated_at DESC
+    LIMIT ? OFFSET ?
+  `);
+  return stmt.all(userId, limit, offset) as Canvas[];
+}
+
+export function updateCanvas(id: string, updates: { title?: string; blocks?: string; width?: number; height?: number }): boolean {
+  const db = getDatabase();
+  const fields: string[] = [];
+  const values: (string | number)[] = [];
+
+  if (updates.title !== undefined) {
+    fields.push('title = ?');
+    values.push(updates.title);
+  }
+  if (updates.blocks !== undefined) {
+    fields.push('blocks = ?');
+    values.push(updates.blocks);
+  }
+  if (updates.width !== undefined) {
+    fields.push('width = ?');
+    values.push(updates.width);
+  }
+  if (updates.height !== undefined) {
+    fields.push('height = ?');
+    values.push(updates.height);
+  }
+
+  if (fields.length === 0) return false;
+
+  fields.push('updated_at = CURRENT_TIMESTAMP');
+  values.push(id);
+
+  const stmt = db.prepare(`UPDATE canvases SET ${fields.join(', ')} WHERE id = ?`);
+  const result = stmt.run(...values);
+  return result.changes > 0;
+}
+
+export function deleteCanvas(id: string): boolean {
+  const db = getDatabase();
+  const stmt = db.prepare('DELETE FROM canvases WHERE id = ?');
+  const result = stmt.run(id);
+  return result.changes > 0;
+}
+
+export function getCanvasCount(userId: number): number {
+  const db = getDatabase();
+  const stmt = db.prepare('SELECT COUNT(*) as count FROM canvases WHERE user_id = ?');
+  return (stmt.get(userId) as { count: number }).count;
+}

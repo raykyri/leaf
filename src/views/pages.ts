@@ -1,6 +1,6 @@
-import { layout, escapeHtml, OpenGraphMeta } from './layout.js';
+import { layout, canvasLayout, escapeHtml, OpenGraphMeta } from './layout.js';
 import { renderDocumentContent } from '../services/renderer.js';
-import type { Document, User } from '../database/index.js';
+import type { Document, User, Canvas } from '../database/index.js';
 
 export function loginPage(error?: string): string {
   const oauthEnabled = !!process.env.PUBLIC_URL;
@@ -336,4 +336,121 @@ function formatDate(dateStr: string): string {
   } catch {
     return dateStr;
   }
+}
+
+// Canvas pages
+export function canvasListPage(
+  canvases: Canvas[],
+  page: number,
+  hasMore: boolean,
+  user: { handle: string; csrfToken?: string }
+): string {
+  const canvasCards = canvases.length === 0
+    ? '<div class="empty-state"><p>You haven\'t created any canvases yet. <a href="/canvases/new">Create your first canvas!</a></p></div>'
+    : canvases.map(canvas => `
+        <article class="card">
+          <h2 class="post-title">
+            <a href="/canvases/${escapeHtml(canvas.id)}">
+              ${escapeHtml(canvas.title)}
+            </a>
+          </h2>
+          <div class="post-meta">
+            ${formatDate(canvas.updated_at)} • ${canvas.width}x${canvas.height}
+          </div>
+        </article>
+      `).join('');
+
+  const pagination = `
+    <div class="pagination">
+      ${page > 1 ? `<a href="/canvases?page=${page - 1}">&larr; Previous</a>` : ''}
+      ${hasMore ? `<a href="/canvases?page=${page + 1}">Next &rarr;</a>` : ''}
+    </div>
+  `;
+
+  const content = `
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+      <h1>My Canvases</h1>
+      <a href="/canvases/new" class="primary-btn" style="text-decoration: none;">New Canvas</a>
+    </div>
+    ${canvasCards}
+    ${canvases.length > 0 ? pagination : ''}
+  `;
+
+  return layout('My Canvases', content, user);
+}
+
+export function createCanvasPage(
+  user: { handle: string; csrfToken?: string },
+  error?: string
+): string {
+  const content = `
+    <div class="card">
+      <h2>Create New Canvas</h2>
+      ${error ? `<div class="error">${escapeHtml(error)}</div>` : ''}
+      <form action="/canvases/new" method="POST">
+        <input type="hidden" name="_csrf" value="${escapeHtml(user.csrfToken || '')}">
+        <div>
+          <label for="title">Title</label>
+          <input type="text" id="title" name="title" required maxlength="128" placeholder="My Canvas">
+        </div>
+        <button type="submit">Create Canvas</button>
+      </form>
+    </div>
+  `;
+
+  return layout('Create Canvas', content, user);
+}
+
+export function canvasEditorPage(
+  canvas: Canvas,
+  user: { handle: string; csrfToken?: string }
+): string {
+  const blocks = JSON.parse(canvas.blocks);
+
+  const content = `
+    <div id="canvas-app"
+         data-canvas-id="${escapeHtml(canvas.id)}"
+         data-canvas-title="${escapeHtml(canvas.title)}"
+         data-canvas-width="${canvas.width}"
+         data-canvas-height="${canvas.height}"
+         data-canvas-blocks='${escapeHtml(JSON.stringify(blocks))}'
+         data-csrf-token="${escapeHtml(user.csrfToken || '')}">
+      <div class="canvas-toolbar">
+        <div class="toolbar-left">
+          <a href="/canvases" class="toolbar-btn">&larr; Back</a>
+          <input type="text" id="canvas-title" value="${escapeHtml(canvas.title)}" class="canvas-title-input">
+        </div>
+        <div class="toolbar-center">
+          <button id="add-block-btn" class="toolbar-btn">+ Add Text Block</button>
+        </div>
+        <div class="toolbar-right">
+          <div class="zoom-controls">
+            <button id="zoom-out-btn" class="toolbar-btn">-</button>
+            <span id="zoom-level">100%</span>
+            <button id="zoom-in-btn" class="toolbar-btn">+</button>
+          </div>
+          <button id="save-btn" class="toolbar-btn primary">Save</button>
+          <form action="/canvases/${escapeHtml(canvas.id)}/publish" method="POST" class="inline-form" onsubmit="return confirm('Publish this canvas to ATProto? This will create a Leaflet document on your PDS.');">
+            <input type="hidden" name="_csrf" value="${escapeHtml(user.csrfToken || '')}">
+            <button type="submit" class="toolbar-btn" style="background: #059669; border-color: #059669;">Publish to ATProto</button>
+          </form>
+          <form action="/canvases/${escapeHtml(canvas.id)}/delete" method="POST" class="inline-form" onsubmit="return confirm('Are you sure you want to delete this canvas?');">
+            <input type="hidden" name="_csrf" value="${escapeHtml(user.csrfToken || '')}">
+            <button type="submit" class="toolbar-btn danger">Delete</button>
+          </form>
+        </div>
+      </div>
+      <div class="canvas-viewport">
+        <div id="canvas-container" class="canvas-container" style="width: ${canvas.width}px; height: ${canvas.height}px;">
+          <!-- Blocks will be rendered here by JavaScript -->
+        </div>
+      </div>
+      <div id="status-bar" class="status-bar">
+        <span id="status-message">Ready</span>
+        <span id="canvas-dimensions">${canvas.width} x ${canvas.height}</span>
+      </div>
+    </div>
+  `;
+
+  return canvasLayout(canvas.title, content, user);
 }

@@ -115,4 +115,25 @@ export function initializeDatabase(db: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_oauth_state_created_at ON oauth_state(created_at);
     CREATE INDEX IF NOT EXISTS idx_oauth_sessions_updated_at ON oauth_sessions(updated_at);
   `);
+
+  // Create local canvases table for canvas editor
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS canvases (
+      id TEXT PRIMARY KEY NOT NULL,
+      user_id INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      blocks TEXT NOT NULL DEFAULT '[]',
+      width INTEGER NOT NULL DEFAULT 1200,
+      height INTEGER NOT NULL DEFAULT 800,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+
+  // Create index for canvas lookups
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_canvases_user_id ON canvases(user_id);
+    CREATE INDEX IF NOT EXISTS idx_canvases_updated_at ON canvases(updated_at DESC);
+  `);
 }
