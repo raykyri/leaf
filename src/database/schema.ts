@@ -121,6 +121,8 @@ export function initializeDatabase(db: Database.Database): void {
     CREATE TABLE IF NOT EXISTS canvases (
       id TEXT PRIMARY KEY NOT NULL,
       user_id INTEGER NOT NULL,
+      uri TEXT UNIQUE,
+      rkey TEXT,
       title TEXT NOT NULL,
       blocks TEXT NOT NULL DEFAULT '[]',
       width INTEGER NOT NULL DEFAULT 1200,
@@ -131,9 +133,22 @@ export function initializeDatabase(db: Database.Database): void {
     )
   `);
 
+  // Add uri and rkey columns to existing canvases table (migration)
+  try {
+    db.exec(`ALTER TABLE canvases ADD COLUMN uri TEXT UNIQUE`);
+  } catch {
+    // Column already exists
+  }
+  try {
+    db.exec(`ALTER TABLE canvases ADD COLUMN rkey TEXT`);
+  } catch {
+    // Column already exists
+  }
+
   // Create index for canvas lookups
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_canvases_user_id ON canvases(user_id);
     CREATE INDEX IF NOT EXISTS idx_canvases_updated_at ON canvases(updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_canvases_uri ON canvases(uri);
   `);
 }

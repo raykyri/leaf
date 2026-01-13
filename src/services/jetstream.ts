@@ -1,11 +1,13 @@
 import WebSocket from 'ws';
 import * as db from '../database/index.js';
 import { processIncomingDocument, processIncomingPublication } from './indexer.js';
-import type { JetstreamEvent, LeafletDocument, LeafletPublication } from '../types/leaflet.js';
+import { processIncomingCanvas } from './canvas.js';
+import type { JetstreamEvent, LeafletDocument, LeafletPublication, LeafletCanvas } from '../types/leaflet.js';
 
 const LEAFLET_COLLECTIONS = [
   'pub.leaflet.document',
-  'pub.leaflet.publication'
+  'pub.leaflet.publication',
+  'pub.leaflet.canvas'
 ];
 
 let ws: WebSocket | null = null;
@@ -147,6 +149,13 @@ function handleJetstreamEvent(event: JetstreamEvent): void {
       did,
       rkey,
       record as unknown as LeafletPublication,
+      operation
+    );
+  } else if (collection === 'pub.leaflet.canvas') {
+    processIncomingCanvas(
+      did,
+      rkey,
+      record as unknown as LeafletCanvas,
       operation
     );
   }

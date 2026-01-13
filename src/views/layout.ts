@@ -995,8 +995,14 @@ export function canvasLayout(
         })
         .then(function(data) {
           isDirty = false;
-          setStatus('Saved');
           canvasTitle = data.title;
+          if (data.synced) {
+            setStatus('Saved & synced');
+          } else if (data.syncError) {
+            setStatus('Saved locally (sync error: ' + data.syncError + ')');
+          } else {
+            setStatus('Saved');
+          }
         })
         .catch(function(err) {
           setStatus('Error saving: ' + err.message);

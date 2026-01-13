@@ -25,6 +25,15 @@ export interface LeafletPublication {
   preferences?: PublicationPreferences;
 }
 
+export interface LeafletCanvas {
+  $type: 'pub.leaflet.canvas';
+  title: string;
+  blocks: CanvasBlockWithPosition[];
+  width: number;
+  height: number;
+  createdAt: string;
+}
+
 export interface PublicationPreferences {
   showInDiscover?: boolean;
   showComments?: boolean;
