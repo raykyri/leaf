@@ -426,6 +426,7 @@ export function canvasEditorPage(
           <span class="toolbar-separator"></span>
           <button id="add-block-btn" class="toolbar-btn">+ Add Text Block</button>
           <button id="duplicate-btn" class="toolbar-btn" title="Duplicate (Ctrl+D)" disabled>Duplicate</button>
+          <button id="snap-grid-btn" class="toolbar-btn active" title="Toggle snap to grid">⊞ Snap to Grid</button>
         </div>
         <div class="toolbar-right">
           <div class="zoom-controls">
