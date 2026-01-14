@@ -366,6 +366,8 @@ export function cleanupOldOAuthSessions(maxAgeDays: number = 30): void {
 export interface Canvas {
   id: string;
   user_id: number;
+  uri: string | null;
+  rkey: string | null;
   title: string;
   blocks: string; // JSON serialized LocalCanvasBlock[]
   width: number;
@@ -444,4 +446,79 @@ export function getCanvasCount(userId: number): number {
   const db = getDatabase();
   const stmt = db.prepare('SELECT COUNT(*) as count FROM canvases WHERE user_id = ?');
   return (stmt.get(userId) as { count: number }).count;
+}
+
+export function getCanvasByUri(uri: string): Canvas | null {
+  const db = getDatabase();
+  const stmt = db.prepare('SELECT * FROM canvases WHERE uri = ?');
+  return stmt.get(uri) as Canvas | null;
+}
+
+export function getCanvasByRkey(userId: number, rkey: string): Canvas | null {
+  const db = getDatabase();
+  const stmt = db.prepare('SELECT * FROM canvases WHERE user_id = ? AND rkey = ?');
+  return stmt.get(userId, rkey) as Canvas | null;
+}
+
+export function updateCanvasUri(id: string, uri: string, rkey: string): boolean {
+  const db = getDatabase();
+  const stmt = db.prepare('UPDATE canvases SET uri = ?, rkey = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
+  const result = stmt.run(uri, rkey, id);
+  return result.changes > 0;
+}
+
+export function upsertCanvas(
+  uri: string,
+  userId: number,
+  rkey: string,
+  title: string,
+  blocks: string,
+  width: number,
+  height: number
+): Canvas {
+  const db = getDatabase();
+  // Check if canvas already exists by URI
+  const existing = getCanvasByUri(uri);
+  if (existing) {
+    // Update existing canvas
+    const stmt = db.prepare(`
+      UPDATE canvases SET
+        title = ?,
+        blocks = ?,
+        width = ?,
+        height = ?,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE uri = ?
+    `);
+    stmt.run(title, blocks, width, height, uri);
+    return getCanvasByUri(uri)!;
+  } else {
+    // Create new canvas with a generated ID
+    const id = generateCanvasId();
+    const stmt = db.prepare(`
+      INSERT INTO canvases (id, user_id, uri, rkey, title, blocks, width, height)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    stmt.run(id, userId, uri, rkey, title, blocks, width, height);
+    return getCanvasById(id)!;
+  }
+}
+
+function generateCanvasId(): string {
+  const crypto = require('crypto');
+  return crypto.randomBytes(8).toString('hex');
+}
+
+export function getCanvasUrisByUser(userId: number): string[] {
+  const db = getDatabase();
+  const stmt = db.prepare('SELECT uri FROM canvases WHERE user_id = ? AND uri IS NOT NULL');
+  const rows = stmt.all(userId) as { uri: string }[];
+  return rows.map(r => r.uri);
+}
+
+export function deleteCanvasByUri(uri: string): boolean {
+  const db = getDatabase();
+  const stmt = db.prepare('DELETE FROM canvases WHERE uri = ?');
+  const result = stmt.run(uri);
+  return result.changes > 0;
 }

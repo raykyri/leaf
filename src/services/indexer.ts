@@ -1,11 +1,12 @@
 import { AtpAgent } from '@atproto/api';
 import * as db from '../database/index.js';
-import type { LeafletDocument, LeafletPublication } from '../types/leaflet.js';
+import type { LeafletDocument, LeafletPublication, LeafletCanvas, CanvasBlockWithPosition, LocalCanvasBlock, TextBlock } from '../types/leaflet.js';
 
 const LEAFLET_DOCUMENT_COLLECTION = 'pub.leaflet.document';
 const LEAFLET_PUBLICATION_COLLECTION = 'pub.leaflet.publication';
+const LEAFLET_CANVAS_COLLECTION = 'pub.leaflet.canvas';
 
-export async function indexUserPDS(user: db.User, agent?: AtpAgent): Promise<{ documents: number; publications: number; deleted: number }> {
+export async function indexUserPDS(user: db.User, agent?: AtpAgent): Promise<{ documents: number; publications: number; canvases: number; deleted: number }> {
   console.log(`Indexing PDS for user ${user.handle} (${user.did})`);
 
   // Create agent if not provided
@@ -15,13 +16,16 @@ export async function indexUserPDS(user: db.User, agent?: AtpAgent): Promise<{ d
 
   let documentsIndexed = 0;
   let publicationsIndexed = 0;
+  let canvasesIndexed = 0;
   let deleted = 0;
 
   // Get existing local URIs before sync to detect orphans
   const existingDocumentUris = new Set(db.getDocumentUrisByUser(user.id));
   const existingPublicationUris = new Set(db.getPublicationUrisByUser(user.id));
+  const existingCanvasUris = new Set(db.getCanvasUrisByUser(user.id));
   const seenDocumentUris = new Set<string>();
   const seenPublicationUris = new Set<string>();
+  const seenCanvasUris = new Set<string>();
 
   // Index publications first
   try {
@@ -53,6 +57,21 @@ export async function indexUserPDS(user: db.User, agent?: AtpAgent): Promise<{ d
     console.error(`Error indexing documents for ${user.handle}:`, error);
   }
 
+  // Index canvases
+  try {
+    canvasesIndexed = await indexCollection(
+      agent,
+      user,
+      LEAFLET_CANVAS_COLLECTION,
+      (user, uri, rkey, record) => {
+        seenCanvasUris.add(uri);
+        processCanvas(user, uri, rkey, record);
+      }
+    );
+  } catch (error) {
+    console.error(`Error indexing canvases for ${user.handle}:`, error);
+  }
+
   // Delete orphaned documents (exist locally but not on PDS)
   for (const uri of existingDocumentUris) {
     if (!seenDocumentUris.has(uri)) {
@@ -71,12 +90,21 @@ export async function indexUserPDS(user: db.User, agent?: AtpAgent): Promise<{ d
     }
   }
 
+  // Delete orphaned canvases
+  for (const uri of existingCanvasUris) {
+    if (!seenCanvasUris.has(uri)) {
+      db.deleteCanvasByUri(uri);
+      deleted++;
+      console.log(`Deleted orphaned canvas: ${uri}`);
+    }
+  }
+
   // Update last indexed timestamp
   db.updateUserLastIndexed(user.id);
 
-  console.log(`Indexed ${documentsIndexed} documents and ${publicationsIndexed} publications for ${user.handle} (deleted ${deleted} orphans)`);
+  console.log(`Indexed ${documentsIndexed} documents, ${publicationsIndexed} publications, and ${canvasesIndexed} canvases for ${user.handle} (deleted ${deleted} orphans)`);
 
-  return { documents: documentsIndexed, publications: publicationsIndexed, deleted };
+  return { documents: documentsIndexed, publications: publicationsIndexed, canvases: canvasesIndexed, deleted };
 }
 
 type RecordProcessor = (user: db.User, uri: string, rkey: string, record: unknown) => void;
@@ -156,6 +184,42 @@ function processPublication(user: db.User, uri: string, rkey: string, record: un
     pub.name,
     pub.description,
     pub.base_path
+  );
+}
+
+// Convert ATProto canvas block to local canvas block format
+function convertATProtoBlockToLocal(block: CanvasBlockWithPosition, index: number): LocalCanvasBlock {
+  const textBlock = block.block as TextBlock;
+  return {
+    id: `block-${index}-${Date.now()}`,
+    type: 'text',
+    content: textBlock.plaintext || '',
+    x: block.x,
+    y: block.y,
+    width: block.width,
+    height: block.height || 100
+  };
+}
+
+function processCanvas(user: db.User, uri: string, rkey: string, record: unknown): void {
+  const canvas = record as LeafletCanvas;
+
+  if (!canvas.title || !canvas.blocks) {
+    console.warn(`Skipping invalid canvas ${uri}: missing required fields`);
+    return;
+  }
+
+  // Convert ATProto blocks to local format
+  const localBlocks: LocalCanvasBlock[] = canvas.blocks.map(convertATProtoBlockToLocal);
+
+  db.upsertCanvas(
+    uri,
+    user.id,
+    rkey,
+    canvas.title,
+    JSON.stringify(localBlocks),
+    canvas.width || 1200,
+    canvas.height || 800
   );
 }
 
