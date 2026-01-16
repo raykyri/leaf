@@ -6,6 +6,8 @@ import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import { Button } from '@/components/ui/Button';
 import * as Tooltip from '@radix-ui/react-tooltip';
 import * as Dialog from '@radix-ui/react-dialog';
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
+import * as ContextMenu from '@radix-ui/react-context-menu';
 import { generateId } from '@/lib/utils';
 import styles from './CanvasEditorPage.module.css';
 
@@ -50,7 +52,6 @@ export function CanvasEditorPage() {
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
   const [zoomIndex, setZoomIndex] = useState(3); // 100%
-  const [snapToGrid, setSnapToGrid] = useState(true);
 
   // History for undo/redo
   const [undoStack, setUndoStack] = useState<string[]>([]);
@@ -64,11 +65,10 @@ export function CanvasEditorPage() {
 
   const zoom = ZOOM_LEVELS[zoomIndex];
 
-  // Snap value to grid
+  // Snap value to grid (always enabled)
   const snap = useCallback((value: number) => {
-    if (!snapToGrid) return Math.round(value);
     return Math.round(value / GRID_SIZE) * GRID_SIZE;
-  }, [snapToGrid]);
+  }, []);
 
   // Save state to undo stack
   const saveState = useCallback(() => {
@@ -226,11 +226,12 @@ export function CanvasEditorPage() {
     setIsDirty(true);
   }, []);
 
-  // Save canvas
-  const saveCanvas = async () => {
+  // Save and publish canvas
+  const saveAndPublish = async () => {
     setStatus('Saving...');
     try {
-      const response = await fetch(`/api/canvases/${id}`, {
+      // First save the canvas
+      const saveResponse = await fetch(`/api/canvases/${id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -239,12 +240,24 @@ export function CanvasEditorPage() {
         body: JSON.stringify({ title, blocks }),
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        setIsDirty(false);
-        setStatus(data.synced ? 'Saved & synced' : data.syncError ? `Saved (sync error: ${data.syncError})` : 'Saved');
-      } else {
+      if (!saveResponse.ok) {
         setStatus('Error saving');
+        return;
+      }
+
+      setIsDirty(false);
+      setStatus('Publishing...');
+
+      // Then publish to ATProto
+      const publishResponse = await fetch(`/api/canvases/${id}/publish`, {
+        method: 'POST',
+        headers: csrfToken ? { 'X-CSRF-Token': csrfToken } : {},
+      });
+
+      if (publishResponse.ok) {
+        setStatus('Saved & published');
+      } else {
+        setStatus('Saved (publish failed)');
       }
     } catch (err) {
       setStatus('Error saving');
@@ -264,24 +277,6 @@ export function CanvasEditorPage() {
       }
     } catch (err) {
       console.error('Failed to delete canvas:', err);
-    }
-  };
-
-  // Publish canvas
-  const publishCanvas = async () => {
-    try {
-      const response = await fetch(`/api/canvases/${id}/publish`, {
-        method: 'POST',
-        headers: csrfToken ? { 'X-CSRF-Token': csrfToken } : {},
-      });
-
-      if (response.ok) {
-        setStatus('Published to ATProto');
-      } else {
-        setStatus('Publish failed');
-      }
-    } catch (err) {
-      setStatus('Publish failed');
     }
   };
 
@@ -408,9 +403,6 @@ export function CanvasEditorPage() {
 
         <div className={styles.toolbar}>
           <div className={styles.toolbarLeft}>
-            <Button asChild variant="secondary" size="sm">
-              <Link to="/canvases">&larr; Back</Link>
-            </Button>
             <input
               type="text"
               className={styles.titleInput}
@@ -423,42 +415,29 @@ export function CanvasEditorPage() {
             <Tooltip.Root>
               <Tooltip.Trigger asChild>
                 <Button variant="secondary" size="sm" onClick={undo} disabled={undoStack.length === 0}>
-                  Undo
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3 7v6h6" /><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13" />
+                  </svg>
                 </Button>
               </Tooltip.Trigger>
-              <Tooltip.Content className={styles.tooltip}>Ctrl+Z</Tooltip.Content>
+              <Tooltip.Content className={styles.tooltip}>Undo (Ctrl+Z)</Tooltip.Content>
             </Tooltip.Root>
 
             <Tooltip.Root>
               <Tooltip.Trigger asChild>
                 <Button variant="secondary" size="sm" onClick={redo} disabled={redoStack.length === 0}>
-                  Redo
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 7v6h-6" /><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3L21 13" />
+                  </svg>
                 </Button>
               </Tooltip.Trigger>
-              <Tooltip.Content className={styles.tooltip}>Ctrl+Y</Tooltip.Content>
+              <Tooltip.Content className={styles.tooltip}>Redo (Ctrl+Y)</Tooltip.Content>
             </Tooltip.Root>
 
             <div className={styles.separator} />
 
             <Button variant="secondary" size="sm" onClick={addBlock}>
               + Add Text Block
-            </Button>
-
-            <Tooltip.Root>
-              <Tooltip.Trigger asChild>
-                <Button variant="secondary" size="sm" onClick={duplicateBlock} disabled={!selectedBlockId}>
-                  Duplicate
-                </Button>
-              </Tooltip.Trigger>
-              <Tooltip.Content className={styles.tooltip}>Ctrl+D</Tooltip.Content>
-            </Tooltip.Root>
-
-            <Button
-              variant={snapToGrid ? 'primary' : 'secondary'}
-              size="sm"
-              onClick={() => setSnapToGrid(!snapToGrid)}
-            >
-              Grid
             </Button>
           </div>
 
@@ -483,64 +462,57 @@ export function CanvasEditorPage() {
               </Button>
             </div>
 
-            <Button variant="primary" size="sm" onClick={saveCanvas}>
+            <Button variant="primary" size="sm" onClick={saveAndPublish}>
               Save
             </Button>
 
-            <Dialog.Root>
-              <Dialog.Trigger asChild>
-                <Button variant="secondary" size="sm" style={{ background: '#059669', borderColor: '#059669', color: 'white' }}>
-                  Publish
+            <DropdownMenu.Root>
+              <DropdownMenu.Trigger asChild>
+                <Button variant="secondary" size="sm" className={styles.menuButton}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="1" /><circle cx="12" cy="5" r="1" /><circle cx="12" cy="19" r="1" />
+                  </svg>
                 </Button>
-              </Dialog.Trigger>
-              <Dialog.Portal>
-                <Dialog.Overlay className={styles.dialogOverlay} />
-                <Dialog.Content className={styles.dialogContent}>
-                  <Dialog.Title>Publish Canvas</Dialog.Title>
-                  <Dialog.Description className={styles.dialogDescription}>
-                    This will publish your canvas to ATProto as a Leaflet document.
-                  </Dialog.Description>
-                  <div className={styles.dialogActions}>
-                    <Dialog.Close asChild>
-                      <Button variant="secondary" size="sm">Cancel</Button>
-                    </Dialog.Close>
-                    <Dialog.Close asChild>
-                      <Button variant="primary" size="sm" onClick={publishCanvas}>Publish</Button>
-                    </Dialog.Close>
-                  </div>
-                </Dialog.Content>
-              </Dialog.Portal>
-            </Dialog.Root>
-
-            <Dialog.Root>
-              <Dialog.Trigger asChild>
-                <Button variant="danger" size="sm">Delete</Button>
-              </Dialog.Trigger>
-              <Dialog.Portal>
-                <Dialog.Overlay className={styles.dialogOverlay} />
-                <Dialog.Content className={styles.dialogContent}>
-                  <Dialog.Title>Delete Canvas</Dialog.Title>
-                  <Dialog.Description className={styles.dialogDescription}>
-                    Are you sure you want to delete this canvas? This action cannot be undone.
-                  </Dialog.Description>
-                  <div className={styles.dialogActions}>
-                    <Dialog.Close asChild>
-                      <Button variant="secondary" size="sm">Cancel</Button>
-                    </Dialog.Close>
-                    <Dialog.Close asChild>
-                      <Button variant="danger" size="sm" onClick={deleteCanvas}>Delete</Button>
-                    </Dialog.Close>
-                  </div>
-                </Dialog.Content>
-              </Dialog.Portal>
-            </Dialog.Root>
+              </DropdownMenu.Trigger>
+              <DropdownMenu.Portal>
+                <DropdownMenu.Content className={styles.dropdownContent} sideOffset={5}>
+                  <Dialog.Root>
+                    <Dialog.Trigger asChild>
+                      <DropdownMenu.Item className={styles.dropdownItemDanger} onSelect={(e) => e.preventDefault()}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                        </svg>
+                        Delete Canvas
+                      </DropdownMenu.Item>
+                    </Dialog.Trigger>
+                    <Dialog.Portal>
+                      <Dialog.Overlay className={styles.dialogOverlay} />
+                      <Dialog.Content className={styles.dialogContent}>
+                        <Dialog.Title>Delete Canvas</Dialog.Title>
+                        <Dialog.Description className={styles.dialogDescription}>
+                          Are you sure you want to delete this canvas? This action cannot be undone.
+                        </Dialog.Description>
+                        <div className={styles.dialogActions}>
+                          <Dialog.Close asChild>
+                            <Button variant="secondary" size="sm">Cancel</Button>
+                          </Dialog.Close>
+                          <Dialog.Close asChild>
+                            <Button variant="danger" size="sm" onClick={deleteCanvas}>Delete</Button>
+                          </Dialog.Close>
+                        </div>
+                      </Dialog.Content>
+                    </Dialog.Portal>
+                  </Dialog.Root>
+                </DropdownMenu.Content>
+              </DropdownMenu.Portal>
+            </DropdownMenu.Root>
           </div>
         </div>
 
         <div className={styles.viewport}>
           <div
             ref={containerRef}
-            className={`${styles.container} ${snapToGrid ? styles.showGrid : ''}`}
+            className={`${styles.container} ${styles.showGrid}`}
             style={{
               width: canvas.width,
               height: canvas.height,
@@ -568,6 +540,18 @@ export function CanvasEditorPage() {
                 onStopEdit={() => setEditingBlockId(null)}
                 onUpdate={(updates) => updateBlock(block.id, updates)}
                 onDelete={() => deleteBlock(block.id)}
+                onDuplicate={() => {
+                  saveState();
+                  const newBlock: Block = {
+                    ...block,
+                    id: generateId(),
+                    x: block.x + 20,
+                    y: block.y + 20,
+                  };
+                  setBlocks(prev => [...prev, newBlock]);
+                  setSelectedBlockId(newBlock.id);
+                  setIsDirty(true);
+                }}
                 onSaveState={saveState}
               />
             ))}
@@ -597,6 +581,7 @@ interface CanvasBlockProps {
   onStopEdit: () => void;
   onUpdate: (updates: Partial<Block>) => void;
   onDelete: () => void;
+  onDuplicate: () => void;
   onSaveState: () => void;
 }
 
@@ -611,6 +596,7 @@ function CanvasBlock({
   onStopEdit,
   onUpdate,
   onDelete,
+  onDuplicate,
   onSaveState,
 }: CanvasBlockProps) {
   const contentRef = useRef<HTMLDivElement>(null);
@@ -716,37 +702,55 @@ function CanvasBlock({
   };
 
   return (
-    <div
-      className={`${styles.block} ${isSelected ? styles.selected : ''} ${isEditing ? styles.editing : ''} ${isActive ? styles.active : ''}`}
-      style={{
-        left: block.x,
-        top: block.y,
-        width: block.width,
-        height: block.height,
-      }}
-    >
-      <div className={styles.blockHeader}>
-        <button className={styles.blockClose} onClick={onDelete} title="Delete block">
-          &times;
-        </button>
+    <ContextMenu.Root>
+      <ContextMenu.Trigger asChild>
         <div
-          className={styles.blockDrag}
-          onMouseDown={(e) => { onSelect(); handleDragStart(e); }}
-          title="Drag to move"
-        />
-      </div>
-      <div
-        ref={contentRef}
-        className={styles.blockContent}
-        contentEditable={isEditing}
-        suppressContentEditableWarning
-        onClick={() => !isEditing && onStartEdit()}
-        onBlur={handleContentBlur}
-        onKeyDown={(e) => e.key === 'Escape' && handleContentBlur()}
-      >
-        {block.content}
-      </div>
-      <div className={styles.resizeHandle} onMouseDown={handleResizeStart} />
-    </div>
+          className={`${styles.block} ${isSelected ? styles.selected : ''} ${isEditing ? styles.editing : ''} ${isActive ? styles.active : ''}`}
+          style={{
+            left: block.x,
+            top: block.y,
+            width: block.width,
+            height: block.height,
+          }}
+        >
+          <div className={styles.blockHeader}>
+            <div
+              className={styles.blockDrag}
+              onMouseDown={(e) => { onSelect(); handleDragStart(e); }}
+              title="Drag to move"
+            />
+          </div>
+          <div
+            ref={contentRef}
+            className={styles.blockContent}
+            contentEditable={isEditing}
+            suppressContentEditableWarning
+            onClick={() => !isEditing && onStartEdit()}
+            onBlur={handleContentBlur}
+            onKeyDown={(e) => e.key === 'Escape' && handleContentBlur()}
+          >
+            {block.content}
+          </div>
+          <div className={styles.resizeHandle} onMouseDown={handleResizeStart} />
+        </div>
+      </ContextMenu.Trigger>
+      <ContextMenu.Portal>
+        <ContextMenu.Content className={styles.contextMenuContent}>
+          <ContextMenu.Item className={styles.contextMenuItem} onSelect={onDuplicate}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+            </svg>
+            Duplicate
+          </ContextMenu.Item>
+          <ContextMenu.Separator className={styles.contextMenuSeparator} />
+          <ContextMenu.Item className={styles.contextMenuItemDanger} onSelect={onDelete}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+            </svg>
+            Delete
+          </ContextMenu.Item>
+        </ContextMenu.Content>
+      </ContextMenu.Portal>
+    </ContextMenu.Root>
   );
 }
