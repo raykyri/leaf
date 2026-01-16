@@ -12,7 +12,7 @@ export default defineConfig({
     sourcemap: true,
   },
   server: {
-    port: 5173,
+    port: 3334,
     proxy: {
       '/api': {
         target: 'http://localhost:6173',

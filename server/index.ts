@@ -99,17 +99,17 @@ if (isProduction) {
   });
 } else {
   // Development: only API routes are handled, Vite dev server handles frontend
-  // Redirect root to Vite dev server (running on port 5173)
+  // Redirect root to Vite dev server (running on port 3334)
   app.get('/', (c) => {
     const sessionToken = getCookie(c, 'session');
     if (sessionToken) {
       const auth = getSessionUser(sessionToken);
       if (auth) {
         // User is logged in, they should use the React app
-        return c.text('Please access the app at http://localhost:5173', 200);
+        return c.text('Please access the app at http://localhost:3334', 200);
       }
     }
-    return c.text('Please access the app at http://localhost:5173', 200);
+    return c.text('Please access the app at http://localhost:3334', 200);
   });
 }
 
