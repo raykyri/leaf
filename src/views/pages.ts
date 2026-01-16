@@ -9,7 +9,7 @@ export function loginPage(error?: string): string {
   const oauthSection = oauthEnabled ? `
     <div class="card">
       <h2>Sign in with Bluesky</h2>
-      <p style="margin-bottom: 1rem; color: var(--text-muted);">
+      <p class="mb-2 text-muted">
         Sign in securely using your Bluesky account. You'll be redirected to authorize this app.
       </p>
       ${error ? `<div class="error">${escapeHtml(error)}</div>` : ''}
@@ -21,7 +21,7 @@ export function loginPage(error?: string): string {
         <button type="submit" class="primary-btn">Sign in with Bluesky</button>
       </form>
     </div>
-    <div style="text-align: center; margin: 1.5rem 0; color: var(--text-muted);">
+    <div class="divider-text">
       <span>or use an app password</span>
     </div>
   ` : '';
@@ -29,7 +29,7 @@ export function loginPage(error?: string): string {
   const appPasswordSection = `
     <div class="card">
       <h2>${oauthEnabled ? 'Sign in with App Password' : 'Login / Sign Up'}</h2>
-      <p style="margin-bottom: 1rem; color: var(--text-muted);">
+      <p class="mb-2 text-muted">
         Use your Bluesky handle and an app password to sign in.
         ${!oauthEnabled ? 'If you don\'t have an account yet, signing in will create one.' : ''}
       </p>
@@ -88,7 +88,7 @@ export function postsListPage(
   `;
 
   const content = `
-    <h1 style="margin-bottom: 1.5rem;">All Posts</h1>
+    <h1 class="mb-3">All Posts</h1>
     ${postCards}
     ${posts.length > 0 ? pagination : ''}
   `;
@@ -117,13 +117,13 @@ export function postPage(
 
   const content = `
     <article>
-      <header style="margin-bottom: 2rem;">
-        <h1 style="font-size: 2rem; margin-bottom: 0.5rem;">${escapeHtml(post.title)}</h1>
+      <header class="article-header">
+        <h1>${escapeHtml(post.title)}</h1>
         <div class="post-meta">
           by <a href="/user/${encodeURIComponent(author.handle)}">${escapeHtml(author.display_name || author.handle)}</a>
           ${post.published_at ? `• ${formatDate(post.published_at)}` : ''}
         </div>
-        ${post.description ? `<p style="color: var(--text-muted); margin-top: 0.5rem;">${escapeHtml(post.description)}</p>` : ''}
+        ${post.description ? `<p class="description">${escapeHtml(post.description)}</p>` : ''}
       </header>
       <div class="post-content">
         ${renderedContent}
@@ -180,8 +180,10 @@ export function userPostsPage(
   `;
 
   const content = `
-    <h1 style="margin-bottom: 0.5rem;">${escapeHtml(author.display_name || author.handle)}</h1>
-    <p style="color: var(--text-muted); margin-bottom: 1.5rem;">@${escapeHtml(author.handle)}</p>
+    <div class="page-header">
+      <h1>${escapeHtml(author.display_name || author.handle)}</h1>
+      <p class="subtitle">@${escapeHtml(author.handle)}</p>
+    </div>
     ${postCards}
     ${posts.length > 0 ? pagination : ''}
   `;
@@ -228,14 +230,16 @@ export function profilePage(
   `;
 
   const content = `
-    <h1 style="margin-bottom: 0.5rem;">My Posts</h1>
-    <p style="color: var(--text-muted); margin-bottom: 1rem;">@${escapeHtml(user.handle)}</p>
-    <div style="margin-bottom: 1.5rem; display: flex; gap: 0.5rem;">
+    <div class="page-header">
+      <h1>My Posts</h1>
+      <p class="subtitle">@${escapeHtml(user.handle)}</p>
+    </div>
+    <div class="actions-bar">
       <form action="/refresh" method="POST" class="inline-form">
         <input type="hidden" name="_csrf" value="${escapeHtml(csrfToken)}">
         <button type="submit" class="secondary-btn">Refresh from PDS</button>
       </form>
-      <a href="/profile/edit" class="secondary-btn" style="text-decoration: none; display: inline-flex; align-items: center;">Edit Profile</a>
+      <a href="/profile/edit" class="secondary-btn no-underline inline-flex items-center">Edit Profile</a>
     </div>
     ${message ? `<div class="success">${escapeHtml(message)}</div>` : ''}
     ${postCards}
@@ -254,7 +258,7 @@ export function editProfilePage(
   const content = `
     <div class="card">
       <h2>Edit Profile</h2>
-      <p style="margin-bottom: 1rem; color: var(--text-muted);">
+      <p class="mb-2 text-muted">
         Update your display name for this blog. Your handle (@${escapeHtml(user.handle)}) is managed through Bluesky.
       </p>
       ${message ? `<div class="success">${escapeHtml(message)}</div>` : ''}
@@ -266,9 +270,9 @@ export function editProfilePage(
           <input type="text" id="display_name" name="display_name" maxlength="64" placeholder="Your display name" value="${escapeHtml(user.display_name || '')}">
           <p class="hint">Leave empty to use your handle as your display name</p>
         </div>
-        <div style="display: flex; gap: 1rem; align-items: center;">
+        <div class="flex gap-2 items-center">
           <button type="submit">Save Changes</button>
-          <a href="/profile" style="color: var(--text-muted);">Cancel</a>
+          <a href="/profile" class="text-muted">Cancel</a>
         </div>
       </form>
     </div>
@@ -353,9 +357,9 @@ export function editPostPage(
 
 Separate paragraphs with blank lines.">${escapeHtml(content)}</textarea>
         </div>
-        <div style="display: flex; gap: 1rem; align-items: center;">
+        <div class="flex gap-2 items-center">
           <button type="submit">Update Post</button>
-          <a href="/posts/${encodeURIComponent(post.author)}/${encodeURIComponent(post.rkey)}" style="color: var(--text-muted);">Cancel</a>
+          <a href="/posts/${encodeURIComponent(post.author)}/${encodeURIComponent(post.rkey)}" class="text-muted">Cancel</a>
         </div>
       </form>
     </div>
@@ -432,9 +436,9 @@ export function canvasListPage(
   `;
 
   const content = `
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+    <div class="flex justify-between items-center mb-3">
       <h1>My Canvases</h1>
-      <a href="/canvases/new" class="secondary-btn" style="text-decoration: none; display: inline-flex; align-items: center;">New Canvas</a>
+      <a href="/canvases/new" class="secondary-btn no-underline inline-flex items-center">New Canvas</a>
     </div>
     ${canvasCards}
     ${canvases.length > 0 ? pagination : ''}
