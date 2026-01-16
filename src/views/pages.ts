@@ -222,14 +222,14 @@ export function profilePage(
   `;
 
   const content = `
-    <h1 style="margin-bottom: 0.5rem;">${escapeHtml(user.display_name || 'My Posts')}</h1>
+    <h1 style="margin-bottom: 0.5rem;">My Posts</h1>
     <p style="color: var(--text-muted); margin-bottom: 1rem;">@${escapeHtml(user.handle)}</p>
     <div style="margin-bottom: 1.5rem; display: flex; gap: 0.5rem;">
       <form action="/refresh" method="POST" class="inline-form">
         <input type="hidden" name="_csrf" value="${escapeHtml(csrfToken)}">
         <button type="submit" class="secondary-btn">Refresh from PDS</button>
       </form>
-      <a href="/profile/edit" class="secondary-btn" style="text-decoration: none; display: inline-block;">Edit Profile</a>
+      <a href="/profile/edit" class="secondary-btn" style="text-decoration: none; display: inline-flex; align-items: center;">Edit Profile</a>
     </div>
     ${message ? `<div class="success">${escapeHtml(message)}</div>` : ''}
     ${postCards}
@@ -370,7 +370,7 @@ export function canvasListPage(
   const content = `
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
       <h1>My Canvases</h1>
-      <a href="/canvases/new" class="primary-btn" style="text-decoration: none;">New Canvas</a>
+      <a href="/canvases/new" class="secondary-btn" style="text-decoration: none; display: inline-flex; align-items: center;">New Canvas</a>
     </div>
     ${canvasCards}
     ${canvases.length > 0 ? pagination : ''}

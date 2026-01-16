@@ -22,8 +22,8 @@ export function layout(
       <nav>
         <a href="/posts">All Posts</a>
         <a href="/profile">My Posts</a>
-        <a href="/canvases">Canvases</a>
-        <a href="/create">New Post</a>
+        <a href="/canvases">My Canvases</a>
+        <a href="/create" class="secondary-btn">New Post</a>
         <form action="/auth/logout" method="POST" style="display: inline;">
           ${user.csrfToken ? `<input type="hidden" name="_csrf" value="${escapeHtml(user.csrfToken)}">` : ''}
           <button type="submit" class="logout-btn">Logout (${escapeHtml(user.handle)})</button>
@@ -471,8 +471,8 @@ export function canvasLayout(
       <nav>
         <a href="/posts">All Posts</a>
         <a href="/profile">My Posts</a>
-        <a href="/canvases">Canvases</a>
-        <a href="/create">New Post</a>
+        <a href="/canvases">My Canvases</a>
+        <a href="/create" class="secondary-btn">New Post</a>
         <form action="/auth/logout" method="POST" style="display: inline;">
           ${user.csrfToken ? `<input type="hidden" name="_csrf" value="${escapeHtml(user.csrfToken)}">` : ''}
           <button type="submit" class="logout-btn">Logout (${escapeHtml(user.handle)})</button>
