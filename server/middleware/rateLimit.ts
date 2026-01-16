@@ -91,6 +91,34 @@ export const createPostLimiter = createRateLimiter('createPost', {
   message: 'Too many posts created. Please try again later.'
 });
 
+// Rate limiter for post updates
+export const updatePostLimiter = createRateLimiter('updatePost', {
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 60, // 60 updates per hour per IP
+  message: 'Too many post updates. Please try again later.'
+});
+
+// Rate limiter for canvas updates
+export const updateCanvasLimiter = createRateLimiter('updateCanvas', {
+  windowMs: 60 * 1000, // 1 minute
+  max: 30, // 30 updates per minute (autosave-friendly)
+  message: 'Too many canvas updates. Please try again later.'
+});
+
+// Rate limiter for delete operations
+export const deleteLimiter = createRateLimiter('delete', {
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 30, // 30 deletes per hour per IP
+  message: 'Too many delete operations. Please try again later.'
+});
+
+// Rate limiter for profile updates
+export const updateProfileLimiter = createRateLimiter('updateProfile', {
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 10, // 10 profile updates per hour per IP
+  message: 'Too many profile updates. Please try again later.'
+});
+
 // General API rate limiter
 // Prevents excessive requests to any endpoint
 export const generalLimiter = createRateLimiter('general', {

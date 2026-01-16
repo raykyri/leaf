@@ -6,6 +6,7 @@ import { getSessionUser, getAuthenticatedAgent } from '../services/auth.ts';
 import { publishCanvas } from '../services/posts.ts';
 import { saveCanvasToATProto, deleteCanvasFromATProto } from '../services/canvas.ts';
 import { getCsrfToken } from '../middleware/csrf.ts';
+import { updateCanvasLimiter } from '../middleware/rateLimit.ts';
 import {
   canvasListPage,
   canvasEditorPage,
@@ -158,7 +159,7 @@ canvases.get('/api/canvases/:id', (c) => {
 });
 
 // API: Update canvas
-canvases.put('/api/canvases/:id', async (c) => {
+canvases.put('/api/canvases/:id', updateCanvasLimiter, async (c) => {
   const auth = getCurrentUser(c);
   if (!auth) {
     return c.json({ error: 'Unauthorized' }, 401);

@@ -9,7 +9,13 @@ import { createPost, updatePost, deletePost, publishCanvas } from '../services/p
 import { saveCanvasToATProto, deleteCanvasFromATProto } from '../services/canvas.ts';
 import { getCsrfToken } from '../middleware/csrf.ts';
 import { renderDocumentContent } from '../services/renderer.ts';
-import { createPostLimiter } from '../middleware/rateLimit.ts';
+import {
+  createPostLimiter,
+  updatePostLimiter,
+  updateCanvasLimiter,
+  deleteLimiter,
+  updateProfileLimiter
+} from '../middleware/rateLimit.ts';
 
 const api = new Hono();
 const ITEMS_PER_PAGE = 20;
@@ -287,7 +293,7 @@ api.post('/posts', createPostLimiter, async (c) => {
 });
 
 // Update a post
-api.put('/posts/:did/:rkey', async (c) => {
+api.put('/posts/:did/:rkey', updatePostLimiter, async (c) => {
   const auth = getCurrentUser(c);
   if (!auth) {
     return c.json({ error: 'Unauthorized' }, 401);
@@ -340,7 +346,7 @@ api.put('/posts/:did/:rkey', async (c) => {
 });
 
 // Delete a post
-api.delete('/posts/:did/:rkey', async (c) => {
+api.delete('/posts/:did/:rkey', deleteLimiter, async (c) => {
   const auth = getCurrentUser(c);
   if (!auth) {
     return c.json({ error: 'Unauthorized' }, 401);
@@ -405,7 +411,7 @@ api.get('/profile/posts', (c) => {
 });
 
 // Update profile
-api.put('/profile', async (c) => {
+api.put('/profile', updateProfileLimiter, async (c) => {
   const auth = getCurrentUser(c);
   if (!auth) {
     return c.json({ error: 'Unauthorized' }, 401);
@@ -579,7 +585,7 @@ api.get('/canvases/:id', (c) => {
 });
 
 // Update canvas
-api.put('/canvases/:id', async (c) => {
+api.put('/canvases/:id', updateCanvasLimiter, async (c) => {
   const auth = getCurrentUser(c);
   if (!auth) {
     return c.json({ error: 'Unauthorized' }, 401);
@@ -677,7 +683,7 @@ api.put('/canvases/:id', async (c) => {
 });
 
 // Delete canvas
-api.delete('/canvases/:id', async (c) => {
+api.delete('/canvases/:id', deleteLimiter, async (c) => {
   const auth = getCurrentUser(c);
   if (!auth) {
     return c.json({ error: 'Unauthorized' }, 401);
