@@ -107,25 +107,29 @@ export function ProfilePage() {
         <>
           <div className={styles.postList}>
             {posts.map((post) => (
-              <Card key={`${post.author}-${post.rkey}`} variant="interactive" className={styles.postCard}>
-                <h2 className={styles.postTitle}>
-                  <Link to={`/posts/${encodeURIComponent(post.author)}/${encodeURIComponent(post.rkey)}`}>
-                    {post.title}
-                  </Link>
-                </h2>
-                <div className={styles.postMeta}>
-                  {post.published_at && formatDate(post.published_at)}
-                  <a
-                    href={`https://leaflet.pub/p/${encodeURIComponent(post.author)}/${encodeURIComponent(post.rkey)}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className={styles.externalLink}
-                  >
-                    leaflet.pub
-                  </a>
-                </div>
-                {post.description && <p className={styles.postExcerpt}>{post.description}</p>}
-              </Card>
+              <Link
+                key={`${post.author}-${post.rkey}`}
+                to={`/posts/${encodeURIComponent(post.author)}/${encodeURIComponent(post.rkey)}`}
+                className={styles.postLink}
+              >
+                <Card variant="interactive" className={styles.postCard}>
+                  <h2 className={styles.postTitle}>{post.title}</h2>
+                  <div className={styles.postMeta}>
+                    {post.published_at && formatDate(post.published_at)}
+                    <span
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        window.open(`https://leaflet.pub/p/${encodeURIComponent(post.author)}/${encodeURIComponent(post.rkey)}`, '_blank');
+                      }}
+                      className={styles.externalLink}
+                    >
+                      leaflet.pub
+                    </span>
+                  </div>
+                  {post.description && <p className={styles.postExcerpt}>{post.description}</p>}
+                </Card>
+              </Link>
             ))}
           </div>
 

@@ -11,6 +11,12 @@
   gap: 1rem;
 }
 
+.canvasLink {
+  text-decoration: none;
+  color: inherit;
+  display: block;
+}
+
 .canvasCard {
   padding: 1.5rem 2rem;
 }
@@ -22,15 +28,11 @@
   line-height: 1.35;
   margin-bottom: 0.375rem;
   letter-spacing: -0.015em;
-}
-
-.canvasTitle a {
   color: var(--text);
-  text-decoration: none;
   transition: color 0.2s ease;
 }
 
-.canvasTitle a:hover {
+.canvasLink:hover .canvasTitle {
   color: var(--accent-text);
 }
 
