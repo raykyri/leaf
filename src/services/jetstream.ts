@@ -3,12 +3,7 @@ import * as db from '../database/index.ts';
 import { processIncomingDocument, processIncomingPublication } from './indexer.ts';
 import { processIncomingCanvas } from './canvas.ts';
 import type { JetstreamEvent, LeafletDocument, LeafletPublication, LeafletCanvas } from '../types/leaflet.ts';
-
-const LEAFLET_COLLECTIONS = [
-  'pub.leaflet.document',
-  'pub.leaflet.publication',
-  'pub.leaflet.canvas'
-];
+import { LEAFLET_COLLECTIONS, ALL_LEAFLET_COLLECTIONS } from './atproto-sync.ts';
 
 let ws: WebSocket | null = null;
 let reconnectAttempts = 0;
@@ -44,7 +39,7 @@ export function startJetstreamListener(): void {
 
   // Build URL with wanted collections
   const url = new URL(jetstreamUrl);
-  for (const collection of LEAFLET_COLLECTIONS) {
+  for (const collection of ALL_LEAFLET_COLLECTIONS) {
     url.searchParams.append('wantedCollections', collection);
   }
 
@@ -123,7 +118,7 @@ function handleJetstreamEvent(event: JetstreamEvent): void {
   const { collection, rkey, operation, record } = event.commit;
 
   // Check if this is a Leaflet collection we care about
-  if (!LEAFLET_COLLECTIONS.includes(collection)) {
+  if (!ALL_LEAFLET_COLLECTIONS.includes(collection)) {
     return;
   }
 
@@ -137,21 +132,21 @@ function handleJetstreamEvent(event: JetstreamEvent): void {
   console.log(`Jetstream: ${operation} ${collection} from ${did}`);
 
   // Process based on collection type
-  if (collection === 'pub.leaflet.document') {
+  if (collection === LEAFLET_COLLECTIONS.DOCUMENT) {
     processIncomingDocument(
       did,
       rkey,
       record as unknown as LeafletDocument,
       operation
     );
-  } else if (collection === 'pub.leaflet.publication') {
+  } else if (collection === LEAFLET_COLLECTIONS.PUBLICATION) {
     processIncomingPublication(
       did,
       rkey,
       record as unknown as LeafletPublication,
       operation
     );
-  } else if (collection === 'pub.leaflet.canvas') {
+  } else if (collection === LEAFLET_COLLECTIONS.CANVAS) {
     processIncomingCanvas(
       did,
       rkey,

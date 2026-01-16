@@ -1,10 +1,15 @@
 import { AtpAgent } from '@atproto/api';
 import * as db from '../database/index.ts';
-import type { LeafletDocument, LeafletPublication, LeafletCanvas, CanvasBlockWithPosition, LocalCanvasBlock, TextBlock } from '../types/leaflet.ts';
+import type { LeafletDocument, LeafletPublication, LeafletCanvas, LocalCanvasBlock } from '../types/leaflet.ts';
+import {
+  LEAFLET_COLLECTIONS,
+  buildAtUri,
+  convertATProtoBlockToLocal
+} from './atproto-sync.ts';
 
-const LEAFLET_DOCUMENT_COLLECTION = 'pub.leaflet.document';
-const LEAFLET_PUBLICATION_COLLECTION = 'pub.leaflet.publication';
-const LEAFLET_CANVAS_COLLECTION = 'pub.leaflet.canvas';
+const LEAFLET_DOCUMENT_COLLECTION = LEAFLET_COLLECTIONS.DOCUMENT;
+const LEAFLET_PUBLICATION_COLLECTION = LEAFLET_COLLECTIONS.PUBLICATION;
+const LEAFLET_CANVAS_COLLECTION = LEAFLET_COLLECTIONS.CANVAS;
 
 export async function indexUserPDS(user: db.User, agent?: AtpAgent): Promise<{ documents: number; publications: number; canvases: number; deleted: number }> {
   console.log(`Indexing PDS for user ${user.handle} (${user.did})`);
@@ -187,20 +192,6 @@ function processPublication(user: db.User, uri: string, rkey: string, record: un
   );
 }
 
-// Convert ATProto canvas block to local canvas block format
-function convertATProtoBlockToLocal(block: CanvasBlockWithPosition, index: number): LocalCanvasBlock {
-  const textBlock = block.block as TextBlock;
-  return {
-    id: `block-${index}-${Date.now()}`,
-    type: 'text',
-    content: textBlock.plaintext || '',
-    x: block.x,
-    y: block.y,
-    width: block.width,
-    height: block.height || 100
-  };
-}
-
 function processCanvas(user: db.User, uri: string, rkey: string, record: unknown): void {
   const canvas = record as LeafletCanvas;
 
@@ -236,7 +227,7 @@ export function processIncomingDocument(
     return;
   }
 
-  const uri = `at://${did}/${LEAFLET_DOCUMENT_COLLECTION}/${rkey}`;
+  const uri = buildAtUri(did, LEAFLET_DOCUMENT_COLLECTION, rkey);
 
   if (operation === 'delete') {
     db.deleteDocument(uri);
@@ -275,7 +266,7 @@ export function processIncomingPublication(
     return;
   }
 
-  const uri = `at://${did}/${LEAFLET_PUBLICATION_COLLECTION}/${rkey}`;
+  const uri = buildAtUri(did, LEAFLET_PUBLICATION_COLLECTION, rkey);
 
   if (operation === 'delete') {
     db.deletePublication(uri);

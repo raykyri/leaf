@@ -9,17 +9,14 @@ import type {
   CanvasBlockWithPosition,
   LocalCanvasBlock
 } from '../types/leaflet.ts';
+import {
+  LEAFLET_COLLECTIONS,
+  generateTid,
+  buildAtUri,
+  convertLocalBlockToATProto
+} from './atproto-sync.ts';
 
-const LEAFLET_DOCUMENT_COLLECTION = 'pub.leaflet.document';
-
-// Generate a TID (Timestamp ID) for record keys
-function generateTid(): string {
-  // TID format: base32-sortable timestamp + random component
-  // Simplified version - uses timestamp in base36 + random
-  const timestamp = Date.now();
-  const random = Math.random().toString(36).substring(2, 6);
-  return timestamp.toString(36) + random;
-}
+const LEAFLET_DOCUMENT_COLLECTION = LEAFLET_COLLECTIONS.DOCUMENT;
 
 export interface CreatePostInput {
   title: string;
@@ -122,7 +119,7 @@ export async function deletePost(
       rkey
     });
 
-    const uri = `at://${user.did}/${LEAFLET_DOCUMENT_COLLECTION}/${rkey}`;
+    const uri = buildAtUri(user.did, LEAFLET_DOCUMENT_COLLECTION, rkey);
     db.deleteDocument(uri);
 
     console.log(`Deleted post ${uri} for user ${user.handle}`);
@@ -135,22 +132,6 @@ export async function deletePost(
       error: error instanceof Error ? error.message : 'Failed to delete post'
     };
   }
-}
-
-// Convert local canvas block to ATProto canvas block format
-function convertLocalBlockToATProto(block: LocalCanvasBlock): CanvasBlockWithPosition {
-  return {
-    block: {
-      $type: 'pub.leaflet.blocks.text',
-      plaintext: block.content,
-      facets: []
-    } as TextBlock,
-    x: Math.round(block.x),
-    y: Math.round(block.y),
-    width: Math.round(block.width),
-    height: Math.round(block.height)
-    // rotation is omitted (not supported in local editor)
-  };
 }
 
 export interface PublishCanvasInput {
