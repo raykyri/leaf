@@ -1,54 +1,54 @@
-import { Router, Request, Response } from 'express';
+import { Hono } from 'hono';
+import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { authenticateUser, logout } from '../services/auth.js';
 import { indexUserPDS } from '../services/indexer.js';
 import { loginPage } from '../views/pages.js';
 import { authLimiter } from '../middleware/rateLimit.js';
 import * as db from '../database/index.js';
 
-const router = Router();
+const auth = new Hono();
 
 const isProduction = process.env.NODE_ENV === 'production';
 
 // Login page
-router.get('/login', (req: Request, res: Response) => {
+auth.get('/login', (c) => {
   // If already logged in, redirect to profile
-  const sessionToken = req.cookies?.session;
+  const sessionToken = getCookie(c, 'session');
   if (sessionToken) {
     const session = db.getSessionByToken(sessionToken);
     if (session) {
-      res.redirect('/profile');
-      return;
+      return c.redirect('/profile');
     }
   }
 
-  res.send(loginPage());
+  return c.html(loginPage());
 });
 
 // Handle login (with rate limiting to prevent brute force)
-router.post('/login', authLimiter, async (req: Request, res: Response) => {
-  const { handle, password } = req.body;
+auth.post('/login', authLimiter, async (c) => {
+  const body = await c.req.parseBody();
+  const handle = body.handle as string | undefined;
+  const password = body.password as string | undefined;
 
   if (!handle || !password) {
-    res.send(loginPage('Please provide both handle and password'));
-    return;
+    return c.html(loginPage('Please provide both handle and password'));
   }
 
   const result = await authenticateUser(handle, password);
 
   if (!result.success || !result.user || !result.session) {
-    res.send(loginPage(result.error || 'Authentication failed'));
-    return;
+    return c.html(loginPage(result.error || 'Authentication failed'));
   }
 
   // Check if this is a new user (needs indexing)
   const isNewUser = !result.user.last_indexed_at;
 
   // Set session cookie with security flags
-  res.cookie('session', result.session.session_token, {
+  setCookie(c, 'session', result.session.session_token, {
     httpOnly: true,
     secure: isProduction,
-    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-    sameSite: 'lax'
+    maxAge: 7 * 24 * 60 * 60, // 7 days in seconds
+    sameSite: 'Lax'
   });
 
   // If new user, index their PDS
@@ -62,23 +62,23 @@ router.post('/login', authLimiter, async (req: Request, res: Response) => {
     }
   }
 
-  res.redirect('/profile');
+  return c.redirect('/profile');
 });
 
 // Handle logout
-router.post('/logout', async (req: Request, res: Response) => {
-  const sessionToken = req.cookies?.session;
+auth.post('/logout', async (c) => {
+  const sessionToken = getCookie(c, 'session');
   if (sessionToken) {
     await logout(sessionToken);
   }
 
   // Clear cookie with same options for proper deletion
-  res.clearCookie('session', {
+  deleteCookie(c, 'session', {
     httpOnly: true,
     secure: isProduction,
-    sameSite: 'lax'
+    sameSite: 'Lax'
   });
-  res.redirect('/');
+  return c.redirect('/');
 });
 
-export default router;
+export default auth;

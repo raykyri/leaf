@@ -1,10 +1,11 @@
 import 'dotenv/config';
-import express from 'express';
-import cookieParser from 'cookie-parser';
+import { Hono } from 'hono';
+import { serve } from '@hono/node-server';
+import { getCookie } from 'hono/cookie';
 import { getDatabase, closeDatabase, deleteExpiredSessions, cleanupOldOAuthState, cleanupOldOAuthSessions } from './database/index.js';
 import { startJetstreamListener, stopJetstreamListener } from './services/jetstream.js';
 import { csrfProtection, getCsrfToken } from './middleware/csrf.js';
-import { generalLimiter, authLimiter } from './middleware/rateLimit.js';
+import { generalLimiter } from './middleware/rateLimit.js';
 import authRoutes from './routes/auth.js';
 import postsRoutes from './routes/posts.js';
 import oauthRoutes from './routes/oauth.js';
@@ -26,19 +27,16 @@ if (process.env.SESSION_SECRET.length < 32) {
   process.exit(1);
 }
 
-const app = express();
+const app = new Hono();
 const PORT = parseInt(process.env.PORT || '3000', 10);
 
 // Middleware
-app.use(express.urlencoded({ extended: true }));
-app.use(express.json());
-app.use(cookieParser());
-app.use(generalLimiter);
-app.use(csrfProtection);
+app.use('*', generalLimiter);
+app.use('*', csrfProtection);
 
-// Health check endpoint (no rate limiting, no CSRF)
-app.get('/healthz', (_req, res) => {
-  res.status(200).send('ok');
+// Health check endpoint (no rate limiting, no CSRF - handled before middleware)
+app.get('/healthz', (c) => {
+  return c.text('ok', 200);
 });
 
 // Initialize database
@@ -51,29 +49,28 @@ cleanupOldOAuthState();
 cleanupOldOAuthSessions();
 
 // Routes
-app.use('/auth', authRoutes);
-app.use('/oauth', oauthRoutes);
-app.use('/', canvasesRoutes);
-app.use('/', postsRoutes);
+app.route('/auth', authRoutes);
+app.route('/oauth', oauthRoutes);
+app.route('/', canvasesRoutes);
+app.route('/', postsRoutes);
 
 // Home page
-app.get('/', (req, res) => {
-  const sessionToken = req.cookies?.session;
+app.get('/', (c) => {
+  const sessionToken = getCookie(c, 'session');
   if (sessionToken) {
     const auth = getSessionUser(sessionToken);
     if (auth) {
-      res.redirect('/profile');
-      return;
+      return c.redirect('/profile');
     }
   }
 
   // Show login page for unauthenticated users
-  res.send(loginPage());
+  return c.html(loginPage());
 });
 
 // 404 handler
-app.use((req, res) => {
-  const sessionToken = req.cookies?.session;
+app.notFound((c) => {
+  const sessionToken = getCookie(c, 'session');
   let user: { handle: string; csrfToken?: string } | undefined;
 
   if (sessionToken) {
@@ -83,14 +80,14 @@ app.use((req, res) => {
     }
   }
 
-  res.status(404).send(notFoundPage(user));
+  return c.html(notFoundPage(user), 404);
 });
 
 // Error handler
-app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
+app.onError((err, c) => {
   console.error('Unhandled error:', err);
 
-  const sessionToken = req.cookies?.session;
+  const sessionToken = getCookie(c, 'session');
   let user: { handle: string; csrfToken?: string } | undefined;
 
   if (sessionToken) {
@@ -100,11 +97,14 @@ app.use((err: Error, req: express.Request, res: express.Response, _next: express
     }
   }
 
-  res.status(500).send(errorPage(user));
+  return c.html(errorPage(user), 500);
 });
 
 // Start server
-const server = app.listen(PORT, () => {
+const server = serve({
+  fetch: app.fetch,
+  port: PORT
+}, () => {
   console.log(`Server running at http://localhost:${PORT}`);
 
   // Warn if OAuth is not configured

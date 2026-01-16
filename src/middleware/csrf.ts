@@ -1,4 +1,5 @@
-import type { Request, Response, NextFunction } from 'express';
+import type { Context, Next, MiddlewareHandler } from 'hono';
+import { getCookie } from 'hono/cookie';
 import crypto from 'crypto';
 
 // Get the secret key for HMAC from environment or generate a default
@@ -72,31 +73,51 @@ export function validateCsrfToken(sessionToken: string, token: string): boolean 
 /**
  * Middleware to check CSRF token on POST requests
  */
-export function csrfProtection(req: Request, res: Response, next: NextFunction): void {
+export const csrfProtection: MiddlewareHandler = async (c: Context, next: Next) => {
   // Skip CSRF for non-POST requests
-  if (req.method !== 'POST') {
+  if (c.req.method !== 'POST') {
     return next();
   }
 
-  const sessionToken = req.cookies?.session;
+  const sessionToken = getCookie(c, 'session');
+  const path = new URL(c.req.url).pathname;
 
   // Login/OAuth doesn't require CSRF (no session yet, or starting new auth flow)
-  if (req.path === '/auth/login' || req.path === '/oauth/authorize') {
+  if (path === '/auth/login' || path === '/oauth/authorize') {
     return next();
   }
 
   // For authenticated routes, validate CSRF token
   if (sessionToken) {
-    const csrfToken = req.body?._csrf || req.headers['x-csrf-token'];
+    // Try to get CSRF token from body or header
+    let csrfToken: string | undefined;
+
+    // Check header first
+    csrfToken = c.req.header('x-csrf-token');
+
+    // If not in header, check body
+    if (!csrfToken) {
+      try {
+        const contentType = c.req.header('content-type') || '';
+        if (contentType.includes('application/x-www-form-urlencoded')) {
+          const body = await c.req.parseBody();
+          csrfToken = body._csrf as string | undefined;
+        } else if (contentType.includes('application/json')) {
+          const body = await c.req.json();
+          csrfToken = body._csrf;
+        }
+      } catch {
+        // Body parsing failed, csrfToken remains undefined
+      }
+    }
 
     if (!csrfToken || typeof csrfToken !== 'string' || !validateCsrfToken(sessionToken, csrfToken)) {
-      res.status(403).send('Invalid CSRF token');
-      return;
+      return c.text('Invalid CSRF token', 403);
     }
   }
 
-  next();
-}
+  await next();
+};
 
 /**
  * Get CSRF token for templates
