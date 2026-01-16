@@ -210,19 +210,15 @@
   user-select: none;
   overflow: hidden;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
   display: flex;
   flex-direction: column;
+  cursor: grab;
 }
 
-.block:hover {
-  border-color: var(--text-muted);
+.block:active {
+  cursor: grabbing;
 }
 
-.block.selected {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px var(--accent-subtle);
-}
 
 .block.editing {
   cursor: text;
@@ -232,36 +228,6 @@
   box-shadow: 8px 8px 0 var(--border);
 }
 
-.blockHeader {
-  display: flex;
-  align-items: center;
-  height: 20px;
-  background: var(--bg-tertiary);
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-}
-
-.blockDrag {
-  flex: 1;
-  height: 100%;
-  cursor: grab;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.blockDrag:active {
-  cursor: grabbing;
-}
-
-.blockDrag::after {
-  content: '';
-  width: 20px;
-  height: 4px;
-  background: var(--border-focus);
-  border-radius: 2px;
-  opacity: 0.6;
-}
 
 .blockContent {
   padding: 0.625rem;

@@ -434,11 +434,6 @@ export function CanvasEditorPage() {
               <Tooltip.Content className={styles.tooltip}>Redo (Ctrl+Y)</Tooltip.Content>
             </Tooltip.Root>
 
-            <div className={styles.separator} />
-
-            <Button variant="secondary" size="sm" onClick={addBlock}>
-              + Add Text Block
-            </Button>
           </div>
 
           <div className={styles.toolbarRight}>
@@ -610,11 +605,6 @@ function CanvasBlock({
   useEffect(() => {
     if (isEditing && contentRef.current) {
       contentRef.current.focus();
-      const range = document.createRange();
-      range.selectNodeContents(contentRef.current);
-      const sel = window.getSelection();
-      sel?.removeAllRanges();
-      sel?.addRange(range);
     }
   }, [isEditing]);
 
@@ -712,14 +702,14 @@ function CanvasBlock({
             width: block.width,
             height: block.height,
           }}
+          onMouseDown={(e) => {
+            const target = e.target as HTMLElement;
+            // Don't start drag if clicking on the resize handle or if editing
+            if (target.classList.contains(styles.resizeHandle) || isEditing) return;
+            onSelect();
+            handleDragStart(e);
+          }}
         >
-          <div className={styles.blockHeader}>
-            <div
-              className={styles.blockDrag}
-              onMouseDown={(e) => { onSelect(); handleDragStart(e); }}
-              title="Drag to move"
-            />
-          </div>
           <div
             ref={contentRef}
             className={styles.blockContent}
