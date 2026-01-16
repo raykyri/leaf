@@ -10,6 +10,13 @@
   margin-bottom: 2rem;
 }
 
+.canvasArticle .header {
+  max-width: 640px;
+  margin-left: auto;
+  margin-right: auto;
+  margin-bottom: 1rem;
+}
+
 .title {
   font-size: 2rem;
   margin-bottom: 0.5rem;
@@ -168,6 +175,12 @@
 
 .actions a:hover {
   color: var(--text);
+}
+
+.canvasArticle + .actions {
+  max-width: 640px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .externalLink::after {

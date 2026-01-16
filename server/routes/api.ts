@@ -153,14 +153,24 @@ api.get('/posts/:did/:rkey', (c) => {
     return c.json({ error: 'Author not found' }, 404);
   }
 
-  // Extract plain text content for editing
+  // Extract plain text content for editing and detect canvas pages
   let plainTextContent = '';
+  let isCanvasPost = false;
+  let canvasData: { blocks: unknown[]; width: number; height: number } | null = null;
   try {
     const pages = JSON.parse(document.content);
     if (Array.isArray(pages)) {
       const paragraphs: string[] = [];
       for (const page of pages) {
-        if (page.blocks && Array.isArray(page.blocks)) {
+        // Check if this is a canvas page
+        if (page.$type === 'pub.leaflet.pages.canvas') {
+          isCanvasPost = true;
+          canvasData = {
+            blocks: page.blocks || [],
+            width: 1200, // Default canvas width
+            height: 800, // Default canvas height
+          };
+        } else if (page.blocks && Array.isArray(page.blocks)) {
           for (const blockWrapper of page.blocks) {
             const block = blockWrapper.block || blockWrapper;
             if (block.plaintext) {
@@ -173,6 +183,15 @@ api.get('/posts/:did/:rkey', (c) => {
     }
   } catch {
     plainTextContent = '';
+  }
+
+  // If this is a canvas post, try to find the linked local canvas
+  let canvasId: string | null = null;
+  if (isCanvasPost) {
+    const canvas = db.getCanvasByUri(document.uri);
+    if (canvas) {
+      canvasId = canvas.id;
+    }
   }
 
   return c.json({
@@ -191,6 +210,9 @@ api.get('/posts/:did/:rkey', (c) => {
     },
     renderedContent: renderDocumentContent(document.content),
     plainTextContent,
+    isCanvasPost,
+    canvasId,
+    canvasData,
   });
 });
 
