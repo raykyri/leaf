@@ -32,7 +32,7 @@ export function Layout({ children, fullWidth = false }: LayoutProps) {
               {user && (
                 <>
                   <Link to="/profile">My Posts</Link>
-                  <Link to="/canvases">Canvases</Link>
+                  <Link to="/canvases">My Canvases</Link>
                 </>
               )}
             </div>
@@ -54,6 +54,9 @@ export function Layout({ children, fullWidth = false }: LayoutProps) {
                     <DropdownMenu.Content className={styles.dropdownContent} sideOffset={5}>
                       <DropdownMenu.Item className={styles.dropdownItem} onSelect={() => navigate('/profile')}>
                         My Posts
+                      </DropdownMenu.Item>
+                      <DropdownMenu.Item className={styles.dropdownItem} onSelect={() => navigate('/canvases')}>
+                        My Canvases
                       </DropdownMenu.Item>
                       <DropdownMenu.Item className={styles.dropdownItem} onSelect={() => navigate('/profile/edit')}>
                         Edit Profile
