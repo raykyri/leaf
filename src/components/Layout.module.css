@@ -61,27 +61,12 @@
   font-weight: 500;
   letter-spacing: -0.01em;
   transition: color 0.2s ease;
-  position: relative;
 }
 
 .navLinks a:hover {
   color: var(--text);
 }
 
-.navLinks a::after {
-  content: '';
-  position: absolute;
-  bottom: -4px;
-  left: 0;
-  width: 0;
-  height: 1.5px;
-  background: var(--accent);
-  transition: width 0.2s ease;
-}
-
-.navLinks a:hover::after {
-  width: 100%;
-}
 
 .navActions {
   display: flex;
@@ -121,26 +106,6 @@
   width: 100%;
 }
 
-.footer {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  text-align: center;
-  padding: 2rem 1.5rem;
-  color: var(--text-muted);
-  font-size: 0.75rem;
-  border-top: 1px solid var(--border);
-  margin-top: auto;
-  letter-spacing: 0.01em;
-}
-
-.footer a {
-  color: var(--text-muted);
-  text-decoration: none;
-  transition: color 0.15s ease;
-}
-
-.footer a:hover {
-  color: var(--text-secondary);
-}
 
 /* Dropdown styles */
 .dropdownContent {
@@ -202,9 +167,6 @@
     gap: 1rem;
   }
 
-  .navLinks a::after {
-    display: none;
-  }
 
   .navActions {
     gap: 0.5rem;

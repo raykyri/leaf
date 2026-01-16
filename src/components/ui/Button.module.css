@@ -27,7 +27,7 @@
 
 .primary:hover:not(:disabled) {
   background: var(--accent-hover);
-  transform: translateY(-1px);
+  color: white;
   box-shadow: var(--shadow-sm);
 }
 
