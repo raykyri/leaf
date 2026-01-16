@@ -13,6 +13,8 @@ interface Post {
   published_at?: string;
   handle: string;
   display_name?: string;
+  canvas_width?: number;
+  canvas_height?: number;
 }
 
 export function PostsPage() {
@@ -69,6 +71,7 @@ export function PostsPage() {
                 <div className={styles.postMeta}>
                   by <Link to={`/user/${encodeURIComponent(post.handle)}`}>{post.display_name || post.handle}</Link>
                   {post.published_at && ` • ${formatDate(post.published_at)}`}
+                  {post.canvas_width && post.canvas_height && ` • ${post.canvas_width}x${post.canvas_height}`}
                 </div>
                 {post.description && <p className={styles.postExcerpt}>{post.description}</p>}
               </Card>
