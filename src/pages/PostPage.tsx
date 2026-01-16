@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Layout } from '@/components/Layout';
+import { CanvasRenderer } from '@/components/CanvasRenderer';
 import { Button } from '@/components/ui/Button';
 import { formatDate } from '@/lib/utils';
 import styles from './PostPage.module.css';
@@ -21,6 +22,23 @@ interface Author {
   did: string;
 }
 
+interface CanvasBlock {
+  block?: {
+    $type?: string;
+    plaintext?: string;
+  };
+  x: number;
+  y: number;
+  width: number;
+  height?: number;
+}
+
+interface CanvasData {
+  blocks: CanvasBlock[];
+  width: number;
+  height: number;
+}
+
 export function PostPage() {
   const { did, rkey } = useParams<{ did: string; rkey: string }>();
   const { user, csrfToken } = useAuth();
@@ -30,6 +48,9 @@ export function PostPage() {
   const [renderedContent, setRenderedContent] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isCanvasPost, setIsCanvasPost] = useState(false);
+  const [canvasId, setCanvasId] = useState<string | null>(null);
+  const [canvasData, setCanvasData] = useState<CanvasData | null>(null);
 
   const isOwner = user && author && user.did === author.did;
 
@@ -43,6 +64,9 @@ export function PostPage() {
           setPost(data.post);
           setAuthor(data.author);
           setRenderedContent(data.renderedContent);
+          setIsCanvasPost(data.isCanvasPost || false);
+          setCanvasId(data.canvasId || null);
+          setCanvasData(data.canvasData || null);
         } else {
           navigate('/404');
         }
@@ -103,9 +127,17 @@ export function PostPage() {
     );
   }
 
+  // Determine the edit link based on whether this is a canvas post
+  const getEditLink = () => {
+    if (isCanvasPost && canvasId) {
+      return `/canvases/${canvasId}`;
+    }
+    return `/posts/${encodeURIComponent(post!.author)}/${encodeURIComponent(post!.rkey)}/edit`;
+  };
+
   return (
-    <Layout>
-      <article>
+    <Layout fullWidth={isCanvasPost}>
+      <article className={isCanvasPost ? styles.canvasArticle : undefined}>
         <header className={styles.header}>
           <h1 className={styles.title}>{post.title}</h1>
           <div className={styles.meta}>
@@ -115,10 +147,18 @@ export function PostPage() {
           {post.description && <p className={styles.description}>{post.description}</p>}
         </header>
 
-        <div
-          className={styles.content}
-          dangerouslySetInnerHTML={{ __html: renderedContent }}
-        />
+        {isCanvasPost && canvasData ? (
+          <CanvasRenderer
+            blocks={canvasData.blocks}
+            width={canvasData.width}
+            height={canvasData.height}
+          />
+        ) : (
+          <div
+            className={styles.content}
+            dangerouslySetInnerHTML={{ __html: renderedContent }}
+          />
+        )}
       </article>
 
       <div className={styles.actions}>
@@ -133,11 +173,13 @@ export function PostPage() {
         </a>
         {isOwner && (
           <>
-            <Button asChild variant="secondary" size="sm">
-              <Link to={`/posts/${encodeURIComponent(post.author)}/${encodeURIComponent(post.rkey)}/edit`}>
-                Edit Post
-              </Link>
-            </Button>
+            {(isCanvasPost ? canvasId : true) && (
+              <Button asChild variant="secondary" size="sm">
+                <Link to={getEditLink()}>
+                  {isCanvasPost ? 'Edit Canvas' : 'Edit Post'}
+                </Link>
+              </Button>
+            )}
             <Button variant="danger" size="sm" onClick={handleDelete} disabled={isDeleting}>
               {isDeleting ? 'Deleting...' : 'Delete Post'}
             </Button>

@@ -1,0 +1,59 @@
+.canvasWrapper {
+  display: flex;
+  justify-content: center;
+  margin: 2rem 0;
+  overflow-x: auto;
+  padding: 1rem;
+}
+
+.canvas {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  position: relative;
+  box-shadow: var(--shadow-canvas, 0 4px 12px rgba(0, 0, 0, 0.1));
+  border-radius: 4px;
+  background-image: radial-gradient(circle, var(--canvas-grid, rgba(0, 0, 0, 0.05)) 1px, transparent 1px);
+  background-size: 20px 20px;
+  background-position: 0 0;
+  flex-shrink: 0;
+}
+
+.block {
+  position: absolute;
+  background: var(--canvas-block-bg, var(--bg));
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  display: flex;
+  flex-direction: column;
+}
+
+.blockContent {
+  padding: 0.625rem;
+  width: 100%;
+  flex: 1;
+  overflow: hidden;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.emptyBlock {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.emptyCanvas {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: var(--text-muted);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 0.875rem;
+  font-style: italic;
+}
