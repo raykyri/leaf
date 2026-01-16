@@ -1367,6 +1367,7 @@ export function canvasLayout(
       transform-origin: top left;
       box-shadow: var(--shadow-canvas);
       border-radius: 4px;
+      cursor: crosshair;
     }
 
     .canvas-container.show-grid {
@@ -1431,6 +1432,47 @@ export function canvasLayout(
     .canvas-block:hover .resize-handle,
     .canvas-block.selected .resize-handle {
       opacity: 1;
+    }
+
+    .canvas-block .close-btn {
+      position: absolute;
+      top: -8px;
+      right: -8px;
+      width: 18px;
+      height: 18px;
+      background: var(--danger);
+      border: 2px solid var(--bg);
+      border-radius: 50%;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.15s ease, transform 0.15s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 12px;
+      font-weight: bold;
+      line-height: 1;
+      z-index: 10;
+    }
+
+    .canvas-block:hover .close-btn,
+    .canvas-block.selected .close-btn {
+      opacity: 1;
+    }
+
+    .canvas-block .close-btn:hover {
+      transform: scale(1.15);
+      background: #dc2626;
+    }
+
+    .selection-rect {
+      position: absolute;
+      border: 2px dashed var(--accent);
+      background: var(--accent-subtle);
+      pointer-events: none;
+      z-index: 9999;
+      border-radius: 4px;
     }
 
     .status-bar {
@@ -1627,7 +1669,7 @@ export function canvasLayout(
       }
 
       // Render a single block
-      function renderBlock(block) {
+      function renderBlock(block, autoFocus) {
         const el = document.createElement('div');
         el.className = 'canvas-block';
         el.dataset.blockId = block.id;
@@ -1641,6 +1683,33 @@ export function canvasLayout(
         content.textContent = block.content;
         content.contentEditable = 'false';
         el.appendChild(content);
+
+        // Close button
+        const closeBtn = document.createElement('div');
+        closeBtn.className = 'close-btn';
+        closeBtn.innerHTML = '×';
+        closeBtn.title = 'Delete block';
+        el.appendChild(closeBtn);
+
+        // Close button click handler
+        closeBtn.addEventListener('mousedown', function(e) {
+          e.stopPropagation();
+          e.preventDefault();
+        });
+        closeBtn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          if (confirm('Delete this block?')) {
+            saveState();
+            blocks = blocks.filter(function(b) { return b.id !== block.id; });
+            el.remove();
+            if (selectedBlockId === block.id) {
+              selectedBlock = null;
+              selectedBlockId = null;
+            }
+            markDirty();
+            updateDuplicateButton();
+          }
+        });
 
         const resizeHandle = document.createElement('div');
         resizeHandle.className = 'resize-handle';
@@ -1740,6 +1809,15 @@ export function canvasLayout(
         });
 
         container.appendChild(el);
+
+        // Auto-focus for immediate editing (like Manifest)
+        if (autoFocus) {
+          selectBlock(el, block);
+          // Use setTimeout to ensure the element is in the DOM
+          setTimeout(function() {
+            startEditing(el, content, block);
+          }, 10);
+        }
       }
 
       // Select a block
@@ -1816,8 +1894,102 @@ export function canvasLayout(
           height: GRID_SIZE * 5  // 100px when GRID_SIZE is 20
         };
         blocks.push(newBlock);
-        renderBlock(newBlock);
+        renderBlock(newBlock, true); // Auto-focus the new block
         markDirty();
+      });
+
+      // Drag-to-create on empty canvas (like Manifest)
+      const MIN_CREATE_SIZE = 80; // Minimum size to create a block
+      let isCreating = false;
+      let createStartX, createStartY;
+      let selectionRect = null;
+
+      container.addEventListener('mousedown', function(e) {
+        // Only create if clicking directly on the canvas container (not on blocks)
+        if (e.target !== container) return;
+
+        // Deselect any selected block when clicking on empty canvas
+        if (selectedBlock) {
+          selectedBlock.classList.remove('selected');
+          selectedBlock = null;
+          selectedBlockId = null;
+          updateDuplicateButton();
+        }
+
+        isCreating = true;
+        const rect = container.getBoundingClientRect();
+        const zoom = zoomLevels[currentZoomIndex] / 100;
+        createStartX = (e.clientX - rect.left) / zoom;
+        createStartY = (e.clientY - rect.top) / zoom;
+
+        // Create selection rectangle
+        selectionRect = document.createElement('div');
+        selectionRect.className = 'selection-rect';
+        selectionRect.style.left = createStartX + 'px';
+        selectionRect.style.top = createStartY + 'px';
+        selectionRect.style.width = '0px';
+        selectionRect.style.height = '0px';
+        container.appendChild(selectionRect);
+
+        e.preventDefault();
+      });
+
+      document.addEventListener('mousemove', function(e) {
+        if (!isCreating || !selectionRect) return;
+
+        const rect = container.getBoundingClientRect();
+        const zoom = zoomLevels[currentZoomIndex] / 100;
+        const currentX = (e.clientX - rect.left) / zoom;
+        const currentY = (e.clientY - rect.top) / zoom;
+
+        // Calculate dimensions (support dragging in any direction)
+        const left = Math.min(createStartX, currentX);
+        const top = Math.min(createStartY, currentY);
+        const width = Math.abs(currentX - createStartX);
+        const height = Math.abs(currentY - createStartY);
+
+        selectionRect.style.left = left + 'px';
+        selectionRect.style.top = top + 'px';
+        selectionRect.style.width = width + 'px';
+        selectionRect.style.height = height + 'px';
+      });
+
+      document.addEventListener('mouseup', function(e) {
+        if (!isCreating || !selectionRect) return;
+
+        const rect = container.getBoundingClientRect();
+        const zoom = zoomLevels[currentZoomIndex] / 100;
+        const currentX = (e.clientX - rect.left) / zoom;
+        const currentY = (e.clientY - rect.top) / zoom;
+
+        // Calculate final dimensions
+        const left = Math.min(createStartX, currentX);
+        const top = Math.min(createStartY, currentY);
+        const width = Math.abs(currentX - createStartX);
+        const height = Math.abs(currentY - createStartY);
+
+        // Remove selection rectangle
+        selectionRect.remove();
+        selectionRect = null;
+        isCreating = false;
+
+        // Only create block if size is large enough
+        if (width >= MIN_CREATE_SIZE && height >= MIN_CREATE_SIZE) {
+          saveState();
+
+          const newBlock = {
+            id: generateId(),
+            type: 'text',
+            content: '',
+            x: snapToGrid(Math.max(0, left)),
+            y: snapToGrid(Math.max(0, top)),
+            width: snapToGrid(Math.max(MIN_CREATE_SIZE, width)),
+            height: snapToGrid(Math.max(MIN_CREATE_SIZE, height))
+          };
+          blocks.push(newBlock);
+          renderBlock(newBlock, true); // Auto-focus for immediate editing
+          markDirty();
+        }
       });
 
       // Save canvas
@@ -1961,7 +2133,7 @@ export function canvasLayout(
       renderBlocks();
       applyZoom();
       updateSnapGridState();
-      setStatus('Ready');
+      setStatus('Click and drag to create a block');
 
       // Theme toggle
       const themeToggle = document.getElementById('theme-toggle');
