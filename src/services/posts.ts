@@ -305,3 +305,88 @@ export async function publishCanvas(
     };
   }
 }
+
+// Save and publish canvas as a document (combined action)
+export async function saveAndPublishCanvas(
+  agent: AtpAgent,
+  user: db.User,
+  canvas: db.Canvas
+): Promise<PublishCanvasResult> {
+  try {
+    const localBlocks: LocalCanvasBlock[] = JSON.parse(canvas.blocks);
+
+    // Convert local blocks to ATProto canvas blocks
+    const atprotoBlocks: CanvasBlockWithPosition[] = localBlocks.map(convertLocalBlockToATProto);
+
+    // Create the canvas page
+    const canvasPage: CanvasPage = {
+      $type: 'pub.leaflet.pages.canvas',
+      id: crypto.randomUUID(),
+      blocks: atprotoBlocks
+    };
+
+    // Create the document
+    const document: LeafletDocument = {
+      $type: 'pub.leaflet.document',
+      title: canvas.title,
+      author: user.did,
+      pages: [canvasPage],
+      publishedAt: new Date().toISOString()
+    };
+
+    let uri: string;
+    let rkey: string;
+
+    // Check if document already exists for this canvas
+    if (canvas.document_rkey) {
+      // Update existing document
+      rkey = canvas.document_rkey;
+      const response = await agent.com.atproto.repo.putRecord({
+        repo: user.did,
+        collection: LEAFLET_DOCUMENT_COLLECTION,
+        rkey,
+        record: document as unknown as Record<string, unknown>
+      });
+      uri = response.data.uri;
+      console.log(`Updated canvas document ${uri} for user ${user.handle}`);
+    } else {
+      // Create new document
+      rkey = generateTid();
+      const response = await agent.com.atproto.repo.createRecord({
+        repo: user.did,
+        collection: LEAFLET_DOCUMENT_COLLECTION,
+        rkey,
+        record: document as unknown as Record<string, unknown>
+      });
+      uri = response.data.uri;
+
+      // Update canvas with document_uri and document_rkey
+      db.updateCanvasDocumentUri(canvas.id, uri, rkey);
+      console.log(`Published canvas ${canvas.id} as new document ${uri} for user ${user.handle}`);
+    }
+
+    // Store/update in local database
+    const dbDocument = db.upsertDocument(
+      uri,
+      user.id,
+      rkey,
+      document.title,
+      document.author,
+      JSON.stringify(document.pages),
+      undefined, // description
+      document.publishedAt
+    );
+
+    return {
+      success: true,
+      document: dbDocument,
+      uri
+    };
+  } catch (error) {
+    console.error('Error saving and publishing canvas:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to publish canvas'
+    };
+  }
+}

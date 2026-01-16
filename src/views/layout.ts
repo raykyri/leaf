@@ -1539,6 +1539,113 @@ export function canvasLayout(
     .inline-form {
       display: inline;
     }
+
+    /* Dropdown menu */
+    .dropdown {
+      position: relative;
+      display: inline-block;
+    }
+
+    .dropdown-menu {
+      display: none;
+      position: absolute;
+      right: 0;
+      top: 100%;
+      margin-top: 4px;
+      min-width: 160px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      z-index: 1000;
+      overflow: hidden;
+    }
+
+    .dropdown-menu.show {
+      display: block;
+    }
+
+    .dropdown-item {
+      display: block;
+      width: 100%;
+      padding: 0.5rem 0.75rem;
+      background: none;
+      border: none;
+      text-align: left;
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: var(--text);
+      cursor: pointer;
+      text-decoration: none;
+      transition: background 0.15s ease;
+    }
+
+    .dropdown-item:hover {
+      background: var(--bg-hover);
+    }
+
+    .dropdown-item.danger {
+      color: var(--danger);
+    }
+
+    .dropdown-item.danger:hover {
+      background: var(--danger-bg);
+    }
+
+    .dropdown-divider {
+      height: 1px;
+      background: var(--border);
+      margin: 0.25rem 0;
+    }
+
+    /* Context menu for blocks */
+    .context-menu {
+      position: fixed;
+      min-width: 140px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      z-index: 10000;
+      overflow: hidden;
+      display: none;
+    }
+
+    .context-menu.show {
+      display: block;
+    }
+
+    .context-menu-item {
+      display: block;
+      width: 100%;
+      padding: 0.5rem 0.75rem;
+      background: none;
+      border: none;
+      text-align: left;
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: var(--text);
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+
+    .context-menu-item:hover {
+      background: var(--bg-hover);
+    }
+
+    .context-menu-item.danger {
+      color: var(--danger);
+    }
+
+    .context-menu-item.danger:hover {
+      background: var(--danger-bg);
+    }
+
+    .context-menu-divider {
+      height: 1px;
+      background: var(--border);
+      margin: 0.25rem 0;
+    }
   </style>
   <script>
     (function() {
@@ -1577,8 +1684,10 @@ export function canvasLayout(
       const statusMessage = document.getElementById('status-message');
       const undoBtn = document.getElementById('undo-btn');
       const redoBtn = document.getElementById('redo-btn');
-      const duplicateBtn = document.getElementById('duplicate-btn');
-      const snapGridBtn = document.getElementById('snap-grid-btn');
+      const menuBtn = document.getElementById('menu-btn');
+      const menuDropdown = document.getElementById('menu-dropdown');
+      const deleteCanvasBtn = document.getElementById('delete-canvas-btn');
+      const deleteForm = document.getElementById('delete-form');
 
       // Zoom levels
       const zoomLevels = [25, 50, 75, 100, 125, 150, 200];
@@ -1586,7 +1695,7 @@ export function canvasLayout(
 
       // Grid configuration
       const GRID_SIZE = 20; // Grid cell size in pixels
-      let snapToGridEnabled = true;
+      const snapToGridEnabled = true; // Always snap to grid
 
       let selectedBlock = null;
       let selectedBlockId = null;
@@ -1617,10 +1726,8 @@ export function canvasLayout(
         redoBtn.disabled = redoStack.length === 0;
       }
 
-      // Update duplicate button state
-      function updateDuplicateButton() {
-        duplicateBtn.disabled = !selectedBlockId;
-      }
+      // Context menu state
+      let contextMenuBlock = null;
 
       // Undo last action
       function undo() {
@@ -1634,7 +1741,6 @@ export function canvasLayout(
         renderBlocks();
         markDirty();
         updateHistoryButtons();
-        updateDuplicateButton();
       }
 
       // Redo previously undone action
@@ -1649,10 +1755,9 @@ export function canvasLayout(
         renderBlocks();
         markDirty();
         updateHistoryButtons();
-        updateDuplicateButton();
       }
 
-      // Duplicate selected block
+      // Duplicate a block (used by context menu)
       function duplicateBlock() {
         if (!selectedBlockId) return;
         const sourceBlock = blocks.find(function(b) { return b.id === selectedBlockId; });
@@ -1789,7 +1894,6 @@ export function canvasLayout(
             selectedBlockId = null;
           }
           markDirty();
-          updateDuplicateButton();
           updateCanvasHint();
         });
 
@@ -1797,6 +1901,20 @@ export function canvasLayout(
         header.addEventListener('mousedown', function(e) {
           if (e.target === closeBtn) return;
           selectBlock(el, block);
+        });
+
+        // Right-click context menu
+        el.addEventListener('contextmenu', function(e) {
+          e.preventDefault();
+          contextMenuBlock = block;
+          selectBlock(el, block);
+          // Position context menu at cursor
+          const contextMenu = document.querySelector('.context-menu');
+          if (contextMenu) {
+            contextMenu.style.left = e.clientX + 'px';
+            contextMenu.style.top = e.clientY + 'px';
+            contextMenu.classList.add('show');
+          }
         });
 
         // Click on content to edit
@@ -1904,7 +2022,6 @@ export function canvasLayout(
         selectedBlock = el;
         selectedBlockId = block.id;
         el.classList.add('selected');
-        updateDuplicateButton();
       }
 
       // Start editing a block
@@ -2008,7 +2125,6 @@ export function canvasLayout(
           selectedBlock.classList.remove('selected');
           selectedBlock = null;
           selectedBlockId = null;
-          updateDuplicateButton();
         }
 
         e.preventDefault();
@@ -2087,7 +2203,7 @@ export function canvasLayout(
 
       // Save canvas
       saveBtn.addEventListener('click', function() {
-        setStatus('Saving...');
+        setStatus('Saving & publishing...');
         saveBtn.disabled = true;
 
         fetch('/api/canvases/' + canvasId, {
@@ -2107,8 +2223,10 @@ export function canvasLayout(
         .then(function(data) {
           isDirty = false;
           canvasTitle = data.title;
-          if (data.synced) {
-            setStatus('Saved & synced');
+          if (data.synced && data.published) {
+            setStatus('Saved & published');
+          } else if (data.synced && !data.published) {
+            setStatus('Saved (publish error: ' + (data.publishError || 'unknown') + ')');
           } else if (data.syncError) {
             setStatus('Saved locally (sync error: ' + data.syncError + ')');
           } else {
@@ -2116,7 +2234,7 @@ export function canvasLayout(
           }
         })
         .catch(function(err) {
-          setStatus('Error saving: ' + err.message);
+          setStatus('Error: ' + err.message);
         })
         .finally(function() {
           saveBtn.disabled = false;
@@ -2147,24 +2265,67 @@ export function canvasLayout(
         redo();
       });
 
-      duplicateBtn.addEventListener('click', function() {
-        duplicateBlock();
+      // Menu dropdown toggle
+      menuBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        menuDropdown.classList.toggle('show');
       });
 
-      // Snap to grid toggle
-      function updateSnapGridState() {
-        if (snapToGridEnabled) {
-          snapGridBtn.classList.add('active');
-          container.classList.add('show-grid');
-        } else {
-          snapGridBtn.classList.remove('active');
-          container.classList.remove('show-grid');
+      // Close dropdown when clicking outside
+      document.addEventListener('click', function(e) {
+        if (!menuDropdown.contains(e.target) && e.target !== menuBtn) {
+          menuDropdown.classList.remove('show');
         }
-      }
+        // Also close context menu
+        if (contextMenu && !contextMenu.contains(e.target)) {
+          contextMenu.classList.remove('show');
+          contextMenuBlock = null;
+        }
+      });
 
-      snapGridBtn.addEventListener('click', function() {
-        snapToGridEnabled = !snapToGridEnabled;
-        updateSnapGridState();
+      // Delete canvas button handler
+      deleteCanvasBtn.addEventListener('click', function() {
+        if (confirm('Are you sure you want to delete this canvas?')) {
+          deleteForm.submit();
+        }
+        menuDropdown.classList.remove('show');
+      });
+
+      // Create context menu element
+      const contextMenu = document.createElement('div');
+      contextMenu.className = 'context-menu';
+      contextMenu.innerHTML = '<button class="context-menu-item" data-action="duplicate">Duplicate</button>' +
+        '<div class="context-menu-divider"></div>' +
+        '<button class="context-menu-item danger" data-action="delete">Delete</button>';
+      document.body.appendChild(contextMenu);
+
+      // Context menu actions
+      contextMenu.addEventListener('click', function(e) {
+        const action = e.target.dataset.action;
+        if (!action || !contextMenuBlock) return;
+
+        if (action === 'duplicate') {
+          // Select the block first, then duplicate
+          const blockEl = container.querySelector('[data-block-id="' + contextMenuBlock.id + '"]');
+          if (blockEl) {
+            selectBlock(blockEl, contextMenuBlock);
+            duplicateBlock();
+          }
+        } else if (action === 'delete') {
+          saveState();
+          blocks = blocks.filter(function(b) { return b.id !== contextMenuBlock.id; });
+          const blockEl = container.querySelector('[data-block-id="' + contextMenuBlock.id + '"]');
+          if (blockEl) blockEl.remove();
+          if (selectedBlockId === contextMenuBlock.id) {
+            selectedBlock = null;
+            selectedBlockId = null;
+          }
+          markDirty();
+          updateCanvasHint();
+        }
+
+        contextMenu.classList.remove('show');
+        contextMenuBlock = null;
       });
 
       // Title change
@@ -2210,7 +2371,6 @@ export function canvasLayout(
           selectedBlock = null;
           selectedBlockId = null;
           markDirty();
-          updateDuplicateButton();
           updateCanvasHint();
         }
       });
@@ -2226,7 +2386,7 @@ export function canvasLayout(
       // Initial render
       renderBlocks();
       applyZoom();
-      updateSnapGridState();
+      container.classList.add('show-grid'); // Always show grid
       setStatus('Ready');
 
       // Theme toggle

@@ -3,7 +3,7 @@ import type { Context } from 'hono';
 import { getCookie } from 'hono/cookie';
 import * as db from '../database/index.ts';
 import { getSessionUser, getAuthenticatedAgent } from '../services/auth.ts';
-import { publishCanvas } from '../services/posts.ts';
+import { publishCanvas, saveAndPublishCanvas } from '../services/posts.ts';
 import { saveCanvasToATProto, deleteCanvasFromATProto } from '../services/canvas.ts';
 import { getCsrfToken } from '../middleware/csrf.ts';
 import {
@@ -211,15 +211,27 @@ canvases.put('/api/canvases/:id', async (c) => {
   db.updateCanvas(canvasId, updates);
   const updatedCanvas = db.getCanvasById(canvasId)!;
 
-  // Sync to ATProto
+  // Sync to ATProto and publish document
   let syncError: string | undefined;
+  let publishError: string | undefined;
+  let published = false;
   try {
     const agent = await getAuthenticatedAgent(auth.session, auth.user);
     if (agent) {
+      // Sync canvas data to ATProto (pub.leaflet.canvas)
       const syncResult = await saveCanvasToATProto(agent, auth.user, updatedCanvas);
       if (!syncResult.success) {
         syncError = syncResult.error;
         console.error('Failed to sync canvas to ATProto:', syncResult.error);
+      }
+
+      // Also publish/update the document (pub.leaflet.document)
+      const publishResult = await saveAndPublishCanvas(agent, auth.user, updatedCanvas);
+      if (!publishResult.success) {
+        publishError = publishResult.error;
+        console.error('Failed to publish canvas document:', publishResult.error);
+      } else {
+        published = true;
       }
     } else {
       syncError = 'Unable to authenticate with ATProto';
@@ -241,8 +253,11 @@ canvases.put('/api/canvases/:id', async (c) => {
     created_at: finalCanvas.created_at,
     updated_at: finalCanvas.updated_at,
     uri: finalCanvas.uri,
+    document_uri: finalCanvas.document_uri,
     synced: !syncError,
-    syncError
+    published: published,
+    syncError,
+    publishError
   });
 });
 

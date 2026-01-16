@@ -368,6 +368,8 @@ export interface Canvas {
   user_id: number;
   uri: string | null;
   rkey: string | null;
+  document_uri: string | null;
+  document_rkey: string | null;
   title: string;
   blocks: string; // JSON serialized LocalCanvasBlock[]
   width: number;
@@ -464,6 +466,13 @@ export function updateCanvasUri(id: string, uri: string, rkey: string): boolean 
   const db = getDatabase();
   const stmt = db.prepare('UPDATE canvases SET uri = ?, rkey = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
   const result = stmt.run(uri, rkey, id);
+  return result.changes > 0;
+}
+
+export function updateCanvasDocumentUri(id: string, documentUri: string, documentRkey: string): boolean {
+  const db = getDatabase();
+  const stmt = db.prepare('UPDATE canvases SET document_uri = ?, document_rkey = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
+  const result = stmt.run(documentUri, documentRkey, id);
   return result.changes > 0;
 }
 

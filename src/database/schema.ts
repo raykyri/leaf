@@ -144,6 +144,17 @@ export function initializeDatabase(db: Database.Database): void {
   } catch {
     // Column already exists
   }
+  // Add document_uri and document_rkey for tracking published documents
+  try {
+    db.exec(`ALTER TABLE canvases ADD COLUMN document_uri TEXT`);
+  } catch {
+    // Column already exists
+  }
+  try {
+    db.exec(`ALTER TABLE canvases ADD COLUMN document_rkey TEXT`);
+  } catch {
+    // Column already exists
+  }
 
   // Create index for canvas lookups
   db.exec(`

@@ -481,16 +481,17 @@ export function canvasEditorPage(
          data-csrf-token="${escapeHtml(user.csrfToken || '')}">
       <div class="canvas-toolbar">
         <div class="toolbar-left">
-          <a href="/canvases" class="toolbar-btn">&larr; Back</a>
           <input type="text" id="canvas-title" value="${escapeHtml(canvas.title)}" class="canvas-title-input">
         </div>
         <div class="toolbar-center">
-          <button id="undo-btn" class="toolbar-btn" title="Undo (Ctrl+Z)" disabled>Undo</button>
-          <button id="redo-btn" class="toolbar-btn" title="Redo (Ctrl+Y)" disabled>Redo</button>
+          <button id="undo-btn" class="toolbar-btn" title="Undo (Ctrl+Z)" disabled>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>
+          </button>
+          <button id="redo-btn" class="toolbar-btn" title="Redo (Ctrl+Y)" disabled>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3l3 2.7"/></svg>
+          </button>
           <span class="toolbar-separator"></span>
           <button id="add-block-btn" class="toolbar-btn">+ Add Text Block</button>
-          <button id="duplicate-btn" class="toolbar-btn" title="Duplicate (Ctrl+D)" disabled>Duplicate</button>
-          <button id="snap-grid-btn" class="toolbar-btn active" title="Toggle snap to grid">⊞ Snap to Grid</button>
         </div>
         <div class="toolbar-right">
           <div class="zoom-controls">
@@ -499,16 +500,21 @@ export function canvasEditorPage(
             <button id="zoom-in-btn" class="toolbar-btn">+</button>
           </div>
           <button id="save-btn" class="toolbar-btn primary">Save</button>
-          <form action="/canvases/${escapeHtml(canvas.id)}/publish" method="POST" class="inline-form" onsubmit="return confirm('Publish this canvas to ATProto? This will create a Leaflet document on your PDS.');">
-            <input type="hidden" name="_csrf" value="${escapeHtml(user.csrfToken || '')}">
-            <button type="submit" class="toolbar-btn" style="background: #059669; border-color: #059669;">Publish to ATProto</button>
-          </form>
-          <form action="/canvases/${escapeHtml(canvas.id)}/delete" method="POST" class="inline-form" onsubmit="return confirm('Are you sure you want to delete this canvas?');">
-            <input type="hidden" name="_csrf" value="${escapeHtml(user.csrfToken || '')}">
-            <button type="submit" class="toolbar-btn danger">Delete</button>
-          </form>
+          <div class="dropdown">
+            <button id="menu-btn" class="toolbar-btn" title="More actions">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+            </button>
+            <div id="menu-dropdown" class="dropdown-menu">
+              <a href="/canvases" class="dropdown-item">Back to Canvases</a>
+              <div class="dropdown-divider"></div>
+              <button id="delete-canvas-btn" class="dropdown-item danger">Delete Canvas</button>
+            </div>
+          </div>
         </div>
       </div>
+      <form id="delete-form" action="/canvases/${escapeHtml(canvas.id)}/delete" method="POST" style="display:none;">
+        <input type="hidden" name="_csrf" value="${escapeHtml(user.csrfToken || '')}">
+      </form>
       <div class="canvas-viewport">
         <div id="canvas-container" class="canvas-container" style="width: ${canvas.width}px; height: ${canvas.height}px;">
           <!-- Blocks will be rendered here by JavaScript -->
