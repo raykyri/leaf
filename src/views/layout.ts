@@ -1,4 +1,5 @@
 // HTML layout templates
+// Refactored for maintainability: shared CSS, navigation, and theme components
 
 import { escapeHtml } from '../utils/html.ts';
 
@@ -11,89 +12,21 @@ export interface OpenGraphMeta {
   publishedTime?: string;
 }
 
-export function layout(
-  title: string,
-  content: string,
-  user?: { handle: string; csrfToken?: string },
-  og?: OpenGraphMeta
-): string {
-  const nav = user
-    ? `
-      <nav>
-        <div class="nav-links">
-          <a href="/posts">Explore</a>
-          <a href="/profile">My Posts</a>
-          <a href="/canvases">Canvases</a>
-        </div>
-        <div class="nav-actions">
-          <a href="/create" class="write-btn">Write</a>
-          <button id="theme-toggle" class="theme-toggle" aria-label="Toggle theme">
-            <svg class="sun-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
-            <svg class="moon-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
-          </button>
-          <form action="/auth/logout" method="POST" style="display: inline;">
-            ${user.csrfToken ? `<input type="hidden" name="_csrf" value="${escapeHtml(user.csrfToken)}">` : ''}
-            <button type="submit" class="logout-btn">${escapeHtml(user.handle)}</button>
-          </form>
-        </div>
-      </nav>
-    `
-    : `
-      <nav>
-        <div class="nav-links">
-          <a href="/posts">Explore</a>
-        </div>
-        <div class="nav-actions">
-          <button id="theme-toggle" class="theme-toggle" aria-label="Toggle theme">
-            <svg class="sun-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
-            <svg class="moon-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
-          </button>
-          <a href="/" class="login-btn">Sign in</a>
-        </div>
-      </nav>
-    `;
+// =============================================================================
+// SVG Icons (shared across layouts)
+// =============================================================================
 
-  // Build OpenGraph meta tags
-  const ogTitle = og?.title || title;
-  const ogDescription = og?.description || 'A minimalist blogging platform built on AT Protocol';
-  const ogType = og?.type || 'website';
+const ICONS = {
+  sun: (size = 18) => `<svg class="sun-icon" xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>`,
+  moon: (size = 18) => `<svg class="moon-icon" xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>`,
+};
 
-  let ogTags = `
-  <meta property="og:title" content="${escapeHtml(ogTitle)}">
-  <meta property="og:description" content="${escapeHtml(ogDescription)}">
-  <meta property="og:type" content="${ogType}">
-  <meta property="og:site_name" content="Leaflet">
-  <meta name="description" content="${escapeHtml(ogDescription)}">`;
+// =============================================================================
+// Shared CSS Variables (used by both layouts)
+// =============================================================================
 
-  if (og?.url) {
-    ogTags += `\n  <meta property="og:url" content="${escapeHtml(og.url)}">`;
-  }
-
-  if (og?.author) {
-    ogTags += `\n  <meta property="article:author" content="${escapeHtml(og.author)}">`;
-  }
-
-  if (og?.publishedTime) {
-    ogTags += `\n  <meta property="article:published_time" content="${escapeHtml(og.publishedTime)}">`;
-  }
-
-  // Twitter Card tags
-  ogTags += `
-  <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="${escapeHtml(ogTitle)}">
-  <meta name="twitter:description" content="${escapeHtml(ogDescription)}">`;
-
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${escapeHtml(title)} - Leaflet</title>
-  ${ogTags}
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;0,8..60,600;0,8..60,700;1,8..60,400;1,8..60,500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-  <style>
+function getThemeVariables(): string {
+  return `
     /* Light theme (default) */
     :root {
       --bg: #ffffff;
@@ -155,7 +88,66 @@ export function layout(
       --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.24), 0 1px 2px rgba(0, 0, 0, 0.16);
       --shadow-md: 0 4px 8px -2px rgba(0, 0, 0, 0.32), 0 2px 4px -1px rgba(0, 0, 0, 0.16);
     }
+  `;
+}
 
+// =============================================================================
+// Utility CSS Classes (shared across layouts)
+// =============================================================================
+
+function getUtilityClasses(): string {
+  return `
+    /* Utility: Spacing */
+    .mb-0 { margin-bottom: 0; }
+    .mb-1 { margin-bottom: 0.5rem; }
+    .mb-2 { margin-bottom: 1rem; }
+    .mb-3 { margin-bottom: 1.5rem; }
+    .mb-4 { margin-bottom: 2rem; }
+    .mt-1 { margin-top: 0.5rem; }
+    .mt-2 { margin-top: 1rem; }
+    .ml-1 { margin-left: 0.5rem; }
+    .ml-2 { margin-left: 1rem; }
+    .my-3 { margin-top: 1.5rem; margin-bottom: 1.5rem; }
+
+    /* Utility: Display & Flex */
+    .flex { display: flex; }
+    .inline-flex { display: inline-flex; }
+    .items-center { align-items: center; }
+    .justify-between { justify-content: space-between; }
+    .gap-1 { gap: 0.5rem; }
+    .gap-2 { gap: 1rem; }
+    .flex-wrap { flex-wrap: wrap; }
+
+    /* Utility: Text */
+    .text-center { text-align: center; }
+    .text-muted { color: var(--text-muted); }
+    .text-secondary { color: var(--text-secondary); }
+    .no-decoration { text-decoration: none; }
+
+    /* Utility: Typography */
+    .heading-xl { font-size: 2rem; }
+
+    /* Utility: Forms */
+    .inline-form { display: inline; }
+
+    /* Utility: Canvas-specific (only used in canvas editor) */
+    .publish-btn {
+      background: #059669;
+      border-color: #059669;
+    }
+    .publish-btn:hover {
+      background: #047857;
+      border-color: #047857;
+    }
+  `;
+}
+
+// =============================================================================
+// Base CSS Reset & Typography
+// =============================================================================
+
+function getBaseStyles(): string {
+  return `
     * {
       box-sizing: border-box;
       margin: 0;
@@ -179,6 +171,97 @@ export function layout(
       text-rendering: optimizeLegibility;
     }
 
+    /* Focus states for accessibility */
+    a:focus-visible,
+    button:focus-visible,
+    input:focus-visible,
+    textarea:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    /* Selection */
+    ::selection {
+      background: var(--accent-subtle);
+      color: var(--text);
+    }
+
+    /* Page headings */
+    h1 {
+      font-family: 'Source Serif 4', Georgia, serif;
+      font-weight: 700;
+      letter-spacing: -0.025em;
+      line-height: 1.2;
+    }
+
+    h2 {
+      font-family: 'Source Serif 4', Georgia, serif;
+      font-weight: 600;
+      letter-spacing: -0.015em;
+      line-height: 1.3;
+    }
+  `;
+}
+
+// =============================================================================
+// Navigation Component
+// =============================================================================
+
+interface NavOptions {
+  user?: { handle: string; csrfToken?: string };
+  iconSize?: number;
+  showWriteButton?: boolean;
+}
+
+function renderNavigation(options: NavOptions = {}): string {
+  const { user, iconSize = 18, showWriteButton = true } = options;
+
+  const themeToggle = `
+    <button id="theme-toggle" class="theme-toggle" aria-label="Toggle theme">
+      ${ICONS.sun(iconSize)}
+      ${ICONS.moon(iconSize)}
+    </button>
+  `;
+
+  if (user) {
+    return `
+      <nav>
+        <div class="nav-links">
+          <a href="/posts">Explore</a>
+          <a href="/profile">My Posts</a>
+          <a href="/canvases">Canvases</a>
+        </div>
+        <div class="nav-actions">
+          ${showWriteButton ? '<a href="/create" class="write-btn">Write</a>' : ''}
+          ${themeToggle}
+          <form action="/auth/logout" method="POST" class="inline-form">
+            ${user.csrfToken ? `<input type="hidden" name="_csrf" value="${escapeHtml(user.csrfToken)}">` : ''}
+            <button type="submit" class="logout-btn">${escapeHtml(user.handle)}</button>
+          </form>
+        </div>
+      </nav>
+    `;
+  }
+
+  return `
+    <nav>
+      <div class="nav-links">
+        <a href="/posts">Explore</a>
+      </div>
+      <div class="nav-actions">
+        ${themeToggle}
+        <a href="/" class="login-btn">Sign in</a>
+      </div>
+    </nav>
+  `;
+}
+
+// =============================================================================
+// Shared Component Styles
+// =============================================================================
+
+function getNavigationStyles(): string {
+  return `
     /* Header */
     header {
       background: var(--bg);
@@ -267,7 +350,12 @@ export function layout(
       align-items: center;
       gap: 0.875rem;
     }
+  `;
+}
 
+function getButtonStyles(): string {
+  return `
+    /* Buttons */
     .write-btn {
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
       background: var(--accent);
@@ -323,21 +411,10 @@ export function layout(
       color: var(--text);
     }
 
-    .theme-toggle .sun-icon {
-      display: none;
-    }
-
-    .theme-toggle .moon-icon {
-      display: block;
-    }
-
-    [data-theme="dark"] .theme-toggle .sun-icon {
-      display: block;
-    }
-
-    [data-theme="dark"] .theme-toggle .moon-icon {
-      display: none;
-    }
+    .theme-toggle .sun-icon { display: none; }
+    .theme-toggle .moon-icon { display: block; }
+    [data-theme="dark"] .theme-toggle .sun-icon { display: block; }
+    [data-theme="dark"] .theme-toggle .moon-icon { display: none; }
 
     .logout-btn {
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -418,14 +495,11 @@ export function layout(
       transform: translateY(-1px);
       box-shadow: var(--shadow-sm);
     }
+  `;
+}
 
-    /* Main content */
-    main {
-      max-width: 640px;
-      margin: 0 auto;
-      padding: 3.5rem 1.5rem 4rem;
-    }
-
+function getCardStyles(): string {
+  return `
     /* Cards */
     .card {
       background: var(--bg);
@@ -440,7 +514,11 @@ export function layout(
       border-color: var(--border-focus);
       box-shadow: var(--shadow-sm);
     }
+  `;
+}
 
+function getPostStyles(): string {
+  return `
     /* Post styles */
     .post-title {
       font-family: 'Source Serif 4', Georgia, serif;
@@ -492,9 +570,7 @@ export function layout(
       letter-spacing: 0.003em;
     }
 
-    .post-content p {
-      margin-bottom: 1.625rem;
-    }
+    .post-content p { margin-bottom: 1.625rem; }
 
     .post-content h1 {
       font-size: 1.875rem;
@@ -593,9 +669,7 @@ export function layout(
       max-width: 120px;
     }
 
-    .post-content figure {
-      margin: 2.5rem 0;
-    }
+    .post-content figure { margin: 2.5rem 0; }
 
     .post-content img {
       max-width: 100%;
@@ -630,6 +704,49 @@ export function layout(
       border: 1px solid var(--border-light);
     }
 
+    .post-actions {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      display: flex;
+      gap: 1.25rem;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-top: 3rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--border);
+      font-size: 0.8rem;
+    }
+
+    .post-actions a {
+      color: var(--text-muted);
+      text-decoration: none;
+      transition: color 0.15s ease;
+    }
+
+    .post-actions a:hover {
+      color: var(--text);
+    }
+
+    .external-link {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.8rem;
+      transition: color 0.15s ease;
+    }
+
+    .external-link:hover {
+      color: var(--text-secondary);
+    }
+
+    .external-link::after {
+      content: ' \\2197';
+      font-size: 0.7em;
+      opacity: 0.7;
+    }
+  `;
+}
+
+function getFormStyles(): string {
+  return `
     /* Forms */
     form {
       display: flex;
@@ -697,7 +814,11 @@ export function layout(
       transform: translateY(-1px);
       box-shadow: var(--shadow-sm);
     }
+  `;
+}
 
+function getMessageStyles(): string {
+  return `
     /* Messages */
     .error {
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -721,6 +842,29 @@ export function layout(
       margin-bottom: 1.25rem;
       font-size: 0.825rem;
       font-weight: 500;
+    }
+
+    .hint {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      margin-top: 0.5rem;
+      line-height: 1.5;
+    }
+
+    .hint a {
+      color: var(--link);
+    }
+  `;
+}
+
+function getLayoutStyles(): string {
+  return `
+    /* Main content */
+    main {
+      max-width: 640px;
+      margin: 0 auto;
+      padding: 3.5rem 1.5rem 4rem;
     }
 
     /* Pagination */
@@ -771,7 +915,7 @@ export function layout(
       color: var(--text-secondary);
     }
 
-    /* Utility classes */
+    /* Empty state */
     .empty-state {
       text-align: center;
       color: var(--text-muted);
@@ -794,163 +938,139 @@ export function layout(
       color: var(--accent-text);
       font-weight: 500;
     }
+  `;
+}
 
-    .hint {
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-      color: var(--text-muted);
-      font-size: 0.75rem;
-      margin-top: 0.5rem;
-      line-height: 1.5;
-    }
-
-    .hint a {
-      color: var(--link);
-    }
-
-    .post-actions {
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-      display: flex;
-      gap: 1.25rem;
-      align-items: center;
-      flex-wrap: wrap;
-      margin-top: 3rem;
-      padding-top: 1.5rem;
-      border-top: 1px solid var(--border);
-      font-size: 0.8rem;
-    }
-
-    .post-actions a {
-      color: var(--text-muted);
-      text-decoration: none;
-      transition: color 0.15s ease;
-    }
-
-    .post-actions a:hover {
-      color: var(--text);
-    }
-
-    .inline-form {
-      display: inline;
-    }
-
-    .external-link {
-      color: var(--text-muted);
-      text-decoration: none;
-      font-size: 0.8rem;
-      transition: color 0.15s ease;
-    }
-
-    .external-link:hover {
-      color: var(--text-secondary);
-    }
-
-    .external-link::after {
-      content: ' \\2197';
-      font-size: 0.7em;
-      opacity: 0.7;
-    }
-
-    /* Page headings */
-    h1 {
-      font-family: 'Source Serif 4', Georgia, serif;
-      font-weight: 700;
-      letter-spacing: -0.025em;
-      line-height: 1.2;
-    }
-
-    h2 {
-      font-family: 'Source Serif 4', Georgia, serif;
-      font-weight: 600;
-      letter-spacing: -0.015em;
-      line-height: 1.3;
-    }
-
-    /* Focus states for accessibility */
-    a:focus-visible,
-    button:focus-visible,
-    input:focus-visible,
-    textarea:focus-visible {
-      outline: 2px solid var(--accent);
-      outline-offset: 2px;
-    }
-
-    /* Selection */
-    ::selection {
-      background: var(--accent-subtle);
-      color: var(--text);
-    }
-
+function getResponsiveStyles(): string {
+  return `
     /* Responsive */
     @media (max-width: 768px) {
-      html {
-        font-size: 16px;
-      }
-
-      header {
-        padding: 0.75rem 1rem;
-      }
-
-      nav {
-        margin-left: 1rem;
-      }
-
-      .nav-links {
-        gap: 1rem;
-      }
-
-      .nav-links a::after {
-        display: none;
-      }
-
-      .nav-actions {
-        gap: 0.5rem;
-      }
-
-      main {
-        padding: 2rem 1rem 3rem;
-      }
-
+      html { font-size: 16px; }
+      header { padding: 0.75rem 1rem; }
+      nav { margin-left: 1rem; }
+      .nav-links { gap: 1rem; }
+      .nav-links a::after { display: none; }
+      .nav-actions { gap: 0.5rem; }
+      main { padding: 2rem 1rem 3rem; }
       .card {
         padding: 1.25rem 1.5rem;
         border-radius: var(--radius-sm);
       }
-
-      .post-title {
-        font-size: 1.25rem;
-      }
-
-      .post-content {
-        font-size: 1rem;
-      }
-
-      .post-actions {
-        gap: 1rem;
-      }
+      .post-title { font-size: 1.25rem; }
+      .post-content { font-size: 1rem; }
+      .post-actions { gap: 1rem; }
     }
 
     @media (max-width: 480px) {
-      .nav-links {
-        display: none;
-      }
-
+      .nav-links { display: none; }
       nav {
         justify-content: flex-end;
         margin-left: 0;
       }
-
       .write-btn {
         padding: 0.4rem 0.875rem;
         font-size: 0.75rem;
       }
     }
-  </style>
-  <script>
+  `;
+}
+
+// =============================================================================
+// Theme Toggle Script (shared)
+// =============================================================================
+
+function getThemeInitScript(): string {
+  return `
     (function() {
-      const theme = localStorage.getItem('theme') ||
+      var theme = localStorage.getItem('theme') ||
         (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
       document.documentElement.setAttribute('data-theme', theme);
     })();
-  </script>
+  `;
+}
+
+function getThemeToggleScript(): string {
+  return `
+    (function() {
+      var toggle = document.getElementById('theme-toggle');
+      if (toggle) {
+        toggle.addEventListener('click', function() {
+          var current = document.documentElement.getAttribute('data-theme') || 'light';
+          var next = current === 'dark' ? 'light' : 'dark';
+          document.documentElement.setAttribute('data-theme', next);
+          localStorage.setItem('theme', next);
+        });
+      }
+    })();
+  `;
+}
+
+// =============================================================================
+// Main Layout
+// =============================================================================
+
+export function layout(
+  title: string,
+  content: string,
+  user?: { handle: string; csrfToken?: string },
+  og?: OpenGraphMeta
+): string {
+  const nav = renderNavigation({ user });
+
+  // Build OpenGraph meta tags
+  const ogTitle = og?.title || title;
+  const ogDescription = og?.description || 'A minimalist blogging platform built on AT Protocol';
+  const ogType = og?.type || 'website';
+
+  let ogTags = `
+  <meta property="og:title" content="${escapeHtml(ogTitle)}">
+  <meta property="og:description" content="${escapeHtml(ogDescription)}">
+  <meta property="og:type" content="${ogType}">
+  <meta property="og:site_name" content="Leaflet">
+  <meta name="description" content="${escapeHtml(ogDescription)}">`;
+
+  if (og?.url) {
+    ogTags += `\n  <meta property="og:url" content="${escapeHtml(og.url)}">`;
+  }
+
+  if (og?.author) {
+    ogTags += `\n  <meta property="article:author" content="${escapeHtml(og.author)}">`;
+  }
+
+  if (og?.publishedTime) {
+    ogTags += `\n  <meta property="article:published_time" content="${escapeHtml(og.publishedTime)}">`;
+  }
+
+  // Twitter Card tags
+  ogTags += `
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="${escapeHtml(ogTitle)}">
+  <meta name="twitter:description" content="${escapeHtml(ogDescription)}">`;
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${escapeHtml(title)} - Leaflet</title>
+  ${ogTags}
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;0,8..60,600;0,8..60,700;1,8..60,400;1,8..60,500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    ${getThemeVariables()}
+    ${getBaseStyles()}
+    ${getUtilityClasses()}
+    ${getNavigationStyles()}
+    ${getButtonStyles()}
+    ${getCardStyles()}
+    ${getPostStyles()}
+    ${getFormStyles()}
+    ${getMessageStyles()}
+    ${getLayoutStyles()}
+    ${getResponsiveStyles()}
+  </style>
+  <script>${getThemeInitScript()}</script>
 </head>
 <body>
   <header>
@@ -965,133 +1085,38 @@ export function layout(
   <footer>
     <p>Built on <a href="https://atproto.com" target="_blank">AT Protocol</a> using the <a href="https://leaflet.pub" target="_blank">Leaflet</a> lexicon</p>
   </footer>
-  <script>
-    (function() {
-      const toggle = document.getElementById('theme-toggle');
-      if (toggle) {
-        toggle.addEventListener('click', function() {
-          const current = document.documentElement.getAttribute('data-theme') || 'light';
-          const next = current === 'dark' ? 'light' : 'dark';
-          document.documentElement.setAttribute('data-theme', next);
-          localStorage.setItem('theme', next);
-        });
-      }
-    })();
-  </script>
+  <script>${getThemeToggleScript()}</script>
 </body>
 </html>`;
 }
 
 export { escapeHtml };
 
-// Canvas-specific layout (full-width, includes canvas editor JS)
-export function canvasLayout(
-  title: string,
-  content: string,
-  user?: { handle: string; csrfToken?: string }
-): string {
-  const nav = user
-    ? `
-      <nav>
-        <div class="nav-links">
-          <a href="/posts">Explore</a>
-          <a href="/profile">My Posts</a>
-          <a href="/canvases">Canvases</a>
-        </div>
-        <div class="nav-actions">
-          <button id="theme-toggle" class="theme-toggle" aria-label="Toggle theme">
-            <svg class="sun-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
-            <svg class="moon-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
-          </button>
-          <form action="/auth/logout" method="POST" style="display: inline;">
-            ${user.csrfToken ? `<input type="hidden" name="_csrf" value="${escapeHtml(user.csrfToken)}">` : ''}
-            <button type="submit" class="logout-btn">${escapeHtml(user.handle)}</button>
-          </form>
-        </div>
-      </nav>
-    `
-    : `
-      <nav>
-        <div class="nav-links">
-          <a href="/posts">Explore</a>
-        </div>
-        <div class="nav-actions">
-          <button id="theme-toggle" class="theme-toggle" aria-label="Toggle theme">
-            <svg class="sun-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
-            <svg class="moon-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
-          </button>
-          <a href="/" class="login-btn">Sign in</a>
-        </div>
-      </nav>
-    `;
+// =============================================================================
+// Canvas Layout (specialized for canvas editor)
+// =============================================================================
 
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${escapeHtml(title)} - Leaflet Canvas</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-  <style>
-    /* Light theme (default) */
+function getCanvasSpecificVariables(): string {
+  return `
+    /* Canvas-specific variables (extends base theme) */
     :root {
-      --bg: #ffffff;
-      --bg-secondary: #fafbfc;
-      --bg-tertiary: #f6f7f8;
-      --bg-hover: #f0f1f2;
       --bg-canvas: #e9eaeb;
-      --text: #191919;
-      --text-secondary: #525252;
-      --text-muted: #8a8a8a;
-      --border: #e8e8e8;
-      --border-light: #f2f2f2;
-      --border-focus: #c0c0c0;
-      --accent: #ff6600;
-      --accent-hover: #e85d00;
-      --accent-subtle: rgba(255, 102, 0, 0.08);
-      --link: #117799;
-      --danger: #d93025;
-      --danger-bg: #fef1f0;
-      --success: #1e8e3e;
       --canvas-block-bg: #ffffff;
       --canvas-grid: rgba(0, 0, 0, 0.06);
       --shadow-canvas: 0 4px 20px rgba(0, 0, 0, 0.08);
-      --radius-sm: 6px;
     }
 
-    /* Dark theme */
     [data-theme="dark"] {
-      --bg: #111111;
-      --bg-secondary: #191919;
-      --bg-tertiary: #222222;
-      --bg-hover: #2a2a2a;
       --bg-canvas: #0c0c0c;
-      --text: #f5f5f5;
-      --text-secondary: #c5c5c5;
-      --text-muted: #888888;
-      --border: #333333;
-      --border-light: #2a2a2a;
-      --border-focus: #555555;
-      --accent: #ff7733;
-      --accent-hover: #ff8c52;
-      --accent-subtle: rgba(255, 119, 51, 0.12);
-      --link: #5cb8d6;
-      --danger: #f56a5e;
-      --danger-bg: #2d1917;
-      --success: #4cd964;
       --canvas-block-bg: #1f1f1f;
       --canvas-grid: rgba(255, 255, 255, 0.06);
       --shadow-canvas: 0 4px 20px rgba(0, 0, 0, 0.35);
     }
+  `;
+}
 
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-
+function getCanvasLayoutStyles(): string {
+  return `
     html, body {
       height: 100%;
       overflow: hidden;
@@ -1100,135 +1125,49 @@ export function canvasLayout(
     body {
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       line-height: 1.5;
-      color: var(--text);
-      background: var(--bg);
       display: flex;
       flex-direction: column;
-      -webkit-font-smoothing: antialiased;
-      -moz-osx-font-smoothing: grayscale;
     }
 
     header {
-      background: var(--bg);
       padding: 0.625rem 1.25rem;
-      border-bottom: 1px solid var(--border);
-      flex-shrink: 0;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
+      position: relative;
+      backdrop-filter: none;
+      background: var(--bg);
     }
 
-    .logo {
-      font-size: 1rem;
-      font-weight: 700;
-      letter-spacing: -0.03em;
-    }
+    .logo { font-size: 1rem; }
 
-    .logo a {
-      color: var(--text);
-      text-decoration: none;
-    }
+    nav { margin-left: 1.75rem; }
 
-    nav {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      flex: 1;
-      margin-left: 1.75rem;
-    }
-
-    .nav-links {
-      display: flex;
-      gap: 1.25rem;
-      align-items: center;
-    }
+    .nav-links { gap: 1.25rem; }
 
     .nav-links a {
-      color: var(--text-muted);
-      text-decoration: none;
       font-size: 0.75rem;
-      font-weight: 500;
-      transition: color 0.2s ease;
     }
 
-    .nav-links a:hover {
-      color: var(--text);
-    }
+    .nav-links a::after { display: none; }
 
-    .nav-actions {
-      display: flex;
-      align-items: center;
-      gap: 0.625rem;
-    }
+    .nav-actions { gap: 0.625rem; }
 
-    .theme-toggle {
-      background: transparent;
-      border: none;
-      color: var(--text-muted);
-      cursor: pointer;
-      padding: 0.375rem;
-      border-radius: var(--radius-sm);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: all 0.2s ease;
-    }
-
-    .theme-toggle:hover {
-      background: var(--bg-hover);
-      color: var(--text);
-    }
-
-    .theme-toggle .sun-icon {
-      display: none;
-    }
-
-    .theme-toggle .moon-icon {
-      display: block;
-    }
-
-    [data-theme="dark"] .theme-toggle .sun-icon {
-      display: block;
-    }
-
-    [data-theme="dark"] .theme-toggle .moon-icon {
-      display: none;
-    }
+    .theme-toggle { padding: 0.375rem; }
 
     .logout-btn {
-      background: transparent;
-      border: 1px solid var(--border);
-      color: var(--text-muted);
       padding: 0.25rem 0.625rem;
       border-radius: 14px;
-      cursor: pointer;
       font-size: 0.7rem;
-      font-weight: 500;
-      transition: all 0.2s ease;
-    }
-
-    .logout-btn:hover {
-      background: var(--bg-hover);
-      color: var(--text);
-      border-color: var(--border-focus);
     }
 
     .login-btn {
-      color: var(--text);
-      text-decoration: none;
       font-size: 0.75rem;
-      font-weight: 500;
       padding: 0.3rem 0.75rem;
-      border: 1px solid var(--border);
       border-radius: 14px;
-      transition: all 0.2s ease;
     }
+  `;
+}
 
-    .login-btn:hover {
-      background: var(--bg-hover);
-      border-color: var(--border-focus);
-    }
-
+function getCanvasEditorStyles(): string {
+  return `
     #canvas-app {
       flex: 1;
       display: flex;
@@ -1305,17 +1244,17 @@ export function canvasLayout(
       border-color: var(--border);
     }
 
+    .toolbar-btn.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: white;
+    }
+
     .toolbar-separator {
       width: 1px;
       height: 18px;
       background: var(--border);
       margin: 0 0.25rem;
-    }
-
-    .toolbar-btn.active {
-      background: var(--accent);
-      border-color: var(--accent);
-      color: white;
     }
 
     .canvas-title-input {
@@ -1444,99 +1383,124 @@ export function canvasLayout(
       flex-shrink: 0;
       font-weight: 500;
     }
+  `;
+}
 
-    .inline-form {
-      display: inline;
+function getCanvasResponsiveStyles(): string {
+  return `
+    @media (max-width: 768px) {
+      .toolbar-left, .toolbar-center, .toolbar-right {
+        gap: 0.25rem;
+      }
+      .toolbar-btn {
+        padding: 0.3rem 0.5rem;
+        font-size: 0.7rem;
+      }
+      .canvas-title-input {
+        width: 120px;
+      }
+      .canvas-viewport {
+        padding: 1rem;
+      }
     }
-  </style>
-  <script>
-    (function() {
-      const theme = localStorage.getItem('theme') ||
-        (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-      document.documentElement.setAttribute('data-theme', theme);
-    })();
-  </script>
-</head>
-<body>
-  <header>
-    <div class="logo"><a href="/">Leaflet</a></div>
-    ${nav}
-  </header>
-  ${content}
-  <script>
+
+    @media (max-width: 480px) {
+      .canvas-toolbar {
+        flex-wrap: wrap;
+        padding: 0.375rem 0.5rem;
+      }
+      .toolbar-center {
+        order: 3;
+        width: 100%;
+        justify-content: center;
+        padding-top: 0.375rem;
+        border-top: 1px solid var(--border);
+        margin-top: 0.375rem;
+      }
+    }
+  `;
+}
+
+function getCanvasEditorScript(): string {
+  return `
     (function() {
       // Canvas Editor JavaScript
-      const app = document.getElementById('canvas-app');
+      var app = document.getElementById('canvas-app');
       if (!app) return;
 
-      const canvasId = app.dataset.canvasId;
-      const csrfToken = app.dataset.csrfToken;
-      let canvasTitle = app.dataset.canvasTitle;
-      let blocks = JSON.parse(app.dataset.canvasBlocks || '[]');
-      let canvasWidth = parseInt(app.dataset.canvasWidth) || 1200;
-      let canvasHeight = parseInt(app.dataset.canvasHeight) || 800;
+      var canvasId = app.dataset.canvasId;
+      var csrfToken = app.dataset.csrfToken;
+      var canvasTitle = app.dataset.canvasTitle;
+      var blocks = JSON.parse(app.dataset.canvasBlocks || '[]');
+      var canvasWidth = parseInt(app.dataset.canvasWidth) || 1200;
+      var canvasHeight = parseInt(app.dataset.canvasHeight) || 800;
 
-      const container = document.getElementById('canvas-container');
-      const titleInput = document.getElementById('canvas-title');
-      const addBlockBtn = document.getElementById('add-block-btn');
-      const saveBtn = document.getElementById('save-btn');
-      const zoomInBtn = document.getElementById('zoom-in-btn');
-      const zoomOutBtn = document.getElementById('zoom-out-btn');
-      const zoomLevelSpan = document.getElementById('zoom-level');
-      const statusMessage = document.getElementById('status-message');
-      const undoBtn = document.getElementById('undo-btn');
-      const redoBtn = document.getElementById('redo-btn');
-      const duplicateBtn = document.getElementById('duplicate-btn');
-      const snapGridBtn = document.getElementById('snap-grid-btn');
+      var container = document.getElementById('canvas-container');
+      var titleInput = document.getElementById('canvas-title');
+      var addBlockBtn = document.getElementById('add-block-btn');
+      var saveBtn = document.getElementById('save-btn');
+      var zoomInBtn = document.getElementById('zoom-in-btn');
+      var zoomOutBtn = document.getElementById('zoom-out-btn');
+      var zoomLevelSpan = document.getElementById('zoom-level');
+      var statusMessage = document.getElementById('status-message');
+      var undoBtn = document.getElementById('undo-btn');
+      var redoBtn = document.getElementById('redo-btn');
+      var duplicateBtn = document.getElementById('duplicate-btn');
+      var snapGridBtn = document.getElementById('snap-grid-btn');
 
-      // Zoom levels
-      const zoomLevels = [25, 50, 75, 100, 125, 150, 200];
-      let currentZoomIndex = 3; // Start at 100%
+      // Configuration
+      var zoomLevels = [25, 50, 75, 100, 125, 150, 200];
+      var currentZoomIndex = 3;
+      var GRID_SIZE = 20;
+      var snapToGridEnabled = true;
+      var MAX_HISTORY = 50;
 
-      // Grid configuration
-      const GRID_SIZE = 20; // Grid cell size in pixels
-      let snapToGridEnabled = true;
+      // State
+      var selectedBlock = null;
+      var selectedBlockId = null;
+      var isDirty = false;
+      var undoStack = [];
+      var redoStack = [];
 
-      let selectedBlock = null;
-      let selectedBlockId = null;
-      let isDirty = false;
+      // Utility functions
+      function generateId() {
+        return 'blk_' + Math.random().toString(36).substr(2, 9);
+      }
 
-      // History stacks for undo/redo
-      const undoStack = [];
-      const redoStack = [];
-      const MAX_HISTORY = 50;
+      function snapToGrid(value) {
+        if (!snapToGridEnabled) return Math.round(value);
+        return Math.round(value / GRID_SIZE) * GRID_SIZE;
+      }
 
-      // Save current state to undo stack
+      function setStatus(msg) {
+        statusMessage.textContent = msg;
+      }
+
+      function markDirty() {
+        isDirty = true;
+        setStatus('Unsaved changes');
+      }
+
+      // History management
       function saveState() {
-        // Deep clone the blocks array
-        const state = JSON.stringify(blocks);
-        undoStack.push(state);
-        // Limit history size
-        if (undoStack.length > MAX_HISTORY) {
-          undoStack.shift();
-        }
-        // Clear redo stack when new action is performed
+        undoStack.push(JSON.stringify(blocks));
+        if (undoStack.length > MAX_HISTORY) undoStack.shift();
         redoStack.length = 0;
         updateHistoryButtons();
       }
 
-      // Update undo/redo button states
       function updateHistoryButtons() {
         undoBtn.disabled = undoStack.length === 0;
         redoBtn.disabled = redoStack.length === 0;
       }
 
-      // Update duplicate button state
       function updateDuplicateButton() {
         duplicateBtn.disabled = !selectedBlockId;
       }
 
-      // Undo last action
       function undo() {
         if (undoStack.length === 0) return;
-        // Save current state to redo stack
         redoStack.push(JSON.stringify(blocks));
-        // Restore previous state
         blocks = JSON.parse(undoStack.pop());
         selectedBlock = null;
         selectedBlockId = null;
@@ -1546,12 +1510,9 @@ export function canvasLayout(
         updateDuplicateButton();
       }
 
-      // Redo previously undone action
       function redo() {
         if (redoStack.length === 0) return;
-        // Save current state to undo stack
         undoStack.push(JSON.stringify(blocks));
-        // Restore next state
         blocks = JSON.parse(redoStack.pop());
         selectedBlock = null;
         selectedBlockId = null;
@@ -1561,15 +1522,14 @@ export function canvasLayout(
         updateDuplicateButton();
       }
 
-      // Duplicate selected block
+      // Block operations
       function duplicateBlock() {
         if (!selectedBlockId) return;
-        const sourceBlock = blocks.find(function(b) { return b.id === selectedBlockId; });
+        var sourceBlock = blocks.find(function(b) { return b.id === selectedBlockId; });
         if (!sourceBlock) return;
 
         saveState();
-
-        const newBlock = {
+        var newBlock = {
           id: generateId(),
           type: sourceBlock.type,
           content: sourceBlock.content,
@@ -1582,53 +1542,69 @@ export function canvasLayout(
         renderBlock(newBlock);
         markDirty();
 
-        // Select the new block
-        const newEl = container.querySelector('[data-block-id=\"' + newBlock.id + '\"]');
-        if (newEl) {
-          selectBlock(newEl, newBlock);
+        var newEl = container.querySelector('[data-block-id="' + newBlock.id + '"]');
+        if (newEl) selectBlock(newEl, newBlock);
+      }
+
+      function selectBlock(el, block) {
+        if (selectedBlock) selectedBlock.classList.remove('selected');
+        selectedBlock = el;
+        selectedBlockId = block.id;
+        el.classList.add('selected');
+        updateDuplicateButton();
+      }
+
+      function startEditing(el, content, block) {
+        saveState();
+        var originalContent = block.content;
+
+        el.classList.add('editing');
+        content.contentEditable = 'true';
+        content.focus();
+
+        var range = document.createRange();
+        range.selectNodeContents(content);
+        var sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+
+        function stopEditing() {
+          content.contentEditable = 'false';
+          el.classList.remove('editing');
+          var newContent = content.textContent;
+          if (newContent !== originalContent) {
+            block.content = newContent;
+            markDirty();
+          } else {
+            undoStack.pop();
+            updateHistoryButtons();
+          }
+          content.removeEventListener('blur', stopEditing);
+          content.removeEventListener('keydown', handleKey);
         }
+
+        function handleKey(e) {
+          if (e.key === 'Escape') stopEditing();
+        }
+
+        content.addEventListener('blur', stopEditing);
+        content.addEventListener('keydown', handleKey);
       }
 
-      // Snap value to grid
-      function snapToGrid(value) {
-        if (!snapToGridEnabled) return Math.round(value);
-        return Math.round(value / GRID_SIZE) * GRID_SIZE;
-      }
-
-      // Generate unique ID
-      function generateId() {
-        return 'blk_' + Math.random().toString(36).substr(2, 9);
-      }
-
-      // Update status message
-      function setStatus(msg) {
-        statusMessage.textContent = msg;
-      }
-
-      // Mark as dirty (unsaved changes)
-      function markDirty() {
-        isDirty = true;
-        setStatus('Unsaved changes');
-      }
-
-      // Apply zoom
+      // Rendering
       function applyZoom() {
-        const zoom = zoomLevels[currentZoomIndex];
+        var zoom = zoomLevels[currentZoomIndex];
         container.style.transform = 'scale(' + (zoom / 100) + ')';
         zoomLevelSpan.textContent = zoom + '%';
       }
 
-      // Render all blocks
       function renderBlocks() {
         container.innerHTML = '';
-        blocks.forEach(function(block) {
-          renderBlock(block);
-        });
+        blocks.forEach(renderBlock);
       }
 
-      // Render a single block
       function renderBlock(block) {
-        const el = document.createElement('div');
+        var el = document.createElement('div');
         el.className = 'canvas-block';
         el.dataset.blockId = block.id;
         el.style.left = block.x + 'px';
@@ -1636,13 +1612,13 @@ export function canvasLayout(
         el.style.width = block.width + 'px';
         el.style.height = block.height + 'px';
 
-        const content = document.createElement('div');
+        var content = document.createElement('div');
         content.className = 'canvas-block-content';
         content.textContent = block.content;
         content.contentEditable = 'false';
         el.appendChild(content);
 
-        const resizeHandle = document.createElement('div');
+        var resizeHandle = document.createElement('div');
         resizeHandle.className = 'resize-handle';
         el.appendChild(resizeHandle);
 
@@ -1653,14 +1629,14 @@ export function canvasLayout(
         });
 
         // Double-click to edit
-        el.addEventListener('dblclick', function(e) {
+        el.addEventListener('dblclick', function() {
           startEditing(el, content, block);
         });
 
         // Drag handling
-        let isDragging = false;
-        let dragStateSaved = false;
-        let startX, startY, origX, origY;
+        var isDragging = false;
+        var dragStateSaved = false;
+        var startX, startY, origX, origY;
 
         el.addEventListener('mousedown', function(e) {
           if (e.target === resizeHandle || content.contentEditable === 'true') return;
@@ -1674,35 +1650,37 @@ export function canvasLayout(
           e.preventDefault();
         });
 
-        document.addEventListener('mousemove', function(e) {
+        function onMouseMove(e) {
           if (!isDragging) return;
-          // Save state only on first move
           if (!dragStateSaved) {
             saveState();
             dragStateSaved = true;
           }
-          const zoom = zoomLevels[currentZoomIndex] / 100;
-          const dx = (e.clientX - startX) / zoom;
-          const dy = (e.clientY - startY) / zoom;
+          var zoom = zoomLevels[currentZoomIndex] / 100;
+          var dx = (e.clientX - startX) / zoom;
+          var dy = (e.clientY - startY) / zoom;
           block.x = Math.max(0, snapToGrid(origX + dx));
           block.y = Math.max(0, snapToGrid(origY + dy));
           el.style.left = block.x + 'px';
           el.style.top = block.y + 'px';
           markDirty();
-        });
+        }
 
-        document.addEventListener('mouseup', function() {
+        function onMouseUp() {
           if (isDragging) {
             isDragging = false;
             dragStateSaved = false;
             el.style.zIndex = '';
           }
-        });
+        }
+
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
 
         // Resize handling
-        let isResizing = false;
-        let resizeStateSaved = false;
-        let resizeStartX, resizeStartY, origWidth, origHeight;
+        var isResizing = false;
+        var resizeStateSaved = false;
+        var resizeStartX, resizeStartY, origWidth, origHeight;
 
         resizeHandle.addEventListener('mousedown', function(e) {
           isResizing = true;
@@ -1715,125 +1693,60 @@ export function canvasLayout(
           e.preventDefault();
         });
 
-        document.addEventListener('mousemove', function(e) {
+        function onResizeMove(e) {
           if (!isResizing) return;
-          // Save state only on first resize
           if (!resizeStateSaved) {
             saveState();
             resizeStateSaved = true;
           }
-          const zoom = zoomLevels[currentZoomIndex] / 100;
-          const dx = (e.clientX - resizeStartX) / zoom;
-          const dy = (e.clientY - resizeStartY) / zoom;
+          var zoom = zoomLevels[currentZoomIndex] / 100;
+          var dx = (e.clientX - resizeStartX) / zoom;
+          var dy = (e.clientY - resizeStartY) / zoom;
           block.width = Math.max(GRID_SIZE * 2, snapToGrid(origWidth + dx));
           block.height = Math.max(GRID_SIZE * 2, snapToGrid(origHeight + dy));
           el.style.width = block.width + 'px';
           el.style.height = block.height + 'px';
           markDirty();
-        });
+        }
 
-        document.addEventListener('mouseup', function() {
+        function onResizeUp() {
           if (isResizing) {
             isResizing = false;
             resizeStateSaved = false;
           }
-        });
+        }
+
+        document.addEventListener('mousemove', onResizeMove);
+        document.addEventListener('mouseup', onResizeUp);
 
         container.appendChild(el);
       }
 
-      // Select a block
-      function selectBlock(el, block) {
-        // Deselect previous
-        if (selectedBlock) {
-          selectedBlock.classList.remove('selected');
-        }
-        selectedBlock = el;
-        selectedBlockId = block.id;
-        el.classList.add('selected');
-        updateDuplicateButton();
-      }
-
-      // Start editing a block
-      function startEditing(el, content, block) {
-        // Save state before editing
-        saveState();
-        const originalContent = block.content;
-
-        el.classList.add('editing');
-        content.contentEditable = 'true';
-        content.focus();
-
-        // Select all text
-        const range = document.createRange();
-        range.selectNodeContents(content);
-        const sel = window.getSelection();
-        sel.removeAllRanges();
-        sel.addRange(range);
-
-        function stopEditing() {
-          content.contentEditable = 'false';
-          el.classList.remove('editing');
-          const newContent = content.textContent;
-          // Only mark dirty if content actually changed
-          if (newContent !== originalContent) {
-            block.content = newContent;
-            markDirty();
-          } else {
-            // Remove the saved state since nothing changed
-            undoStack.pop();
-            updateHistoryButtons();
-          }
-          content.removeEventListener('blur', stopEditing);
-          content.removeEventListener('keydown', handleKey);
-        }
-
-        function handleKey(e) {
-          if (e.key === 'Escape') {
-            stopEditing();
-          }
-        }
-
-        content.addEventListener('blur', stopEditing);
-        content.addEventListener('keydown', handleKey);
-      }
-
-      // Add new block
+      // Event handlers
       addBlockBtn.addEventListener('click', function() {
         saveState();
-
-        // Find a position that doesn't overlap with existing blocks
-        const baseX = snapToGrid(40 + Math.random() * 80);
-        const baseY = snapToGrid(40 + Math.random() * 80);
-
-        const newBlock = {
+        var newBlock = {
           id: generateId(),
           type: 'text',
           content: 'New text block',
-          x: baseX,
-          y: baseY,
-          width: GRID_SIZE * 10, // 200px when GRID_SIZE is 20
-          height: GRID_SIZE * 5  // 100px when GRID_SIZE is 20
+          x: snapToGrid(40 + Math.random() * 80),
+          y: snapToGrid(40 + Math.random() * 80),
+          width: GRID_SIZE * 10,
+          height: GRID_SIZE * 5
         };
         blocks.push(newBlock);
         renderBlock(newBlock);
         markDirty();
       });
 
-      // Save canvas
       saveBtn.addEventListener('click', function() {
         setStatus('Saving...');
         saveBtn.disabled = true;
 
         fetch('/api/canvases/' + canvasId, {
           method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            title: titleInput.value,
-            blocks: blocks
-          })
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: titleInput.value, blocks: blocks })
         })
         .then(function(res) {
           if (!res.ok) throw new Error('Save failed');
@@ -1858,7 +1771,6 @@ export function canvasLayout(
         });
       });
 
-      // Zoom controls
       zoomInBtn.addEventListener('click', function() {
         if (currentZoomIndex < zoomLevels.length - 1) {
           currentZoomIndex++;
@@ -1873,20 +1785,10 @@ export function canvasLayout(
         }
       });
 
-      // Undo/Redo/Duplicate button handlers
-      undoBtn.addEventListener('click', function() {
-        undo();
-      });
+      undoBtn.addEventListener('click', undo);
+      redoBtn.addEventListener('click', redo);
+      duplicateBtn.addEventListener('click', duplicateBlock);
 
-      redoBtn.addEventListener('click', function() {
-        redo();
-      });
-
-      duplicateBtn.addEventListener('click', function() {
-        duplicateBlock();
-      });
-
-      // Snap to grid toggle
       function updateSnapGridState() {
         if (snapToGridEnabled) {
           snapGridBtn.classList.add('active');
@@ -1902,41 +1804,34 @@ export function canvasLayout(
         updateSnapGridState();
       });
 
-      // Title change
-      titleInput.addEventListener('input', function() {
-        markDirty();
-      });
+      titleInput.addEventListener('input', markDirty);
 
       // Keyboard shortcuts
       document.addEventListener('keydown', function(e) {
-        const isEditing = document.activeElement.tagName === 'INPUT' ||
-                          document.activeElement.contentEditable === 'true';
+        var isEditing = document.activeElement.tagName === 'INPUT' ||
+                        document.activeElement.contentEditable === 'true';
 
-        // Undo: Ctrl+Z (not when editing text)
         if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey && !isEditing) {
           e.preventDefault();
           undo();
           return;
         }
 
-        // Redo: Ctrl+Y or Ctrl+Shift+Z (not when editing text)
         if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey)) && !isEditing) {
           e.preventDefault();
           redo();
           return;
         }
 
-        // Duplicate: Ctrl+D (not when editing text)
         if ((e.ctrlKey || e.metaKey) && e.key === 'd' && !isEditing) {
           e.preventDefault();
           duplicateBlock();
           return;
         }
 
-        // Delete selected block with Delete/Backspace key
         if ((e.key === 'Delete' || e.key === 'Backspace') && selectedBlock && !isEditing) {
-          const blockId = selectedBlock.dataset.blockId;
-          const editableContent = selectedBlock.querySelector('.canvas-block-content');
+          var blockId = selectedBlock.dataset.blockId;
+          var editableContent = selectedBlock.querySelector('.canvas-block-content');
           if (editableContent && editableContent.contentEditable === 'true') return;
 
           saveState();
@@ -1949,7 +1844,6 @@ export function canvasLayout(
         }
       });
 
-      // Warn on unsaved changes
       window.addEventListener('beforeunload', function(e) {
         if (isDirty) {
           e.preventDefault();
@@ -1957,24 +1851,66 @@ export function canvasLayout(
         }
       });
 
-      // Initial render
-      renderBlocks();
-      applyZoom();
-      updateSnapGridState();
-      setStatus('Ready');
-
       // Theme toggle
-      const themeToggle = document.getElementById('theme-toggle');
+      var themeToggle = document.getElementById('theme-toggle');
       if (themeToggle) {
         themeToggle.addEventListener('click', function() {
-          const current = document.documentElement.getAttribute('data-theme') || 'light';
-          const next = current === 'dark' ? 'light' : 'dark';
+          var current = document.documentElement.getAttribute('data-theme') || 'light';
+          var next = current === 'dark' ? 'light' : 'dark';
           document.documentElement.setAttribute('data-theme', next);
           localStorage.setItem('theme', next);
         });
       }
+
+      // Initialize
+      renderBlocks();
+      applyZoom();
+      updateSnapGridState();
+      setStatus('Ready');
     })();
-  </script>
+  `;
+}
+
+export function canvasLayout(
+  title: string,
+  content: string,
+  user?: { handle: string; csrfToken?: string }
+): string {
+  const nav = renderNavigation({ user, iconSize: 16, showWriteButton: false });
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${escapeHtml(title)} - Leaflet Canvas</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    ${getThemeVariables()}
+    ${getCanvasSpecificVariables()}
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    ${getCanvasLayoutStyles()}
+    ${getNavigationStyles()}
+    ${getButtonStyles()}
+    ${getUtilityClasses()}
+    ${getCanvasEditorStyles()}
+    ${getCanvasResponsiveStyles()}
+  </style>
+  <script>${getThemeInitScript()}</script>
+</head>
+<body>
+  <header>
+    <div class="logo"><a href="/">Leaflet</a></div>
+    ${nav}
+  </header>
+  ${content}
+  <script>${getCanvasEditorScript()}</script>
 </body>
 </html>`;
 }

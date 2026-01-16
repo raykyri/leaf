@@ -9,7 +9,7 @@ export function loginPage(error?: string): string {
   const oauthSection = oauthEnabled ? `
     <div class="card">
       <h2>Sign in with Bluesky</h2>
-      <p style="margin-bottom: 1rem; color: var(--text-muted);">
+      <p class="mb-2 text-muted">
         Sign in securely using your Bluesky account. You'll be redirected to authorize this app.
       </p>
       ${error ? `<div class="error">${escapeHtml(error)}</div>` : ''}
@@ -21,7 +21,7 @@ export function loginPage(error?: string): string {
         <button type="submit" class="primary-btn">Sign in with Bluesky</button>
       </form>
     </div>
-    <div style="text-align: center; margin: 1.5rem 0; color: var(--text-muted);">
+    <div class="text-center my-3 text-muted">
       <span>or use an app password</span>
     </div>
   ` : '';
@@ -29,7 +29,7 @@ export function loginPage(error?: string): string {
   const appPasswordSection = `
     <div class="card">
       <h2>${oauthEnabled ? 'Sign in with App Password' : 'Login / Sign Up'}</h2>
-      <p style="margin-bottom: 1rem; color: var(--text-muted);">
+      <p class="mb-2 text-muted">
         Use your Bluesky handle and an app password to sign in.
         ${!oauthEnabled ? 'If you don\'t have an account yet, signing in will create one.' : ''}
       </p>
@@ -88,7 +88,7 @@ export function postsListPage(
   `;
 
   const content = `
-    <h1 style="margin-bottom: 1.5rem;">All Posts</h1>
+    <h1 class="mb-3">All Posts</h1>
     ${postCards}
     ${posts.length > 0 ? pagination : ''}
   `;
@@ -105,7 +105,7 @@ export function postPage(
   const renderedContent = renderDocumentContent(post.content);
 
   const editButton = isOwner && user?.csrfToken ? `
-    <a href="/posts/${encodeURIComponent(post.author)}/${encodeURIComponent(post.rkey)}/edit" class="secondary-btn" style="text-decoration: none;">Edit Post</a>
+    <a href="/posts/${encodeURIComponent(post.author)}/${encodeURIComponent(post.rkey)}/edit" class="secondary-btn no-decoration">Edit Post</a>
   ` : '';
 
   const deleteButton = isOwner && user?.csrfToken ? `
@@ -117,13 +117,13 @@ export function postPage(
 
   const content = `
     <article>
-      <header style="margin-bottom: 2rem;">
-        <h1 style="font-size: 2rem; margin-bottom: 0.5rem;">${escapeHtml(post.title)}</h1>
+      <header class="mb-4">
+        <h1 class="heading-xl mb-1">${escapeHtml(post.title)}</h1>
         <div class="post-meta">
           by <a href="/user/${encodeURIComponent(author.handle)}">${escapeHtml(author.display_name || author.handle)}</a>
           ${post.published_at ? `• ${formatDate(post.published_at)}` : ''}
         </div>
-        ${post.description ? `<p style="color: var(--text-muted); margin-top: 0.5rem;">${escapeHtml(post.description)}</p>` : ''}
+        ${post.description ? `<p class="text-muted mt-1">${escapeHtml(post.description)}</p>` : ''}
       </header>
       <div class="post-content">
         ${renderedContent}
@@ -180,8 +180,8 @@ export function userPostsPage(
   `;
 
   const content = `
-    <h1 style="margin-bottom: 0.5rem;">${escapeHtml(author.display_name || author.handle)}</h1>
-    <p style="color: var(--text-muted); margin-bottom: 1.5rem;">@${escapeHtml(author.handle)}</p>
+    <h1 class="mb-1">${escapeHtml(author.display_name || author.handle)}</h1>
+    <p class="text-muted mb-3">@${escapeHtml(author.handle)}</p>
     ${postCards}
     ${posts.length > 0 ? pagination : ''}
   `;
@@ -214,7 +214,7 @@ export function profilePage(
           </h2>
           <div class="post-meta">
             ${post.published_at ? formatDate(post.published_at) : ''}
-            <a href="https://leaflet.pub/p/${encodeURIComponent(post.author)}/${encodeURIComponent(post.rkey)}" target="_blank" rel="noopener" class="external-link" style="margin-left: 0.5rem;">leaflet.pub</a>
+            <a href="https://leaflet.pub/p/${encodeURIComponent(post.author)}/${encodeURIComponent(post.rkey)}" target="_blank" rel="noopener" class="external-link ml-1">leaflet.pub</a>
           </div>
           ${post.description ? `<p class="post-excerpt">${escapeHtml(post.description)}</p>` : ''}
         </article>
@@ -228,14 +228,14 @@ export function profilePage(
   `;
 
   const content = `
-    <h1 style="margin-bottom: 0.5rem;">My Posts</h1>
-    <p style="color: var(--text-muted); margin-bottom: 1rem;">@${escapeHtml(user.handle)}</p>
-    <div style="margin-bottom: 1.5rem; display: flex; gap: 0.5rem;">
+    <h1 class="mb-1">My Posts</h1>
+    <p class="text-muted mb-2">@${escapeHtml(user.handle)}</p>
+    <div class="flex gap-1 mb-3">
       <form action="/refresh" method="POST" class="inline-form">
         <input type="hidden" name="_csrf" value="${escapeHtml(csrfToken)}">
         <button type="submit" class="secondary-btn">Refresh from PDS</button>
       </form>
-      <a href="/profile/edit" class="secondary-btn" style="text-decoration: none; display: inline-flex; align-items: center;">Edit Profile</a>
+      <a href="/profile/edit" class="secondary-btn no-decoration inline-flex items-center">Edit Profile</a>
     </div>
     ${message ? `<div class="success">${escapeHtml(message)}</div>` : ''}
     ${postCards}
@@ -254,7 +254,7 @@ export function editProfilePage(
   const content = `
     <div class="card">
       <h2>Edit Profile</h2>
-      <p style="margin-bottom: 1rem; color: var(--text-muted);">
+      <p class="mb-2 text-muted">
         Update your display name for this blog. Your handle (@${escapeHtml(user.handle)}) is managed through Bluesky.
       </p>
       ${message ? `<div class="success">${escapeHtml(message)}</div>` : ''}
@@ -266,9 +266,9 @@ export function editProfilePage(
           <input type="text" id="display_name" name="display_name" maxlength="64" placeholder="Your display name" value="${escapeHtml(user.display_name || '')}">
           <p class="hint">Leave empty to use your handle as your display name</p>
         </div>
-        <div style="display: flex; gap: 1rem; align-items: center;">
+        <div class="flex gap-2 items-center">
           <button type="submit">Save Changes</button>
-          <a href="/profile" style="color: var(--text-muted);">Cancel</a>
+          <a href="/profile" class="text-muted">Cancel</a>
         </div>
       </form>
     </div>
@@ -353,9 +353,9 @@ export function editPostPage(
 
 Separate paragraphs with blank lines.">${escapeHtml(content)}</textarea>
         </div>
-        <div style="display: flex; gap: 1rem; align-items: center;">
+        <div class="flex gap-2 items-center">
           <button type="submit">Update Post</button>
-          <a href="/posts/${encodeURIComponent(post.author)}/${encodeURIComponent(post.rkey)}" style="color: var(--text-muted);">Cancel</a>
+          <a href="/posts/${encodeURIComponent(post.author)}/${encodeURIComponent(post.rkey)}" class="text-muted">Cancel</a>
         </div>
       </form>
     </div>
@@ -432,9 +432,9 @@ export function canvasListPage(
   `;
 
   const content = `
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+    <div class="flex justify-between items-center mb-3">
       <h1>My Canvases</h1>
-      <a href="/canvases/new" class="secondary-btn" style="text-decoration: none; display: inline-flex; align-items: center;">New Canvas</a>
+      <a href="/canvases/new" class="secondary-btn no-decoration inline-flex items-center">New Canvas</a>
     </div>
     ${canvasCards}
     ${canvases.length > 0 ? pagination : ''}
@@ -501,7 +501,7 @@ export function canvasEditorPage(
           <button id="save-btn" class="toolbar-btn primary">Save</button>
           <form action="/canvases/${escapeHtml(canvas.id)}/publish" method="POST" class="inline-form" onsubmit="return confirm('Publish this canvas to ATProto? This will create a Leaflet document on your PDS.');">
             <input type="hidden" name="_csrf" value="${escapeHtml(user.csrfToken || '')}">
-            <button type="submit" class="toolbar-btn" style="background: #059669; border-color: #059669;">Publish to ATProto</button>
+            <button type="submit" class="toolbar-btn publish-btn">Publish to ATProto</button>
           </form>
           <form action="/canvases/${escapeHtml(canvas.id)}/delete" method="POST" class="inline-form" onsubmit="return confirm('Are you sure you want to delete this canvas?');">
             <input type="hidden" name="_csrf" value="${escapeHtml(user.csrfToken || '')}">
