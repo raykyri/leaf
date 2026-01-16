@@ -9,7 +9,7 @@ export function loginPage(error?: string): string {
   const oauthSection = oauthEnabled ? `
     <div class="card">
       <h2>Sign in with Bluesky</h2>
-      <p style="margin-bottom: 1rem; color: var(--text-muted);">
+      <p>
         Sign in securely using your Bluesky account. You'll be redirected to authorize this app.
       </p>
       ${error ? `<div class="error">${escapeHtml(error)}</div>` : ''}
@@ -21,17 +21,17 @@ export function loginPage(error?: string): string {
         <button type="submit" class="primary-btn">Sign in with Bluesky</button>
       </form>
     </div>
-    <div style="text-align: center; margin: 1.5rem 0; color: var(--text-muted);">
+    <div class="divider">
       <span>or use an app password</span>
     </div>
   ` : '';
 
   const appPasswordSection = `
     <div class="card">
-      <h2>${oauthEnabled ? 'Sign in with App Password' : 'Login / Sign Up'}</h2>
-      <p style="margin-bottom: 1rem; color: var(--text-muted);">
+      <h2>${oauthEnabled ? 'Sign in with App Password' : 'Welcome to Leaflet'}</h2>
+      <p>
         Use your Bluesky handle and an app password to sign in.
-        ${!oauthEnabled ? 'If you don\'t have an account yet, signing in will create one.' : ''}
+        ${!oauthEnabled ? ' If you don\'t have an account yet, signing in will create one.' : ''}
       </p>
       ${!oauthEnabled && error ? `<div class="error">${escapeHtml(error)}</div>` : ''}
       <form action="/auth/login" method="POST">
@@ -88,7 +88,7 @@ export function postsListPage(
   `;
 
   const content = `
-    <h1 style="margin-bottom: 1.5rem;">All Posts</h1>
+    <h1 class="page-title" style="margin-bottom: 2rem;">All Posts</h1>
     ${postCards}
     ${posts.length > 0 ? pagination : ''}
   `;
@@ -113,13 +113,18 @@ export function postPage(
 
   const content = `
     <article>
-      <header style="margin-bottom: 2rem;">
-        <h1 style="font-size: 2rem; margin-bottom: 0.5rem;">${escapeHtml(post.title)}</h1>
-        <div class="post-meta">
-          by <a href="/user/${encodeURIComponent(author.handle)}">${escapeHtml(author.display_name || author.handle)}</a>
-          ${post.published_at ? `• ${formatDate(post.published_at)}` : ''}
+      <header class="article-header">
+        <h1 class="article-title">${escapeHtml(post.title)}</h1>
+        ${post.description ? `<p class="article-subtitle">${escapeHtml(post.description)}</p>` : ''}
+        <div class="article-meta">
+          <div class="byline">
+            <div class="byline-avatar">${escapeHtml((author.display_name || author.handle).charAt(0).toUpperCase())}</div>
+            <div class="byline-info">
+              <a href="/user/${encodeURIComponent(author.handle)}" class="byline-name">${escapeHtml(author.display_name || author.handle)}</a>
+              ${post.published_at ? `<span class="byline-date">${formatDate(post.published_at)}</span>` : ''}
+            </div>
+          </div>
         </div>
-        ${post.description ? `<p style="color: var(--text-muted); margin-top: 0.5rem;">${escapeHtml(post.description)}</p>` : ''}
       </header>
       <div class="post-content">
         ${renderedContent}
@@ -175,8 +180,10 @@ export function userPostsPage(
   `;
 
   const content = `
-    <h1 style="margin-bottom: 0.5rem;">${escapeHtml(author.display_name || author.handle)}</h1>
-    <p style="color: var(--text-muted); margin-bottom: 1.5rem;">@${escapeHtml(author.handle)}</p>
+    <div style="margin-bottom: 2rem;">
+      <h1 class="page-title" style="margin-bottom: 0.25rem;">${escapeHtml(author.display_name || author.handle)}</h1>
+      <p style="color: var(--text-muted);">@${escapeHtml(author.handle)}</p>
+    </div>
     ${postCards}
     ${posts.length > 0 ? pagination : ''}
   `;
@@ -223,14 +230,16 @@ export function profilePage(
   `;
 
   const content = `
-    <h1 style="margin-bottom: 0.5rem;">My Posts</h1>
-    <p style="color: var(--text-muted); margin-bottom: 1rem;">@${escapeHtml(user.handle)}</p>
-    <div style="margin-bottom: 1.5rem; display: flex; gap: 0.5rem;">
-      <form action="/refresh" method="POST" class="inline-form">
-        <input type="hidden" name="_csrf" value="${escapeHtml(csrfToken)}">
-        <button type="submit" class="secondary-btn">Refresh from PDS</button>
-      </form>
-      <a href="/profile/edit" class="secondary-btn" style="text-decoration: none; display: inline-flex; align-items: center;">Edit Profile</a>
+    <div style="margin-bottom: 2rem;">
+      <h1 class="page-title" style="margin-bottom: 0.25rem;">My Posts</h1>
+      <p style="color: var(--text-muted); margin-bottom: 1.25rem;">@${escapeHtml(user.handle)}</p>
+      <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+        <form action="/refresh" method="POST" class="inline-form">
+          <input type="hidden" name="_csrf" value="${escapeHtml(csrfToken)}">
+          <button type="submit" class="secondary-btn">Refresh from PDS</button>
+        </form>
+        <a href="/profile/edit" class="secondary-btn" style="text-decoration: none; display: inline-flex; align-items: center;">Edit Profile</a>
+      </div>
     </div>
     ${message ? `<div class="success">${escapeHtml(message)}</div>` : ''}
     ${postCards}
@@ -249,7 +258,7 @@ export function editProfilePage(
   const content = `
     <div class="card">
       <h2>Edit Profile</h2>
-      <p style="margin-bottom: 1rem; color: var(--text-muted);">
+      <p>
         Update your display name for this blog. Your handle (@${escapeHtml(user.handle)}) is managed through Bluesky.
       </p>
       ${message ? `<div class="success">${escapeHtml(message)}</div>` : ''}
@@ -369,8 +378,8 @@ export function canvasListPage(
   `;
 
   const content = `
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
-      <h1>My Canvases</h1>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+      <h1 class="page-title" style="margin-bottom: 0;">My Canvases</h1>
       <a href="/canvases/new" class="secondary-btn" style="text-decoration: none; display: inline-flex; align-items: center;">New Canvas</a>
     </div>
     ${canvasCards}
@@ -438,7 +447,7 @@ export function canvasEditorPage(
           <button id="save-btn" class="toolbar-btn primary">Save</button>
           <form action="/canvases/${escapeHtml(canvas.id)}/publish" method="POST" class="inline-form" onsubmit="return confirm('Publish this canvas to ATProto? This will create a Leaflet document on your PDS.');">
             <input type="hidden" name="_csrf" value="${escapeHtml(user.csrfToken || '')}">
-            <button type="submit" class="toolbar-btn" style="background: #059669; border-color: #059669;">Publish to ATProto</button>
+            <button type="submit" class="toolbar-btn publish-btn">Publish</button>
           </form>
           <form action="/canvases/${escapeHtml(canvas.id)}/delete" method="POST" class="inline-form" onsubmit="return confirm('Are you sure you want to delete this canvas?');">
             <input type="hidden" name="_csrf" value="${escapeHtml(user.csrfToken || '')}">
