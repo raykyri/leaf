@@ -12,7 +12,7 @@ import {
   createCanvasPage,
   notFoundPage,
   errorPage
-} from '../views/pages.ts';
+} from '../views/pages.tsx';
 import crypto from 'crypto';
 
 const canvases = new Hono();

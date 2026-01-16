@@ -7,7 +7,7 @@ import {
   isOAuthConfigured,
 } from '../services/oauth-client.ts';
 import { indexUserPDS } from '../services/indexer.ts';
-import { loginPage } from '../views/pages.ts';
+import { loginPage } from '../views/pages.tsx';
 import { authLimiter } from '../middleware/rateLimit.ts';
 
 const oauth = new Hono();

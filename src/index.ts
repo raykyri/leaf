@@ -10,7 +10,7 @@ import authRoutes from './routes/auth.ts';
 import postsRoutes from './routes/posts.ts';
 import oauthRoutes from './routes/oauth.ts';
 import canvasesRoutes from './routes/canvases.ts';
-import { loginPage, notFoundPage, errorPage } from './views/pages.ts';
+import { loginPage, notFoundPage, errorPage } from './views/pages.tsx';
 import { getSessionUser } from './services/auth.ts';
 import { isOAuthConfigured } from './services/oauth-client.ts';
 

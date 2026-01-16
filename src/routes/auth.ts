@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { authenticateUser, logout } from '../services/auth.ts';
 import { indexUserPDS } from '../services/indexer.ts';
-import { loginPage } from '../views/pages.ts';
+import { loginPage } from '../views/pages.tsx';
 import { authLimiter } from '../middleware/rateLimit.ts';
 import * as db from '../database/index.ts';
 

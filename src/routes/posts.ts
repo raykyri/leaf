@@ -17,7 +17,7 @@ import {
   editProfilePage,
   notFoundPage,
   errorPage
-} from '../views/pages.ts';
+} from '../views/pages.tsx';
 
 const posts = new Hono();
 const POSTS_PER_PAGE = 20;
