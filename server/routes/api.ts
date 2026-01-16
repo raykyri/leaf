@@ -16,25 +16,21 @@ import {
   deleteLimiter,
   updateProfileLimiter
 } from '../middleware/rateLimit.ts';
+import {
+  isValidDid,
+  isValidRkey,
+  isValidCanvasId,
+  validateBody,
+  LoginRequestSchema,
+  CreatePostRequestSchema,
+  UpdatePostRequestSchema,
+  UpdateProfileRequestSchema,
+  CreateCanvasRequestSchema,
+  UpdateCanvasRequestSchema
+} from '../utils/validation.ts';
 
 const api = new Hono();
 const ITEMS_PER_PAGE = 20;
-
-// Validation functions
-function isValidDid(did: string | undefined): did is string {
-  if (typeof did !== 'string') return false;
-  return /^did:(plc|web):[a-zA-Z0-9._:-]+$/.test(did) && did.length <= 2048;
-}
-
-function isValidRkey(rkey: string | undefined): rkey is string {
-  if (typeof rkey !== 'string') return false;
-  return /^[a-zA-Z0-9._~-]+$/.test(rkey) && rkey.length <= 512;
-}
-
-function isValidCanvasId(id: string | undefined): id is string {
-  if (typeof id !== 'string') return false;
-  return /^[a-f0-9]{16}$/.test(id);
-}
 
 // Get current user from session
 function getCurrentUser(c: Context): { user: db.User; session: db.Session } | null {
@@ -71,11 +67,11 @@ api.get('/auth/me', (c) => {
 // Login with app password
 api.post('/auth/login', async (c) => {
   const body = await c.req.json();
-  const { handle, password } = body;
-
-  if (!handle || !password) {
-    return c.json({ error: 'Handle and password are required' }, 400);
+  const validation = validateBody(body, LoginRequestSchema);
+  if (!validation.success) {
+    return c.json({ error: validation.error }, 400);
   }
+  const { handle, password } = validation.data;
 
   try {
     const result = await authenticateUser(handle, password);
@@ -260,11 +256,11 @@ api.post('/posts', createPostLimiter, async (c) => {
   }
 
   const body = await c.req.json();
-  const { title, description, content } = body;
-
-  if (!title || !content) {
-    return c.json({ error: 'Title and content are required' }, 400);
+  const validation = validateBody(body, CreatePostRequestSchema);
+  if (!validation.success) {
+    return c.json({ error: validation.error }, 400);
   }
+  const { title, description, content } = validation.data;
 
   try {
     const agent = await getAuthenticatedAgent(auth.session, auth.user);
@@ -275,7 +271,7 @@ api.post('/posts', createPostLimiter, async (c) => {
     const result = await createPost(agent, auth.user, {
       title,
       content,
-      description: description || undefined,
+      description,
     });
 
     if (!result.success || !result.document) {
@@ -316,11 +312,11 @@ api.put('/posts/:did/:rkey', updatePostLimiter, async (c) => {
   }
 
   const body = await c.req.json();
-  const { title, description, content } = body;
-
-  if (!title || !content) {
-    return c.json({ error: 'Title and content are required' }, 400);
+  const validation = validateBody(body, UpdatePostRequestSchema);
+  if (!validation.success) {
+    return c.json({ error: validation.error }, 400);
   }
+  const { title, description, content } = validation.data;
 
   try {
     const agent = await getAuthenticatedAgent(auth.session, auth.user);
@@ -331,7 +327,7 @@ api.put('/posts/:did/:rkey', updatePostLimiter, async (c) => {
     const result = await updatePost(agent, auth.user, rkey, {
       title,
       content,
-      description: description || undefined,
+      description,
     });
 
     if (!result.success) {
@@ -418,14 +414,13 @@ api.put('/profile', updateProfileLimiter, async (c) => {
   }
 
   const body = await c.req.json();
-  const { displayName } = body;
-
-  const trimmedName = (displayName || '').trim();
-  if (trimmedName.length > 64) {
-    return c.json({ error: 'Display name must be 64 characters or less' }, 400);
+  const validation = validateBody(body, UpdateProfileRequestSchema);
+  if (!validation.success) {
+    return c.json({ error: validation.error }, 400);
   }
 
   try {
+    const trimmedName = (validation.data.displayName || '').trim();
     const newDisplayName = trimmedName || null;
     db.updateUserDisplayName(auth.user.id, newDisplayName);
     return c.json({ success: true });
@@ -535,18 +530,13 @@ api.post('/canvases', async (c) => {
   }
 
   const body = await c.req.json();
-  const { title } = body;
-
-  if (!title || title.trim().length === 0) {
-    return c.json({ error: 'Title is required' }, 400);
-  }
-
-  if (title.length > 128) {
-    return c.json({ error: 'Title must be 128 characters or less' }, 400);
+  const validation = validateBody(body, CreateCanvasRequestSchema);
+  if (!validation.success) {
+    return c.json({ error: validation.error }, 400);
   }
 
   const canvasId = generateCanvasId();
-  db.createCanvas(canvasId, auth.user.id, title.trim());
+  db.createCanvas(canvasId, auth.user.id, validation.data.title.trim());
 
   return c.json({ id: canvasId });
 });
@@ -607,37 +597,26 @@ api.put('/canvases/:id', updateCanvasLimiter, async (c) => {
   }
 
   const body = await c.req.json();
-  const { title, blocks, width, height } = body;
+  const validation = validateBody(body, UpdateCanvasRequestSchema);
+  if (!validation.success) {
+    return c.json({ error: validation.error }, 400);
+  }
+  const { title, blocks, width, height } = validation.data;
   const updates: { title?: string; blocks?: string; width?: number; height?: number } = {};
 
   if (title !== undefined) {
-    if (typeof title !== 'string' || title.trim().length === 0) {
-      return c.json({ error: 'Title is required' }, 400);
-    }
-    if (title.length > 128) {
-      return c.json({ error: 'Title must be 128 characters or less' }, 400);
-    }
     updates.title = title.trim();
   }
 
   if (blocks !== undefined) {
-    if (!Array.isArray(blocks)) {
-      return c.json({ error: 'Blocks must be an array' }, 400);
-    }
     updates.blocks = JSON.stringify(blocks);
   }
 
   if (width !== undefined) {
-    if (typeof width !== 'number' || width < 100 || width > 10000) {
-      return c.json({ error: 'Width must be between 100 and 10000' }, 400);
-    }
     updates.width = width;
   }
 
   if (height !== undefined) {
-    if (typeof height !== 'number' || height < 100 || height > 10000) {
-      return c.json({ error: 'Height must be between 100 and 10000' }, 400);
-    }
     updates.height = height;
   }
 
