@@ -1380,11 +1380,12 @@ export function canvasLayout(
       background: var(--canvas-block-bg);
       border: 1px solid var(--border);
       border-radius: 6px;
-      cursor: move;
       user-select: none;
       overflow: hidden;
       box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
       transition: border-color 0.15s ease, box-shadow 0.15s ease;
+      display: flex;
+      flex-direction: column;
     }
 
     .canvas-block:hover {
@@ -1400,15 +1401,73 @@ export function canvasLayout(
       cursor: text;
     }
 
+    .canvas-block.active {
+      box-shadow: 8px 8px 0 var(--border);
+    }
+
+    .canvas-block-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 20px;
+      background: var(--bg-tertiary);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .canvas-block-drag {
+      flex: 1;
+      height: 100%;
+      cursor: grab;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .canvas-block-drag:active {
+      cursor: grabbing;
+    }
+
+    .canvas-block-drag::after {
+      content: '';
+      width: 20px;
+      height: 4px;
+      background: var(--border-focus);
+      border-radius: 2px;
+      opacity: 0.6;
+    }
+
+    .canvas-block-close {
+      width: 20px;
+      height: 20px;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: 500;
+      transition: all 0.15s ease;
+      border-right: 1px solid var(--border);
+    }
+
+    .canvas-block-close:hover {
+      background: var(--danger);
+      color: white;
+    }
+
     .canvas-block-content {
       padding: 0.625rem;
       width: 100%;
-      height: 100%;
+      flex: 1;
       overflow: hidden;
       white-space: pre-wrap;
       word-wrap: break-word;
       font-size: 0.875rem;
       line-height: 1.5;
+      cursor: text;
     }
 
     .canvas-block-content:focus {
@@ -1431,6 +1490,38 @@ export function canvasLayout(
     .canvas-block:hover .resize-handle,
     .canvas-block.selected .resize-handle {
       opacity: 1;
+    }
+
+    /* Selection box for click-and-drag creation */
+    #selection-box {
+      position: absolute;
+      border: 2px dashed var(--accent);
+      background: var(--accent-subtle);
+      pointer-events: none;
+      display: none;
+      z-index: 9999;
+    }
+
+    #selection-box.active {
+      display: block;
+    }
+
+    /* Hint text for empty canvas */
+    .canvas-hint {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      color: var(--text-muted);
+      font-size: 0.875rem;
+      text-align: center;
+      pointer-events: none;
+      opacity: 0.7;
+    }
+
+    .canvas-hint-icon {
+      font-size: 2rem;
+      margin-bottom: 0.5rem;
     }
 
     .status-bar {
@@ -1581,6 +1672,7 @@ export function canvasLayout(
         blocks.push(newBlock);
         renderBlock(newBlock);
         markDirty();
+        updateCanvasHint();
 
         // Select the new block
         const newEl = container.querySelector('[data-block-id=\"' + newBlock.id + '\"]');
@@ -1618,12 +1710,35 @@ export function canvasLayout(
         zoomLevelSpan.textContent = zoom + '%';
       }
 
+      // Create selection box element for drag-to-create
+      const selectionBox = document.createElement('div');
+      selectionBox.id = 'selection-box';
+      container.appendChild(selectionBox);
+
+      // Create canvas hint element
+      const canvasHint = document.createElement('div');
+      canvasHint.className = 'canvas-hint';
+      canvasHint.innerHTML = '<div class="canvas-hint-icon">+</div>Click and drag to create a card';
+      container.appendChild(canvasHint);
+
+      // Update canvas hint visibility
+      function updateCanvasHint() {
+        canvasHint.style.display = blocks.length === 0 ? 'block' : 'none';
+      }
+
       // Render all blocks
       function renderBlocks() {
-        container.innerHTML = '';
+        // Keep selection box and hint
+        const children = Array.from(container.children);
+        children.forEach(function(child) {
+          if (child.id !== 'selection-box' && child.className !== 'canvas-hint') {
+            child.remove();
+          }
+        });
         blocks.forEach(function(block) {
           renderBlock(block);
         });
+        updateCanvasHint();
       }
 
       // Render a single block
@@ -1636,6 +1751,23 @@ export function canvasLayout(
         el.style.width = block.width + 'px';
         el.style.height = block.height + 'px';
 
+        // Header with close button and drag handle
+        const header = document.createElement('div');
+        header.className = 'canvas-block-header';
+
+        const closeBtn = document.createElement('button');
+        closeBtn.className = 'canvas-block-close';
+        closeBtn.innerHTML = '&times;';
+        closeBtn.title = 'Delete block';
+        header.appendChild(closeBtn);
+
+        const dragHandle = document.createElement('div');
+        dragHandle.className = 'canvas-block-drag';
+        dragHandle.title = 'Drag to move';
+        header.appendChild(dragHandle);
+
+        el.appendChild(header);
+
         const content = document.createElement('div');
         content.className = 'canvas-block-content';
         content.textContent = block.content;
@@ -1646,24 +1778,41 @@ export function canvasLayout(
         resizeHandle.className = 'resize-handle';
         el.appendChild(resizeHandle);
 
-        // Selection
-        el.addEventListener('mousedown', function(e) {
-          if (e.target === resizeHandle) return;
+        // Close button handler
+        closeBtn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          saveState();
+          blocks = blocks.filter(function(b) { return b.id !== block.id; });
+          el.remove();
+          if (selectedBlockId === block.id) {
+            selectedBlock = null;
+            selectedBlockId = null;
+          }
+          markDirty();
+          updateDuplicateButton();
+          updateCanvasHint();
+        });
+
+        // Selection on header click
+        header.addEventListener('mousedown', function(e) {
+          if (e.target === closeBtn) return;
           selectBlock(el, block);
         });
 
-        // Double-click to edit
-        el.addEventListener('dblclick', function(e) {
-          startEditing(el, content, block);
+        // Click on content to edit
+        content.addEventListener('click', function(e) {
+          if (content.contentEditable !== 'true') {
+            selectBlock(el, block);
+            startEditing(el, content, block);
+          }
         });
 
-        // Drag handling
+        // Drag handling - only from drag handle
         let isDragging = false;
         let dragStateSaved = false;
         let startX, startY, origX, origY;
 
-        el.addEventListener('mousedown', function(e) {
-          if (e.target === resizeHandle || content.contentEditable === 'true') return;
+        dragHandle.addEventListener('mousedown', function(e) {
           isDragging = true;
           dragStateSaved = false;
           startX = e.clientX;
@@ -1671,6 +1820,7 @@ export function canvasLayout(
           origX = block.x;
           origY = block.y;
           el.style.zIndex = '1000';
+          el.classList.add('active');
           e.preventDefault();
         });
 
@@ -1696,6 +1846,7 @@ export function canvasLayout(
             isDragging = false;
             dragStateSaved = false;
             el.style.zIndex = '';
+            el.classList.remove('active');
           }
         });
 
@@ -1711,6 +1862,7 @@ export function canvasLayout(
           resizeStartY = e.clientY;
           origWidth = block.width;
           origHeight = block.height;
+          el.classList.add('active');
           e.stopPropagation();
           e.preventDefault();
         });
@@ -1725,8 +1877,8 @@ export function canvasLayout(
           const zoom = zoomLevels[currentZoomIndex] / 100;
           const dx = (e.clientX - resizeStartX) / zoom;
           const dy = (e.clientY - resizeStartY) / zoom;
-          block.width = Math.max(GRID_SIZE * 2, snapToGrid(origWidth + dx));
-          block.height = Math.max(GRID_SIZE * 2, snapToGrid(origHeight + dy));
+          block.width = Math.max(GRID_SIZE * 4, snapToGrid(origWidth + dx));
+          block.height = Math.max(GRID_SIZE * 4, snapToGrid(origHeight + dy));
           el.style.width = block.width + 'px';
           el.style.height = block.height + 'px';
           markDirty();
@@ -1736,6 +1888,7 @@ export function canvasLayout(
           if (isResizing) {
             isResizing = false;
             resizeStateSaved = false;
+            el.classList.remove('active');
           }
         });
 
@@ -1798,7 +1951,7 @@ export function canvasLayout(
         content.addEventListener('keydown', handleKey);
       }
 
-      // Add new block
+      // Add new block via button
       addBlockBtn.addEventListener('click', function() {
         saveState();
 
@@ -1809,7 +1962,7 @@ export function canvasLayout(
         const newBlock = {
           id: generateId(),
           type: 'text',
-          content: 'New text block',
+          content: '',
           x: baseX,
           y: baseY,
           width: GRID_SIZE * 10, // 200px when GRID_SIZE is 20
@@ -1818,6 +1971,118 @@ export function canvasLayout(
         blocks.push(newBlock);
         renderBlock(newBlock);
         markDirty();
+        updateCanvasHint();
+      });
+
+      // Click-and-drag on canvas to create blocks (Manifest-style)
+      const viewport = document.querySelector('.canvas-viewport');
+      let isCreating = false;
+      let createStartX = 0;
+      let createStartY = 0;
+      const MIN_SIZE = 80; // Minimum size for block creation (like Manifest)
+
+      container.addEventListener('mousedown', function(e) {
+        // Only start creation if clicking directly on container (not on blocks)
+        if (e.target !== container && e.target !== canvasHint &&
+            e.target.id !== 'selection-box' && !e.target.classList.contains('canvas-hint-icon')) {
+          return;
+        }
+
+        isCreating = true;
+        const zoom = zoomLevels[currentZoomIndex] / 100;
+        const containerRect = container.getBoundingClientRect();
+
+        // Calculate position relative to container, accounting for zoom
+        createStartX = (e.clientX - containerRect.left) / zoom;
+        createStartY = (e.clientY - containerRect.top) / zoom;
+
+        // Show selection box
+        selectionBox.style.left = createStartX + 'px';
+        selectionBox.style.top = createStartY + 'px';
+        selectionBox.style.width = '0';
+        selectionBox.style.height = '0';
+        selectionBox.classList.add('active');
+
+        // Deselect any selected block
+        if (selectedBlock) {
+          selectedBlock.classList.remove('selected');
+          selectedBlock = null;
+          selectedBlockId = null;
+          updateDuplicateButton();
+        }
+
+        e.preventDefault();
+      });
+
+      document.addEventListener('mousemove', function(e) {
+        if (!isCreating) return;
+
+        const zoom = zoomLevels[currentZoomIndex] / 100;
+        const containerRect = container.getBoundingClientRect();
+
+        let currentX = (e.clientX - containerRect.left) / zoom;
+        let currentY = (e.clientY - containerRect.top) / zoom;
+
+        // Calculate dimensions
+        let left = Math.min(createStartX, currentX);
+        let top = Math.min(createStartY, currentY);
+        let width = Math.abs(currentX - createStartX);
+        let height = Math.abs(currentY - createStartY);
+
+        // Snap to grid
+        left = snapToGrid(left);
+        top = snapToGrid(top);
+        width = snapToGrid(width);
+        height = snapToGrid(height);
+
+        // Update selection box
+        selectionBox.style.left = left + 'px';
+        selectionBox.style.top = top + 'px';
+        selectionBox.style.width = width + 'px';
+        selectionBox.style.height = height + 'px';
+      });
+
+      document.addEventListener('mouseup', function(e) {
+        if (!isCreating) return;
+        isCreating = false;
+
+        // Get final dimensions from selection box
+        const left = parseInt(selectionBox.style.left) || 0;
+        const top = parseInt(selectionBox.style.top) || 0;
+        const width = parseInt(selectionBox.style.width) || 0;
+        const height = parseInt(selectionBox.style.height) || 0;
+
+        // Hide selection box
+        selectionBox.classList.remove('active');
+
+        // Only create block if size meets minimum threshold
+        if (width >= MIN_SIZE && height >= MIN_SIZE) {
+          saveState();
+
+          const newBlock = {
+            id: generateId(),
+            type: 'text',
+            content: '',
+            x: left,
+            y: top,
+            width: Math.max(width, GRID_SIZE * 4),
+            height: Math.max(height, GRID_SIZE * 4)
+          };
+          blocks.push(newBlock);
+          renderBlock(newBlock);
+          markDirty();
+          updateCanvasHint();
+
+          // Select and start editing the new block
+          const newEl = container.querySelector('[data-block-id="' + newBlock.id + '"]');
+          if (newEl) {
+            selectBlock(newEl, newBlock);
+            const content = newEl.querySelector('.canvas-block-content');
+            if (content) {
+              startEditing(newEl, content, newBlock);
+            }
+          }
+        }
       });
 
       // Save canvas
@@ -1946,6 +2211,7 @@ export function canvasLayout(
           selectedBlockId = null;
           markDirty();
           updateDuplicateButton();
+          updateCanvasHint();
         }
       });
 
