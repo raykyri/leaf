@@ -15,19 +15,19 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: 'http://localhost:3000',
+        target: 'http://localhost:6173',
         changeOrigin: true,
       },
       '/auth': {
-        target: 'http://localhost:3000',
+        target: 'http://localhost:6173',
         changeOrigin: true,
       },
       '/oauth': {
-        target: 'http://localhost:3000',
+        target: 'http://localhost:6173',
         changeOrigin: true,
       },
       '/healthz': {
-        target: 'http://localhost:3000',
+        target: 'http://localhost:6173',
         changeOrigin: true,
       },
     },

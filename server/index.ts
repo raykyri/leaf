@@ -29,7 +29,7 @@ if (process.env.SESSION_SECRET.length < 32) {
 }
 
 const app = new Hono();
-const PORT = parseInt(process.env.PORT || '3000', 10);
+const PORT = parseInt(process.env.PORT || '6173', 10);
 const isProduction = process.env.NODE_ENV === 'production';
 
 // Middleware
