@@ -5,10 +5,10 @@ import {
   initiateOAuth,
   handleOAuthCallback,
   isOAuthConfigured,
-} from '../services/oauth-client.js';
-import { indexUserPDS } from '../services/indexer.js';
-import { loginPage } from '../views/pages.js';
-import { authLimiter } from '../middleware/rateLimit.js';
+} from '../services/oauth-client.ts';
+import { indexUserPDS } from '../services/indexer.ts';
+import { loginPage } from '../views/pages.ts';
+import { authLimiter } from '../middleware/rateLimit.ts';
 
 const oauth = new Hono();
 

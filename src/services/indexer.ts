@@ -1,6 +1,6 @@
 import { AtpAgent } from '@atproto/api';
-import * as db from '../database/index.js';
-import type { LeafletDocument, LeafletPublication, LeafletCanvas, CanvasBlockWithPosition, LocalCanvasBlock, TextBlock } from '../types/leaflet.js';
+import * as db from '../database/index.ts';
+import type { LeafletDocument, LeafletPublication, LeafletCanvas, CanvasBlockWithPosition, LocalCanvasBlock, TextBlock } from '../types/leaflet.ts';
 
 const LEAFLET_DOCUMENT_COLLECTION = 'pub.leaflet.document';
 const LEAFLET_PUBLICATION_COLLECTION = 'pub.leaflet.publication';

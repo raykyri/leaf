@@ -1,6 +1,6 @@
 import test, { ExecutionContext } from 'ava';
 import Database from 'better-sqlite3';
-import { initializeDatabase } from './schema.js';
+import { initializeDatabase } from './schema.ts';
 
 // Use in-memory database for testing
 function createTestDb() {

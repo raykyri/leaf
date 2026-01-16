@@ -1,8 +1,8 @@
 import { AtpAgent } from '@atproto/api';
 import crypto from 'crypto';
-import * as db from '../database/index.js';
-import { addRegisteredDid } from './jetstream.js';
-import { getOAuthAgent, revokeOAuthSession } from './oauth-client.js';
+import * as db from '../database/index.ts';
+import { addRegisteredDid } from './jetstream.ts';
+import { getOAuthAgent, revokeOAuthSession } from './oauth-client.ts';
 
 export interface AuthResult {
   success: boolean;

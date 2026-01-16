@@ -9,7 +9,7 @@ import test from 'ava';
 import { Hono } from 'hono';
 import fs from 'fs';
 import path from 'path';
-import { initializeDatabase } from '../database/schema.js';
+import { initializeDatabase } from '../database/schema.ts';
 
 // Test configuration
 const TEST_HANDLE = process.env.TEST_HANDLE;

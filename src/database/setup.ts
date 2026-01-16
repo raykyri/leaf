@@ -3,8 +3,8 @@ import { AtpAgent } from '@atproto/api';
 import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
-import { initializeDatabase } from './schema.js';
-import { indexUserPDS } from '../services/indexer.js';
+import { initializeDatabase } from './schema.ts';
+import { indexUserPDS } from '../services/indexer.ts';
 
 const TABLES_TO_CLEAR = [
   'documents',

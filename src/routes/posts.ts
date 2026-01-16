@@ -1,12 +1,12 @@
 import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { getCookie } from 'hono/cookie';
-import * as db from '../database/index.js';
-import { getSessionUser, getAuthenticatedAgent } from '../services/auth.js';
-import { indexUserPDS } from '../services/indexer.js';
-import { createPost, deletePost } from '../services/posts.js';
-import { getCsrfToken } from '../middleware/csrf.js';
-import { createPostLimiter } from '../middleware/rateLimit.js';
+import * as db from '../database/index.ts';
+import { getSessionUser, getAuthenticatedAgent } from '../services/auth.ts';
+import { indexUserPDS } from '../services/indexer.ts';
+import { createPost, deletePost } from '../services/posts.ts';
+import { getCsrfToken } from '../middleware/csrf.ts';
+import { createPostLimiter } from '../middleware/rateLimit.ts';
 import {
   postsListPage,
   postPage,
@@ -16,7 +16,7 @@ import {
   editProfilePage,
   notFoundPage,
   errorPage
-} from '../views/pages.js';
+} from '../views/pages.ts';
 
 const posts = new Hono();
 const POSTS_PER_PAGE = 20;

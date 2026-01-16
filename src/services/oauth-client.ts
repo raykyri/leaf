@@ -1,7 +1,7 @@
 import { NodeOAuthClient, type NodeSavedSession, type NodeSavedState } from '@atproto/oauth-client-node';
 import { Agent } from '@atproto/api';
-import * as db from '../database/index.js';
-import { addRegisteredDid } from './jetstream.js';
+import * as db from '../database/index.ts';
+import { addRegisteredDid } from './jetstream.ts';
 
 // Singleton OAuth client instance
 let oauthClient: NodeOAuthClient | null = null;

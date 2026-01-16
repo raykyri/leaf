@@ -2,17 +2,17 @@ import 'dotenv/config';
 import { Hono } from 'hono';
 import { serve } from '@hono/node-server';
 import { getCookie } from 'hono/cookie';
-import { getDatabase, closeDatabase, deleteExpiredSessions, cleanupOldOAuthState, cleanupOldOAuthSessions } from './database/index.js';
-import { startJetstreamListener, stopJetstreamListener } from './services/jetstream.js';
-import { csrfProtection, getCsrfToken } from './middleware/csrf.js';
-import { generalLimiter } from './middleware/rateLimit.js';
-import authRoutes from './routes/auth.js';
-import postsRoutes from './routes/posts.js';
-import oauthRoutes from './routes/oauth.js';
-import canvasesRoutes from './routes/canvases.js';
-import { loginPage, notFoundPage, errorPage } from './views/pages.js';
-import { getSessionUser } from './services/auth.js';
-import { isOAuthConfigured } from './services/oauth-client.js';
+import { getDatabase, closeDatabase, deleteExpiredSessions, cleanupOldOAuthState, cleanupOldOAuthSessions } from './database/index.ts';
+import { startJetstreamListener, stopJetstreamListener } from './services/jetstream.ts';
+import { csrfProtection, getCsrfToken } from './middleware/csrf.ts';
+import { generalLimiter } from './middleware/rateLimit.ts';
+import authRoutes from './routes/auth.ts';
+import postsRoutes from './routes/posts.ts';
+import oauthRoutes from './routes/oauth.ts';
+import canvasesRoutes from './routes/canvases.ts';
+import { loginPage, notFoundPage, errorPage } from './views/pages.ts';
+import { getSessionUser } from './services/auth.ts';
+import { isOAuthConfigured } from './services/oauth-client.ts';
 
 // Validate required environment variables
 if (!process.env.SESSION_SECRET) {

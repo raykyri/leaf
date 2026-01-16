@@ -1,18 +1,18 @@
 import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { getCookie } from 'hono/cookie';
-import * as db from '../database/index.js';
-import { getSessionUser, getAuthenticatedAgent } from '../services/auth.js';
-import { publishCanvas } from '../services/posts.js';
-import { saveCanvasToATProto, deleteCanvasFromATProto } from '../services/canvas.js';
-import { getCsrfToken } from '../middleware/csrf.js';
+import * as db from '../database/index.ts';
+import { getSessionUser, getAuthenticatedAgent } from '../services/auth.ts';
+import { publishCanvas } from '../services/posts.ts';
+import { saveCanvasToATProto, deleteCanvasFromATProto } from '../services/canvas.ts';
+import { getCsrfToken } from '../middleware/csrf.ts';
 import {
   canvasListPage,
   canvasEditorPage,
   createCanvasPage,
   notFoundPage,
   errorPage
-} from '../views/pages.js';
+} from '../views/pages.ts';
 import crypto from 'crypto';
 
 const canvases = new Hono();
