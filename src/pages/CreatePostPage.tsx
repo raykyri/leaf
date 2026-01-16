@@ -67,7 +67,6 @@ export function CreatePostPage() {
             />
             <Input
               label="Description (optional)"
-              placeholder="A brief summary of your post"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               maxLength={500}

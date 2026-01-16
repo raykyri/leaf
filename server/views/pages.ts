@@ -290,7 +290,7 @@ export function createPostPage(user: { handle: string }, csrfToken: string, erro
         </div>
         <div>
           <label for="description">Description (optional)</label>
-          <input type="text" id="description" name="description" maxlength="500" placeholder="A brief summary of your post">
+          <input type="text" id="description" name="description" maxlength="500">
         </div>
         <div>
           <label for="content">Content</label>
@@ -345,7 +345,7 @@ export function editPostPage(
         </div>
         <div>
           <label for="description">Description (optional)</label>
-          <input type="text" id="description" name="description" maxlength="500" placeholder="A brief summary of your post" value="${escapeHtml(post.description || '')}">
+          <input type="text" id="description" name="description" maxlength="500" value="${escapeHtml(post.description || '')}">
         </div>
         <div>
           <label for="content">Content</label>
