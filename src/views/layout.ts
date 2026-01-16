@@ -95,8 +95,9 @@ export function layout(
     }
 
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-      line-height: 1.6;
+      font-family: Arial, Helvetica, sans-serif;
+      line-height: 1.45;
+      font-weight: 400;
       color: var(--text);
       background: var(--bg);
       min-height: 100vh;
@@ -109,9 +110,10 @@ export function layout(
     }
 
     header h1 {
-      font-size: 1.5rem;
-      font-weight: 600;
+      font-size: 1.25rem;
+      font-weight: 400;
       margin-bottom: 0.5rem;
+      letter-spacing: -0.01em;
     }
 
     header h1 a {
@@ -174,7 +176,7 @@ export function layout(
       border-radius: 4px;
       cursor: pointer;
       font-size: 1rem;
-      font-weight: 500;
+      font-weight: 700;
       transition: background 0.2s;
     }
 
@@ -198,7 +200,10 @@ export function layout(
 
     .post-title {
       font-size: 1.5rem;
+      font-weight: 700;
       margin-bottom: 0.5rem;
+      line-height: 1.25;
+      letter-spacing: -0.01em;
     }
 
     .post-title a {
@@ -225,7 +230,7 @@ export function layout(
     }
 
     .post-content {
-      line-height: 1.8;
+      line-height: 1.45;
     }
 
     .post-content p {
@@ -235,7 +240,33 @@ export function layout(
     .post-content h1, .post-content h2, .post-content h3,
     .post-content h4, .post-content h5, .post-content h6 {
       margin: 1.5rem 0 0.75rem;
-      line-height: 1.3;
+      line-height: 1.25;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+
+    .post-content h1 {
+      font-size: 2rem;
+    }
+
+    .post-content h2 {
+      font-size: 1.75rem;
+    }
+
+    .post-content h3 {
+      font-size: 1.5rem;
+    }
+
+    .post-content h4 {
+      font-size: 1.25rem;
+    }
+
+    .post-content h5 {
+      font-size: 1.1rem;
+    }
+
+    .post-content h6 {
+      font-size: 0.9rem;
     }
 
     .post-content blockquote {
@@ -255,7 +286,7 @@ export function layout(
     }
 
     .post-content code {
-      font-family: 'SF Mono', Consolas, monospace;
+      font-family: SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
       font-size: 0.9em;
     }
 
@@ -311,7 +342,7 @@ export function layout(
     }
 
     label {
-      font-weight: 500;
+      font-weight: 700;
       margin-bottom: 0.25rem;
       display: block;
     }
@@ -518,8 +549,9 @@ export function canvasLayout(
     }
 
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-      line-height: 1.6;
+      font-family: Arial, Helvetica, sans-serif;
+      line-height: 1.45;
+      font-weight: 400;
       color: var(--text);
       background: var(--bg);
       display: flex;
@@ -535,8 +567,9 @@ export function canvasLayout(
 
     header h1 {
       font-size: 1.25rem;
-      font-weight: 600;
+      font-weight: 400;
       margin-bottom: 0.25rem;
+      letter-spacing: -0.01em;
     }
 
     header h1 a {
