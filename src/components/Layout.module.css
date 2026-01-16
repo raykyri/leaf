@@ -35,7 +35,7 @@
 }
 
 .logo a {
-  color: var(--text);
+  color: var(--accent);
   text-decoration: none;
 }
 
