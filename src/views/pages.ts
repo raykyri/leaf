@@ -65,7 +65,7 @@ export function postsListPage(
 ): string {
   const postCards = posts.length === 0
     ? '<div class="empty-state"><p>No posts yet. Be the first to create one!</p></div>'
-    : posts.map(post => `
+    : `<div class="posts-list">${posts.map(post => `
         <article class="card">
           <h2 class="post-title">
             <a href="/posts/${encodeURIComponent(post.author)}/${encodeURIComponent(post.rkey)}">
@@ -73,12 +73,12 @@ export function postsListPage(
             </a>
           </h2>
           <div class="post-meta">
-            by <a href="/user/${encodeURIComponent(post.handle)}">${escapeHtml(post.display_name || post.handle)}</a>
-            ${post.published_at ? `• ${formatDate(post.published_at)}` : ''}
+            <a href="/user/${encodeURIComponent(post.handle)}">${escapeHtml(post.display_name || post.handle)}</a>
+            ${post.published_at ? `<span style="color: var(--border);">&bull;</span> ${formatDate(post.published_at)}` : ''}
           </div>
           ${post.description ? `<p class="post-excerpt">${escapeHtml(post.description)}</p>` : ''}
         </article>
-      `).join('');
+      `).join('')}</div>`;
 
   const pagination = `
     <div class="pagination">
@@ -88,7 +88,9 @@ export function postsListPage(
   `;
 
   const content = `
-    <h1 style="margin-bottom: 1.5rem;">All Posts</h1>
+    <div class="section-header">
+      <h1>All Posts</h1>
+    </div>
     ${postCards}
     ${posts.length > 0 ? pagination : ''}
   `;
@@ -113,13 +115,13 @@ export function postPage(
 
   const content = `
     <article>
-      <header style="margin-bottom: 2rem;">
-        <h1 style="font-size: 2rem; margin-bottom: 0.5rem;">${escapeHtml(post.title)}</h1>
-        <div class="post-meta">
-          by <a href="/user/${encodeURIComponent(author.handle)}">${escapeHtml(author.display_name || author.handle)}</a>
-          ${post.published_at ? `• ${formatDate(post.published_at)}` : ''}
+      <header class="article-header">
+        <h1>${escapeHtml(post.title)}</h1>
+        ${post.description ? `<p class="description">${escapeHtml(post.description)}</p>` : ''}
+        <div class="byline">
+          <a href="/user/${encodeURIComponent(author.handle)}">${escapeHtml(author.display_name || author.handle)}</a>
+          ${post.published_at ? `<span class="separator">&bull;</span> ${formatDate(post.published_at)}` : ''}
         </div>
-        ${post.description ? `<p style="color: var(--text-muted); margin-top: 0.5rem;">${escapeHtml(post.description)}</p>` : ''}
       </header>
       <div class="post-content">
         ${renderedContent}
@@ -153,7 +155,7 @@ export function userPostsPage(
 ): string {
   const postCards = posts.length === 0
     ? '<div class="empty-state"><p>No posts from this user yet.</p></div>'
-    : posts.map(post => `
+    : `<div class="posts-list">${posts.map(post => `
         <article class="card">
           <h2 class="post-title">
             <a href="/posts/${encodeURIComponent(post.author)}/${encodeURIComponent(post.rkey)}">
@@ -165,7 +167,7 @@ export function userPostsPage(
           </div>
           ${post.description ? `<p class="post-excerpt">${escapeHtml(post.description)}</p>` : ''}
         </article>
-      `).join('');
+      `).join('')}</div>`;
 
   const pagination = `
     <div class="pagination">
@@ -175,15 +177,17 @@ export function userPostsPage(
   `;
 
   const content = `
-    <h1 style="margin-bottom: 0.5rem;">${escapeHtml(author.display_name || author.handle)}</h1>
-    <p style="color: var(--text-muted); margin-bottom: 1.5rem;">@${escapeHtml(author.handle)}</p>
+    <div class="author-header">
+      <h1>${escapeHtml(author.display_name || author.handle)}</h1>
+      <p class="handle">@${escapeHtml(author.handle)}</p>
+    </div>
     ${postCards}
     ${posts.length > 0 ? pagination : ''}
   `;
 
   const og: OpenGraphMeta = {
     title: `Posts by ${author.display_name || author.handle}`,
-    description: `View blog posts by @${author.handle} on Leaflet Blog`,
+    description: `View blog posts by @${author.handle} on Leaflet`,
     type: 'website'
   };
 
@@ -200,7 +204,7 @@ export function profilePage(
 ): string {
   const postCards = posts.length === 0
     ? '<div class="empty-state"><p>You haven\'t created any posts yet. <a href="/create">Create your first post!</a></p></div>'
-    : posts.map(post => `
+    : `<div class="posts-list">${posts.map(post => `
         <article class="card">
           <h2 class="post-title">
             <a href="/posts/${encodeURIComponent(post.author)}/${encodeURIComponent(post.rkey)}">
@@ -213,7 +217,7 @@ export function profilePage(
           </div>
           ${post.description ? `<p class="post-excerpt">${escapeHtml(post.description)}</p>` : ''}
         </article>
-      `).join('');
+      `).join('')}</div>`;
 
   const pagination = `
     <div class="pagination">
@@ -223,14 +227,16 @@ export function profilePage(
   `;
 
   const content = `
-    <h1 style="margin-bottom: 0.5rem;">My Posts</h1>
-    <p style="color: var(--text-muted); margin-bottom: 1rem;">@${escapeHtml(user.handle)}</p>
-    <div style="margin-bottom: 1.5rem; display: flex; gap: 0.5rem;">
+    <div class="section-header">
+      <h1>My Posts</h1>
+      <p>@${escapeHtml(user.handle)}</p>
+    </div>
+    <div style="margin-bottom: 2rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
       <form action="/refresh" method="POST" class="inline-form">
         <input type="hidden" name="_csrf" value="${escapeHtml(csrfToken)}">
         <button type="submit" class="secondary-btn">Refresh from PDS</button>
       </form>
-      <a href="/profile/edit" class="secondary-btn" style="text-decoration: none; display: inline-flex; align-items: center;">Edit Profile</a>
+      <a href="/profile/edit" class="secondary-btn">Edit Profile</a>
     </div>
     ${message ? `<div class="success">${escapeHtml(message)}</div>` : ''}
     ${postCards}
@@ -348,7 +354,7 @@ export function canvasListPage(
 ): string {
   const canvasCards = canvases.length === 0
     ? '<div class="empty-state"><p>You haven\'t created any canvases yet. <a href="/canvases/new">Create your first canvas!</a></p></div>'
-    : canvases.map(canvas => `
+    : `<div class="posts-list">${canvases.map(canvas => `
         <article class="card">
           <h2 class="post-title">
             <a href="/canvases/${escapeHtml(canvas.id)}">
@@ -356,10 +362,10 @@ export function canvasListPage(
             </a>
           </h2>
           <div class="post-meta">
-            ${formatDate(canvas.updated_at)} • ${canvas.width}x${canvas.height}
+            ${formatDate(canvas.updated_at)} <span style="color: var(--border);">&bull;</span> ${canvas.width}x${canvas.height}
           </div>
         </article>
-      `).join('');
+      `).join('')}</div>`;
 
   const pagination = `
     <div class="pagination">
@@ -369,9 +375,9 @@ export function canvasListPage(
   `;
 
   const content = `
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+    <div class="section-header" style="display: flex; justify-content: space-between; align-items: center;">
       <h1>My Canvases</h1>
-      <a href="/canvases/new" class="secondary-btn" style="text-decoration: none; display: inline-flex; align-items: center;">New Canvas</a>
+      <a href="/canvases/new" class="secondary-btn">New Canvas</a>
     </div>
     ${canvasCards}
     ${canvases.length > 0 ? pagination : ''}
