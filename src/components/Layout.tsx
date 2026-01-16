@@ -77,12 +77,6 @@ export function Layout({ children, fullWidth = false }: LayoutProps) {
       <main className={fullWidth ? styles.mainFull : styles.main}>
         {children}
       </main>
-      <footer className={styles.footer}>
-        <p>
-          Built on <a href="https://atproto.com" target="_blank" rel="noopener noreferrer">AT Protocol</a> using the{' '}
-          <a href="https://leaflet.pub" target="_blank" rel="noopener noreferrer">Leaflet</a> lexicon
-        </p>
-      </footer>
     </div>
   );
 }

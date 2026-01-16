@@ -67,7 +67,6 @@ export function EditProfilePage() {
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
               maxLength={64}
-              hint="Leave empty to use your handle as your display name"
             />
             <div className={styles.actions}>
               <Button type="submit" disabled={isLoading}>
