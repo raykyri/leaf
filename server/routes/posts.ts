@@ -7,6 +7,7 @@ import { indexUserPDS } from '../services/indexer.ts';
 import { createPost, updatePost, deletePost } from '../services/posts.ts';
 import { getCsrfToken } from '../middleware/csrf.ts';
 import { createPostLimiter } from '../middleware/rateLimit.ts';
+import { isValidDid, isValidRkey } from '../utils/validation.ts';
 import {
   postsListPage,
   postPage,
@@ -21,17 +22,6 @@ import {
 
 const posts = new Hono();
 const POSTS_PER_PAGE = 20;
-
-// Validation functions
-function isValidDid(did: string | undefined): did is string {
-  if (typeof did !== 'string') return false;
-  return /^did:(plc|web):[a-zA-Z0-9._:-]+$/.test(did) && did.length <= 2048;
-}
-
-function isValidRkey(rkey: string | undefined): rkey is string {
-  if (typeof rkey !== 'string') return false;
-  return /^[a-zA-Z0-9._~-]+$/.test(rkey) && rkey.length <= 512;
-}
 
 // Get current user from session
 function getCurrentUser(c: Context): { user: db.User; session: db.Session } | null {

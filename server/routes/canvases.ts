@@ -7,6 +7,7 @@ import { publishCanvas } from '../services/posts.ts';
 import { saveCanvasToATProto, deleteCanvasFromATProto } from '../services/canvas.ts';
 import { getCsrfToken } from '../middleware/csrf.ts';
 import { updateCanvasLimiter } from '../middleware/rateLimit.ts';
+import { isValidCanvasId, generateCanvasId } from '../utils/validation.ts';
 import {
   canvasListPage,
   canvasEditorPage,
@@ -14,21 +15,9 @@ import {
   notFoundPage,
   errorPage
 } from '../views/pages.ts';
-import crypto from 'crypto';
 
 const canvases = new Hono();
 const CANVASES_PER_PAGE = 20;
-
-// Generate a unique canvas ID
-function generateCanvasId(): string {
-  return crypto.randomBytes(8).toString('hex');
-}
-
-// Validate canvas ID format
-function isValidCanvasId(id: string | undefined): id is string {
-  if (typeof id !== 'string') return false;
-  return /^[a-f0-9]{16}$/.test(id);
-}
 
 // Get current user from session
 function getCurrentUser(c: Context): { user: db.User; session: db.Session } | null {

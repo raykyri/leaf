@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import crypto from 'crypto';
 
 // ============ Database Entity Schemas ============
 
@@ -213,4 +214,13 @@ export function isValidRkey(rkey: unknown): rkey is string {
 export const canvasIdPattern = /^[a-f0-9]{16}$/;
 export function isValidCanvasId(id: unknown): id is string {
   return typeof id === 'string' && canvasIdPattern.test(id);
+}
+
+// ============ ID Generation ============
+
+/**
+ * Generate a unique canvas ID (16 hex characters).
+ */
+export function generateCanvasId(): string {
+  return crypto.randomBytes(8).toString('hex');
 }

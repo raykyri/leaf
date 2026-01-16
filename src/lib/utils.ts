@@ -4,15 +4,26 @@ export function cn(...inputs: ClassValue[]) {
   return clsx(inputs);
 }
 
+/**
+ * Escapes HTML special characters to prevent XSS attacks.
+ * Aligned with server-side implementation in server/utils/html.ts
+ */
 export function escapeHtml(text: string): string {
-  const map: Record<string, string> = {
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#039;',
-  };
-  return text.replace(/[&<>"']/g, (m) => map[m]);
+  if (typeof text !== 'string') {
+    return '';
+  }
+  return text.replace(/[&<>"'`/]/g, (char) => {
+    switch (char) {
+      case '&': return '&amp;';
+      case '<': return '&lt;';
+      case '>': return '&gt;';
+      case '"': return '&quot;';
+      case "'": return '&#39;';
+      case '`': return '&#96;';
+      case '/': return '&#x2F;';
+      default: return char;
+    }
+  });
 }
 
 export function formatDate(dateStr: string): string {
