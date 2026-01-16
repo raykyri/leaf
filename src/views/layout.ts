@@ -26,10 +26,9 @@ export function layout(
           <a href="/canvases">Canvases</a>
         </div>
         <div class="nav-actions">
-          <a href="/create" class="write-btn">Write</a>
           <button id="theme-toggle" class="theme-toggle" aria-label="Toggle theme">
-            <svg class="sun-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
-            <svg class="moon-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+            <svg class="sun-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+            <svg class="moon-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
           </button>
           <form action="/auth/logout" method="POST" style="display: inline;">
             ${user.csrfToken ? `<input type="hidden" name="_csrf" value="${escapeHtml(user.csrfToken)}">` : ''}
@@ -45,8 +44,8 @@ export function layout(
         </div>
         <div class="nav-actions">
           <button id="theme-toggle" class="theme-toggle" aria-label="Toggle theme">
-            <svg class="sun-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
-            <svg class="moon-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+            <svg class="sun-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+            <svg class="moon-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
           </button>
           <a href="/" class="login-btn">Sign in</a>
         </div>
@@ -182,22 +181,8 @@ export function layout(
     /* Header */
     header {
       background: var(--bg);
-      padding: 0.875rem 2rem;
+      padding: 0.625rem 1.25rem;
       border-bottom: 1px solid var(--border);
-      position: sticky;
-      top: 0;
-      z-index: 100;
-      backdrop-filter: blur(8px);
-      background: rgba(255, 255, 255, 0.95);
-    }
-
-    [data-theme="dark"] header {
-      background: rgba(17, 17, 17, 0.95);
-    }
-
-    .header-inner {
-      max-width: 1100px;
-      margin: 0 auto;
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -205,7 +190,7 @@ export function layout(
 
     .logo {
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-      font-size: 1.2rem;
+      font-size: 1rem;
       font-weight: 700;
       letter-spacing: -0.03em;
     }
@@ -213,9 +198,6 @@ export function layout(
     .logo a {
       color: var(--text);
       text-decoration: none;
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
     }
 
     nav {
@@ -223,12 +205,12 @@ export function layout(
       align-items: center;
       justify-content: space-between;
       flex: 1;
-      margin-left: 2.5rem;
+      margin-left: 1.75rem;
     }
 
     .nav-links {
       display: flex;
-      gap: 1.75rem;
+      gap: 1.25rem;
       align-items: center;
     }
 
@@ -236,67 +218,30 @@ export function layout(
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
       color: var(--text-muted);
       text-decoration: none;
-      font-size: 0.825rem;
+      font-size: 0.75rem;
       font-weight: 500;
-      letter-spacing: -0.01em;
       transition: color 0.2s ease;
-      position: relative;
     }
 
     .nav-links a:hover {
       color: var(--text);
     }
 
-    .nav-links a::after {
-      content: '';
-      position: absolute;
-      bottom: -4px;
-      left: 0;
-      width: 0;
-      height: 1.5px;
-      background: var(--accent);
-      transition: width 0.2s ease;
-    }
-
-    .nav-links a:hover::after {
-      width: 100%;
-    }
-
     .nav-actions {
       display: flex;
       align-items: center;
-      gap: 0.875rem;
-    }
-
-    .write-btn {
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-      background: var(--accent);
-      color: white;
-      padding: 0.5rem 1.125rem;
-      border-radius: var(--radius-full);
-      text-decoration: none;
-      font-size: 0.825rem;
-      font-weight: 600;
-      letter-spacing: -0.01em;
-      transition: all 0.2s ease;
-      box-shadow: var(--shadow-xs);
-    }
-
-    .write-btn:hover {
-      background: var(--accent-hover);
-      transform: translateY(-1px);
-      box-shadow: var(--shadow-sm);
+      gap: 0.625rem;
     }
 
     .login-btn {
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
       color: var(--text);
       text-decoration: none;
-      font-size: 0.825rem;
+      font-size: 0.75rem;
       font-weight: 500;
-      padding: 0.5rem 1rem;
+      padding: 0.3rem 0.75rem;
       border: 1px solid var(--border);
-      border-radius: var(--radius-full);
+      border-radius: 14px;
       transition: all 0.2s ease;
     }
 
@@ -310,7 +255,7 @@ export function layout(
       border: none;
       color: var(--text-muted);
       cursor: pointer;
-      padding: 0.5rem;
+      padding: 0.375rem;
       border-radius: var(--radius-sm);
       display: flex;
       align-items: center;
@@ -344,10 +289,10 @@ export function layout(
       background: transparent;
       border: 1px solid var(--border);
       color: var(--text-muted);
-      padding: 0.375rem 0.75rem;
-      border-radius: var(--radius-full);
+      padding: 0.25rem 0.625rem;
+      border-radius: 14px;
       cursor: pointer;
-      font-size: 0.75rem;
+      font-size: 0.7rem;
       font-weight: 500;
       transition: all 0.2s ease;
     }
@@ -749,28 +694,6 @@ export function layout(
       color: var(--text);
     }
 
-    /* Footer */
-    footer {
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-      text-align: center;
-      padding: 2rem 1.5rem;
-      color: var(--text-muted);
-      font-size: 0.75rem;
-      border-top: 1px solid var(--border);
-      margin-top: 2rem;
-      letter-spacing: 0.01em;
-    }
-
-    footer a {
-      color: var(--text-muted);
-      text-decoration: none;
-      transition: color 0.15s ease;
-    }
-
-    footer a:hover {
-      color: var(--text-secondary);
-    }
-
     /* Utility classes */
     .empty-state {
       text-align: center;
@@ -887,7 +810,7 @@ export function layout(
       }
 
       header {
-        padding: 0.75rem 1rem;
+        padding: 0.5rem 1rem;
       }
 
       nav {
@@ -896,10 +819,6 @@ export function layout(
 
       .nav-links {
         gap: 1rem;
-      }
-
-      .nav-links a::after {
-        display: none;
       }
 
       .nav-actions {
@@ -937,11 +856,6 @@ export function layout(
         justify-content: flex-end;
         margin-left: 0;
       }
-
-      .write-btn {
-        padding: 0.4rem 0.875rem;
-        font-size: 0.75rem;
-      }
     }
   </style>
   <script>
@@ -954,17 +868,12 @@ export function layout(
 </head>
 <body>
   <header>
-    <div class="header-inner">
-      <div class="logo"><a href="/">Leaflet</a></div>
-      ${nav}
-    </div>
+    <div class="logo"><a href="/">Leaflet</a></div>
+    ${nav}
   </header>
   <main>
     ${content}
   </main>
-  <footer>
-    <p>Built on <a href="https://atproto.com" target="_blank">AT Protocol</a> using the <a href="https://leaflet.pub" target="_blank">Leaflet</a> lexicon</p>
-  </footer>
   <script>
     (function() {
       const toggle = document.getElementById('theme-toggle');
