@@ -3,47 +3,17 @@ import * as db from '../database/index.ts';
 import type {
   LeafletCanvas,
   CanvasBlockWithPosition,
-  TextBlock,
   LocalCanvasBlock
 } from '../types/leaflet.ts';
+import {
+  LEAFLET_COLLECTIONS,
+  generateTid,
+  buildAtUri,
+  convertLocalBlockToATProto,
+  convertATProtoBlockToLocal
+} from './atproto-sync.ts';
 
-const LEAFLET_CANVAS_COLLECTION = 'pub.leaflet.canvas';
-
-// Generate a TID (Timestamp ID) for record keys
-function generateTid(): string {
-  const timestamp = Date.now();
-  const random = Math.random().toString(36).substring(2, 6);
-  return timestamp.toString(36) + random;
-}
-
-// Convert local canvas block to ATProto canvas block format
-function convertLocalBlockToATProto(block: LocalCanvasBlock): CanvasBlockWithPosition {
-  return {
-    block: {
-      $type: 'pub.leaflet.blocks.text',
-      plaintext: block.content,
-      facets: []
-    } as TextBlock,
-    x: Math.round(block.x),
-    y: Math.round(block.y),
-    width: Math.round(block.width),
-    height: Math.round(block.height)
-  };
-}
-
-// Convert ATProto canvas block to local canvas block format
-function convertATProtoBlockToLocal(block: CanvasBlockWithPosition, index: number): LocalCanvasBlock {
-  const textBlock = block.block as TextBlock;
-  return {
-    id: `block-${index}-${Date.now()}`,
-    type: 'text',
-    content: textBlock.plaintext || '',
-    x: block.x,
-    y: block.y,
-    width: block.width,
-    height: block.height || 100
-  };
-}
+const LEAFLET_CANVAS_COLLECTION = LEAFLET_COLLECTIONS.CANVAS;
 
 export interface SaveCanvasResult {
   success: boolean;
@@ -155,7 +125,7 @@ export function processIncomingCanvas(
     return;
   }
 
-  const uri = `at://${did}/${LEAFLET_CANVAS_COLLECTION}/${rkey}`;
+  const uri = buildAtUri(did, LEAFLET_CANVAS_COLLECTION, rkey);
 
   if (operation === 'delete') {
     db.deleteCanvasByUri(uri);
