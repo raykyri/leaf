@@ -86,7 +86,7 @@ oauth.get('/callback', async (c) => {
       httpOnly: true,
       secure: isProduction,
       maxAge: 7 * 24 * 60 * 60, // 7 days in seconds
-      sameSite: 'Lax',
+      sameSite: 'Strict',
     });
 
     // If new user, index their PDS

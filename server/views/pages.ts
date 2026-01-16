@@ -469,7 +469,12 @@ export function canvasEditorPage(
   canvas: Canvas,
   user: { handle: string; csrfToken?: string }
 ): string {
-  const blocks = JSON.parse(canvas.blocks);
+  let blocks: unknown[] = [];
+  try {
+    blocks = JSON.parse(canvas.blocks);
+  } catch {
+    // Use empty blocks if parsing fails
+  }
 
   const content = `
     <div id="canvas-app"

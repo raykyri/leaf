@@ -139,10 +139,17 @@ canvases.get('/api/canvases/:id', (c) => {
     return c.json({ error: 'Access denied' }, 403);
   }
 
+  let parsedBlocks: unknown[] = [];
+  try {
+    parsedBlocks = JSON.parse(canvas.blocks);
+  } catch {
+    // Return empty blocks if parsing fails
+  }
+
   return c.json({
     id: canvas.id,
     title: canvas.title,
-    blocks: JSON.parse(canvas.blocks),
+    blocks: parsedBlocks,
     width: canvas.width,
     height: canvas.height,
     created_at: canvas.created_at,
@@ -209,7 +216,10 @@ canvases.put('/api/canvases/:id', async (c) => {
 
   // Update local database first
   db.updateCanvas(canvasId, updates);
-  const updatedCanvas = db.getCanvasById(canvasId)!;
+  const updatedCanvas = db.getCanvasById(canvasId);
+  if (!updatedCanvas) {
+    return c.json({ error: 'Failed to retrieve updated canvas' }, 500);
+  }
 
   // Sync to ATProto
   let syncError: string | undefined;
@@ -231,11 +241,22 @@ canvases.put('/api/canvases/:id', async (c) => {
   }
 
   // Return updated canvas with sync status
-  const finalCanvas = db.getCanvasById(canvasId)!;
+  const finalCanvas = db.getCanvasById(canvasId);
+  if (!finalCanvas) {
+    return c.json({ error: 'Failed to retrieve updated canvas' }, 500);
+  }
+
+  let parsedBlocks: unknown[] = [];
+  try {
+    parsedBlocks = JSON.parse(finalCanvas.blocks);
+  } catch {
+    // Return empty blocks if parsing fails
+  }
+
   return c.json({
     id: finalCanvas.id,
     title: finalCanvas.title,
-    blocks: JSON.parse(finalCanvas.blocks),
+    blocks: parsedBlocks,
     width: finalCanvas.width,
     height: finalCanvas.height,
     created_at: finalCanvas.created_at,
