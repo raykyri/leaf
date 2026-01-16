@@ -1,6 +1,7 @@
-import { layout, canvasLayout, escapeHtml, OpenGraphMeta } from './layout.js';
-import { renderDocumentContent } from '../services/renderer.js';
-import type { Document, User, Canvas } from '../database/index.js';
+import { layout, canvasLayout, escapeHtml } from './layout.ts';
+import type { OpenGraphMeta } from './layout.ts';
+import { renderDocumentContent } from '../services/renderer.ts';
+import type { Document, User, Canvas } from '../database/index.ts';
 
 export function loginPage(error?: string): string {
   const oauthEnabled = !!process.env.PUBLIC_URL;

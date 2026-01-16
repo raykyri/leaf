@@ -1,11 +1,11 @@
 import { AtpAgent } from '@atproto/api';
-import * as db from '../database/index.js';
+import * as db from '../database/index.ts';
 import type {
   LeafletCanvas,
   CanvasBlockWithPosition,
   TextBlock,
   LocalCanvasBlock
-} from '../types/leaflet.js';
+} from '../types/leaflet.ts';
 
 const LEAFLET_CANVAS_COLLECTION = 'pub.leaflet.canvas';
 

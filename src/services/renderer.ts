@@ -15,8 +15,8 @@ import type {
   PollBlock,
   Facet,
   ListItem
-} from '../types/leaflet.js';
-import { escapeHtml } from '../utils/html.js';
+} from '../types/leaflet.ts';
+import { escapeHtml } from '../utils/html.ts';
 
 // URL validation for safety
 function isValidUrl(url: string): boolean {

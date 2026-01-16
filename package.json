@@ -5,11 +5,11 @@
   "main": "dist/index.js",
   "type": "module",
   "scripts": {
-    "dev": "tsx src/index.ts",
+    "dev": "node --experimental-strip-types src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "db:reset": "tsx src/database/setup.ts",
-    "db:reset:all": "tsx src/database/setup.ts --all",
+    "db:reset": "node --experimental-strip-types src/database/setup.ts",
+    "db:reset:all": "node --experimental-strip-types src/database/setup.ts --all",
     "test": "ava",
     "test:watch": "ava --watch",
     "test:coverage": "c8 ava",
@@ -39,7 +39,6 @@
     "@types/ws": "^8.5.13",
     "ava": "^6.1.1",
     "c8": "^9.1.0",
-    "tsx": "^4.19.2",
     "typescript": "^5.7.2"
   }
 }

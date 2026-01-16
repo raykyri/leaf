@@ -1,6 +1,6 @@
 import { AtpAgent } from '@atproto/api';
 import crypto from 'crypto';
-import * as db from '../database/index.js';
+import * as db from '../database/index.ts';
 import type {
   LeafletDocument,
   LinearDocumentPage,
@@ -8,7 +8,7 @@ import type {
   CanvasPage,
   CanvasBlockWithPosition,
   LocalCanvasBlock
-} from '../types/leaflet.js';
+} from '../types/leaflet.ts';
 
 const LEAFLET_DOCUMENT_COLLECTION = 'pub.leaflet.document';
 

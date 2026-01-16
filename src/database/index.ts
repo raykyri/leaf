@@ -1,5 +1,5 @@
 import Database from 'better-sqlite3';
-import { initializeDatabase } from './schema.js';
+import { initializeDatabase } from './schema.ts';
 import path from 'path';
 import fs from 'fs';
 

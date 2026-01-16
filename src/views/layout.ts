@@ -1,6 +1,6 @@
 // HTML layout templates
 
-import { escapeHtml } from '../utils/html.js';
+import { escapeHtml } from '../utils/html.ts';
 
 export interface OpenGraphMeta {
   title?: string;

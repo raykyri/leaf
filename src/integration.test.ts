@@ -19,10 +19,10 @@ import Database from 'better-sqlite3';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
-import { initializeDatabase } from './database/schema.js';
-import { generateCsrfToken, validateCsrfToken } from './middleware/csrf.js';
-import { createComment, deleteComment, extractRkeyFromUri } from './services/comments.js';
-import { indexUserPDS } from './services/indexer.js';
+import { initializeDatabase } from './database/schema.ts';
+import { generateCsrfToken, validateCsrfToken } from './middleware/csrf.ts';
+import { createComment, deleteComment, extractRkeyFromUri } from './services/comments.ts';
+import { indexUserPDS } from './services/indexer.ts';
 
 // Test configuration
 const TEST_HANDLE = process.env.TEST_HANDLE;

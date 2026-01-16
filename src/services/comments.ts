@@ -1,5 +1,5 @@
 import { AtpAgent } from '@atproto/api';
-import type { LeafletComment, CommentReplyRef, Facet } from '../types/leaflet.js';
+import type { LeafletComment, CommentReplyRef, Facet } from '../types/leaflet.ts';
 
 const LEAFLET_COMMENT_COLLECTION = 'pub.leaflet.comment';
 

@@ -1,10 +1,10 @@
 import { Hono } from 'hono';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
-import { authenticateUser, logout } from '../services/auth.js';
-import { indexUserPDS } from '../services/indexer.js';
-import { loginPage } from '../views/pages.js';
-import { authLimiter } from '../middleware/rateLimit.js';
-import * as db from '../database/index.js';
+import { authenticateUser, logout } from '../services/auth.ts';
+import { indexUserPDS } from '../services/indexer.ts';
+import { loginPage } from '../views/pages.ts';
+import { authLimiter } from '../middleware/rateLimit.ts';
+import * as db from '../database/index.ts';
 
 const auth = new Hono();
 

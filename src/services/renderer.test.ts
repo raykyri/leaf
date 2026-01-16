@@ -1,6 +1,6 @@
 import test from 'ava';
-import { renderDocument, renderDocumentContent } from './renderer.js';
-import type { LeafletPage } from '../types/leaflet.js';
+import { renderDocument, renderDocumentContent } from './renderer.ts';
+import type { LeafletPage } from '../types/leaflet.ts';
 
 // renderDocument tests
 test('renderDocument › should render a simple text block', t => {

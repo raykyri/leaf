@@ -1,8 +1,8 @@
 import WebSocket from 'ws';
-import * as db from '../database/index.js';
-import { processIncomingDocument, processIncomingPublication } from './indexer.js';
-import { processIncomingCanvas } from './canvas.js';
-import type { JetstreamEvent, LeafletDocument, LeafletPublication, LeafletCanvas } from '../types/leaflet.js';
+import * as db from '../database/index.ts';
+import { processIncomingDocument, processIncomingPublication } from './indexer.ts';
+import { processIncomingCanvas } from './canvas.ts';
+import type { JetstreamEvent, LeafletDocument, LeafletPublication, LeafletCanvas } from '../types/leaflet.ts';
 
 const LEAFLET_COLLECTIONS = [
   'pub.leaflet.document',
