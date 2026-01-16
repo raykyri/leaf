@@ -1,0 +1,23 @@
+.container {
+  text-align: center;
+  padding: 4rem 2rem;
+  color: var(--text-muted);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.container h1 {
+  font-family: 'Source Serif 4', Georgia, serif;
+  color: var(--text);
+  margin-bottom: 0.75rem;
+}
+
+.container p {
+  font-size: 0.9rem;
+  line-height: 1.6;
+  margin-bottom: 0.5rem;
+}
+
+.container a {
+  color: var(--accent-text);
+  font-weight: 500;
+}
