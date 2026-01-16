@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Link, useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { useTheme } from '@/hooks/useTheme';
-import { ThemeToggle } from '@/components/ui/ThemeToggle';
+import { Layout } from '@/components/Layout';
 import { Button } from '@/components/ui/Button';
 import * as Tooltip from '@radix-ui/react-tooltip';
 import * as Dialog from '@radix-ui/react-dialog';
@@ -37,7 +36,6 @@ const MAX_HISTORY = 50;
 export function CanvasEditorPage() {
   const { id } = useParams<{ id: string }>();
   const { user, csrfToken } = useAuth();
-  const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
 
   // Canvas state
@@ -380,187 +378,169 @@ export function CanvasEditorPage() {
   if (!canvas) return null;
 
   return (
-    <Tooltip.Provider>
-      <div className={styles.canvasApp}>
-        <header className={styles.header}>
-          <div className={styles.logo}>
-            <Link to="/">Leaflet</Link>
-          </div>
-          <nav className={styles.nav}>
-            <div className={styles.navLinks}>
-              <Link to="/posts">Explore</Link>
-              <Link to="/profile">My Posts</Link>
-              <Link to="/canvases">Canvases</Link>
-            </div>
-            <div className={styles.navActions}>
-              <ThemeToggle />
-              <button className={styles.userBtn} onClick={() => navigate('/profile')}>
-                {user.handle}
-              </button>
-            </div>
-          </nav>
-        </header>
-
-        <div className={styles.toolbar}>
-          <div className={styles.toolbarLeft}>
-            <input
-              type="text"
-              className={styles.titleInput}
-              value={title}
-              onChange={(e) => { setTitle(e.target.value); setIsDirty(true); }}
-            />
-          </div>
-
-          <div className={styles.toolbarCenter}>
-            <Tooltip.Root>
-              <Tooltip.Trigger asChild>
-                <Button variant="secondary" size="sm" onClick={undo} disabled={undoStack.length === 0}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M3 7v6h6" /><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13" />
-                  </svg>
-                </Button>
-              </Tooltip.Trigger>
-              <Tooltip.Content className={styles.tooltip}>Undo (Ctrl+Z)</Tooltip.Content>
-            </Tooltip.Root>
-
-            <Tooltip.Root>
-              <Tooltip.Trigger asChild>
-                <Button variant="secondary" size="sm" onClick={redo} disabled={redoStack.length === 0}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 7v6h-6" /><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3L21 13" />
-                  </svg>
-                </Button>
-              </Tooltip.Trigger>
-              <Tooltip.Content className={styles.tooltip}>Redo (Ctrl+Y)</Tooltip.Content>
-            </Tooltip.Root>
-
-          </div>
-
-          <div className={styles.toolbarRight}>
-            <div className={styles.zoomControls}>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => setZoomIndex(Math.max(0, zoomIndex - 1))}
-                disabled={zoomIndex === 0}
-              >
-                -
-              </Button>
-              <span className={styles.zoomLevel}>{zoom}%</span>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => setZoomIndex(Math.min(ZOOM_LEVELS.length - 1, zoomIndex + 1))}
-                disabled={zoomIndex === ZOOM_LEVELS.length - 1}
-              >
-                +
-              </Button>
-            </div>
-
-            <Button variant="primary" size="sm" onClick={saveAndPublish}>
-              Save
-            </Button>
-
-            <DropdownMenu.Root>
-              <DropdownMenu.Trigger asChild>
-                <Button variant="secondary" size="sm" className={styles.menuButton}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="12" cy="12" r="1" /><circle cx="12" cy="5" r="1" /><circle cx="12" cy="19" r="1" />
-                  </svg>
-                </Button>
-              </DropdownMenu.Trigger>
-              <DropdownMenu.Portal>
-                <DropdownMenu.Content className={styles.dropdownContent} sideOffset={5}>
-                  <Dialog.Root>
-                    <Dialog.Trigger asChild>
-                      <DropdownMenu.Item className={styles.dropdownItemDanger} onSelect={(e) => e.preventDefault()}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-                        </svg>
-                        Delete Canvas
-                      </DropdownMenu.Item>
-                    </Dialog.Trigger>
-                    <Dialog.Portal>
-                      <Dialog.Overlay className={styles.dialogOverlay} />
-                      <Dialog.Content className={styles.dialogContent}>
-                        <Dialog.Title>Delete Canvas</Dialog.Title>
-                        <Dialog.Description className={styles.dialogDescription}>
-                          Are you sure you want to delete this canvas? This action cannot be undone.
-                        </Dialog.Description>
-                        <div className={styles.dialogActions}>
-                          <Dialog.Close asChild>
-                            <Button variant="secondary" size="sm">Cancel</Button>
-                          </Dialog.Close>
-                          <Dialog.Close asChild>
-                            <Button variant="danger" size="sm" onClick={deleteCanvas}>Delete</Button>
-                          </Dialog.Close>
-                        </div>
-                      </Dialog.Content>
-                    </Dialog.Portal>
-                  </Dialog.Root>
-                </DropdownMenu.Content>
-              </DropdownMenu.Portal>
-            </DropdownMenu.Root>
-          </div>
-        </div>
-
-        <div className={styles.viewport}>
-          <div
-            ref={containerRef}
-            className={`${styles.container} ${styles.showGrid}`}
-            style={{
-              width: canvas.width,
-              height: canvas.height,
-              transform: `scale(${zoom / 100})`,
-            }}
-            onMouseDown={handleCanvasMouseDown}
-          >
-            {blocks.length === 0 && (
-              <div className={styles.canvasHint}>
-                <div className={styles.canvasHintIcon}>+</div>
-                Click and drag to create a card
-              </div>
-            )}
-
-            {blocks.map((block) => (
-              <CanvasBlock
-                key={block.id}
-                block={block}
-                isSelected={selectedBlockId === block.id}
-                isEditing={editingBlockId === block.id}
-                zoom={zoom}
-                snap={snap}
-                onSelect={() => setSelectedBlockId(block.id)}
-                onStartEdit={() => { setSelectedBlockId(block.id); setEditingBlockId(block.id); }}
-                onStopEdit={() => setEditingBlockId(null)}
-                onUpdate={(updates) => updateBlock(block.id, updates)}
-                onDelete={() => deleteBlock(block.id)}
-                onDuplicate={() => {
-                  saveState();
-                  const newBlock: Block = {
-                    ...block,
-                    id: generateId(),
-                    x: block.x + 20,
-                    y: block.y + 20,
-                  };
-                  setBlocks(prev => [...prev, newBlock]);
-                  setSelectedBlockId(newBlock.id);
-                  setIsDirty(true);
-                }}
-                onSaveState={saveState}
+    <Layout fullWidth>
+      <Tooltip.Provider>
+        <div className={styles.canvasApp}>
+          <div className={styles.toolbar}>
+            <div className={styles.toolbarLeft}>
+              <input
+                type="text"
+                className={styles.titleInput}
+                value={title}
+                onChange={(e) => { setTitle(e.target.value); setIsDirty(true); }}
               />
-            ))}
+            </div>
 
-            <div ref={selectionBoxRef} className={styles.selectionBox} />
+            <div className={styles.toolbarCenter}>
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <Button variant="secondary" size="sm" onClick={undo} disabled={undoStack.length === 0}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M3 7v6h6" /><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13" />
+                    </svg>
+                  </Button>
+                </Tooltip.Trigger>
+                <Tooltip.Content className={styles.tooltip}>Undo (Ctrl+Z)</Tooltip.Content>
+              </Tooltip.Root>
+
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <Button variant="secondary" size="sm" onClick={redo} disabled={redoStack.length === 0}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 7v6h-6" /><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3L21 13" />
+                    </svg>
+                  </Button>
+                </Tooltip.Trigger>
+                <Tooltip.Content className={styles.tooltip}>Redo (Ctrl+Y)</Tooltip.Content>
+              </Tooltip.Root>
+            </div>
+
+            <div className={styles.toolbarRight}>
+              <div className={styles.zoomControls}>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setZoomIndex(Math.max(0, zoomIndex - 1))}
+                  disabled={zoomIndex === 0}
+                >
+                  -
+                </Button>
+                <span className={styles.zoomLevel}>{zoom}%</span>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setZoomIndex(Math.min(ZOOM_LEVELS.length - 1, zoomIndex + 1))}
+                  disabled={zoomIndex === ZOOM_LEVELS.length - 1}
+                >
+                  +
+                </Button>
+              </div>
+
+              <Button variant="primary" size="sm" onClick={saveAndPublish}>
+                Save
+              </Button>
+
+              <DropdownMenu.Root>
+                <DropdownMenu.Trigger asChild>
+                  <Button variant="secondary" size="sm" className={styles.menuButton}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="1" /><circle cx="12" cy="5" r="1" /><circle cx="12" cy="19" r="1" />
+                    </svg>
+                  </Button>
+                </DropdownMenu.Trigger>
+                <DropdownMenu.Portal>
+                  <DropdownMenu.Content className={styles.dropdownContent} sideOffset={5}>
+                    <Dialog.Root>
+                      <Dialog.Trigger asChild>
+                        <DropdownMenu.Item className={styles.dropdownItemDanger} onSelect={(e) => e.preventDefault()}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                          </svg>
+                          Delete Canvas
+                        </DropdownMenu.Item>
+                      </Dialog.Trigger>
+                      <Dialog.Portal>
+                        <Dialog.Overlay className={styles.dialogOverlay} />
+                        <Dialog.Content className={styles.dialogContent}>
+                          <Dialog.Title>Delete Canvas</Dialog.Title>
+                          <Dialog.Description className={styles.dialogDescription}>
+                            Are you sure you want to delete this canvas? This action cannot be undone.
+                          </Dialog.Description>
+                          <div className={styles.dialogActions}>
+                            <Dialog.Close asChild>
+                              <Button variant="secondary" size="sm">Cancel</Button>
+                            </Dialog.Close>
+                            <Dialog.Close asChild>
+                              <Button variant="danger" size="sm" onClick={deleteCanvas}>Delete</Button>
+                            </Dialog.Close>
+                          </div>
+                        </Dialog.Content>
+                      </Dialog.Portal>
+                    </Dialog.Root>
+                  </DropdownMenu.Content>
+                </DropdownMenu.Portal>
+              </DropdownMenu.Root>
+            </div>
+          </div>
+
+          <div className={styles.viewport}>
+            <div
+              ref={containerRef}
+              className={`${styles.container} ${styles.showGrid}`}
+              style={{
+                width: canvas.width,
+                height: canvas.height,
+                transform: `scale(${zoom / 100})`,
+              }}
+              onMouseDown={handleCanvasMouseDown}
+            >
+              {blocks.length === 0 && (
+                <div className={styles.canvasHint}>
+                  <div className={styles.canvasHintIcon}>+</div>
+                  Click and drag to create a card
+                </div>
+              )}
+
+              {blocks.map((block) => (
+                <CanvasBlock
+                  key={block.id}
+                  block={block}
+                  isSelected={selectedBlockId === block.id}
+                  isEditing={editingBlockId === block.id}
+                  zoom={zoom}
+                  snap={snap}
+                  onSelect={() => setSelectedBlockId(block.id)}
+                  onStartEdit={() => { setSelectedBlockId(block.id); setEditingBlockId(block.id); }}
+                  onStopEdit={() => setEditingBlockId(null)}
+                  onUpdate={(updates) => updateBlock(block.id, updates)}
+                  onDelete={() => deleteBlock(block.id)}
+                  onDuplicate={() => {
+                    saveState();
+                    const newBlock: Block = {
+                      ...block,
+                      id: generateId(),
+                      x: block.x + 20,
+                      y: block.y + 20,
+                    };
+                    setBlocks(prev => [...prev, newBlock]);
+                    setSelectedBlockId(newBlock.id);
+                    setIsDirty(true);
+                  }}
+                  onSaveState={saveState}
+                />
+              ))}
+
+              <div ref={selectionBoxRef} className={styles.selectionBox} />
+            </div>
+          </div>
+
+          <div className={styles.statusBar}>
+            <span>{status}</span>
+            <span>{canvas.width} x {canvas.height}</span>
           </div>
         </div>
-
-        <div className={styles.statusBar}>
-          <span>{status}</span>
-          <span>{canvas.width} x {canvas.height}</span>
-        </div>
-      </div>
-    </Tooltip.Provider>
+      </Tooltip.Provider>
+    </Layout>
   );
 }
 

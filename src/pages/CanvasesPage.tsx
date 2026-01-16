@@ -74,14 +74,14 @@ export function CanvasesPage() {
         <>
           <div className={styles.canvasList}>
             {canvases.map((canvas) => (
-              <Card key={canvas.id} variant="interactive" className={styles.canvasCard}>
-                <h2 className={styles.canvasTitle}>
-                  <Link to={`/canvases/${canvas.id}`}>{canvas.title}</Link>
-                </h2>
-                <div className={styles.canvasMeta}>
-                  {formatDate(canvas.updated_at)} &bull; {canvas.width}x{canvas.height}
-                </div>
-              </Card>
+              <Link key={canvas.id} to={`/canvases/${canvas.id}`} className={styles.canvasLink}>
+                <Card variant="interactive" className={styles.canvasCard}>
+                  <h2 className={styles.canvasTitle}>{canvas.title}</h2>
+                  <div className={styles.canvasMeta}>
+                    {formatDate(canvas.updated_at)} &bull; {canvas.width}x{canvas.height}
+                  </div>
+                </Card>
+              </Link>
             ))}
           </div>
 
