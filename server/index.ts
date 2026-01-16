@@ -29,7 +29,7 @@ if (process.env.SESSION_SECRET.length < 32) {
 }
 
 const app = new Hono();
-const PORT = parseInt(process.env.PORT || '3000', 10);
+const PORT = parseInt(process.env.PORT || '3333', 10);
 const isProduction = process.env.NODE_ENV === 'production';
 
 // Middleware
@@ -99,17 +99,17 @@ if (isProduction) {
   });
 } else {
   // Development: only API routes are handled, Vite dev server handles frontend
-  // Redirect root to Vite dev server (running on port 5173)
+  // Redirect root to Vite dev server (running on port 3334)
   app.get('/', (c) => {
     const sessionToken = getCookie(c, 'session');
     if (sessionToken) {
       const auth = getSessionUser(sessionToken);
       if (auth) {
         // User is logged in, they should use the React app
-        return c.text('Please access the app at http://localhost:5173', 200);
+        return c.text('Please access the app at http://localhost:3334', 200);
       }
     }
-    return c.text('Please access the app at http://localhost:5173', 200);
+    return c.text('Please access the app at http://localhost:3334', 200);
   });
 }
 
@@ -150,7 +150,7 @@ const server = serve({
   console.log(`Server running at http://localhost:${PORT}`);
 
   if (!isProduction) {
-    console.log(`Frontend dev server at http://localhost:5173`);
+    console.log(`Frontend dev server at http://localhost:3334`);
   }
 
   // Warn if OAuth is not configured
@@ -161,7 +161,7 @@ const server = serve({
     console.log(`${cyan}OAuth is not configured, so only app password login is available.${reset}`);
     console.log(`${cyan}To enable OAuth login, set PUBLIC_URL to your app's public URL.${reset}`);
     console.log(`${cyan}  PUBLIC_URL=https://yourdomain.com${reset}`)
-    console.log(`${cyan}  PUBLIC_URL=http://localhost:3000${reset}`)
+    console.log(`${cyan}  PUBLIC_URL=http://localhost:3333${reset}`)
     console.log('');
   }
 

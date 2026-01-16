@@ -12,22 +12,22 @@ export default defineConfig({
     sourcemap: true,
   },
   server: {
-    port: 5173,
+    port: 3334,
     proxy: {
       '/api': {
-        target: 'http://localhost:3000',
+        target: 'http://localhost:3333',
         changeOrigin: true,
       },
       '/auth': {
-        target: 'http://localhost:3000',
+        target: 'http://localhost:3333',
         changeOrigin: true,
       },
       '/oauth': {
-        target: 'http://localhost:3000',
+        target: 'http://localhost:3333',
         changeOrigin: true,
       },
       '/healthz': {
-        target: 'http://localhost:3000',
+        target: 'http://localhost:3333',
         changeOrigin: true,
       },
     },
