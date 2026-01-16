@@ -120,15 +120,45 @@ api.get('/posts', (c) => {
   const posts = allPosts.slice(0, ITEMS_PER_PAGE);
 
   return c.json({
-    posts: posts.map((p) => ({
-      author: p.author,
-      rkey: p.rkey,
-      title: p.title,
-      description: p.description,
-      published_at: p.published_at,
-      handle: p.handle,
-      display_name: p.display_name,
-    })),
+    posts: posts.map((p) => {
+      // Check if this is a canvas post and get dimensions
+      let canvasWidth: number | undefined;
+      let canvasHeight: number | undefined;
+      try {
+        const pages = JSON.parse(p.content);
+        if (Array.isArray(pages)) {
+          for (const page of pages) {
+            if (page.$type === 'pub.leaflet.pages.canvas') {
+              // Try to get dimensions from linked canvas
+              const canvas = db.getCanvasByUri(p.uri);
+              if (canvas) {
+                canvasWidth = canvas.width;
+                canvasHeight = canvas.height;
+              } else {
+                // Fallback to default dimensions
+                canvasWidth = 1200;
+                canvasHeight = 800;
+              }
+              break;
+            }
+          }
+        }
+      } catch {
+        // Content parsing failed, not a canvas
+      }
+
+      return {
+        author: p.author,
+        rkey: p.rkey,
+        title: p.title,
+        description: p.description,
+        published_at: p.published_at,
+        handle: p.handle,
+        display_name: p.display_name,
+        canvas_width: canvasWidth,
+        canvas_height: canvasHeight,
+      };
+    }),
     page,
     hasMore,
   });
