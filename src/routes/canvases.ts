@@ -1,4 +1,6 @@
-import { Router, Request, Response } from 'express';
+import { Hono } from 'hono';
+import type { Context } from 'hono';
+import { getCookie } from 'hono/cookie';
 import * as db from '../database/index.js';
 import { getSessionUser, getAuthenticatedAgent } from '../services/auth.js';
 import { publishCanvas } from '../services/posts.js';
@@ -13,7 +15,7 @@ import {
 } from '../views/pages.js';
 import crypto from 'crypto';
 
-const router = Router();
+const canvases = new Hono();
 const CANVASES_PER_PAGE = 20;
 
 // Generate a unique canvas ID
@@ -27,135 +29,117 @@ function isValidCanvasId(id: string | undefined): id is string {
   return /^[a-f0-9]{16}$/.test(id);
 }
 
-// Helper to extract string params safely
-function getParam(params: Record<string, string | string[] | undefined>, key: string): string | undefined {
-  const value = params[key];
-  return Array.isArray(value) ? value[0] : value;
-}
-
 // Get current user from session
-function getCurrentUser(req: Request): { user: db.User; session: db.Session } | null {
-  const sessionToken = req.cookies?.session;
+function getCurrentUser(c: Context): { user: db.User; session: db.Session } | null {
+  const sessionToken = getCookie(c, 'session');
   if (!sessionToken) return null;
   return getSessionUser(sessionToken);
 }
 
 // List all canvases for current user
-router.get('/canvases', (req: Request, res: Response) => {
-  const auth = getCurrentUser(req);
+canvases.get('/canvases', (c) => {
+  const auth = getCurrentUser(c);
   if (!auth) {
-    res.redirect('/');
-    return;
+    return c.redirect('/');
   }
 
-  const page = Math.max(1, parseInt(req.query.page as string) || 1);
+  const page = Math.max(1, parseInt(c.req.query('page') || '1') || 1);
   const offset = (page - 1) * CANVASES_PER_PAGE;
-  const csrfToken = getCsrfToken(req.cookies?.session);
+  const csrfToken = getCsrfToken(getCookie(c, 'session'));
 
-  const canvases = db.getCanvasesByUser(auth.user.id, CANVASES_PER_PAGE + 1, offset);
-  const hasMore = canvases.length > CANVASES_PER_PAGE;
-  const displayCanvases = canvases.slice(0, CANVASES_PER_PAGE);
+  const userCanvases = db.getCanvasesByUser(auth.user.id, CANVASES_PER_PAGE + 1, offset);
+  const hasMore = userCanvases.length > CANVASES_PER_PAGE;
+  const displayCanvases = userCanvases.slice(0, CANVASES_PER_PAGE);
 
-  res.send(canvasListPage(displayCanvases, page, hasMore, { handle: auth.user.handle, csrfToken }));
+  return c.html(canvasListPage(displayCanvases, page, hasMore, { handle: auth.user.handle, csrfToken }));
 });
 
 // Create canvas form
-router.get('/canvases/new', (req: Request, res: Response) => {
-  const auth = getCurrentUser(req);
+canvases.get('/canvases/new', (c) => {
+  const auth = getCurrentUser(c);
   if (!auth) {
-    res.redirect('/');
-    return;
+    return c.redirect('/');
   }
 
-  const csrfToken = getCsrfToken(req.cookies?.session);
-  res.send(createCanvasPage({ handle: auth.user.handle, csrfToken }));
+  const csrfToken = getCsrfToken(getCookie(c, 'session'));
+  return c.html(createCanvasPage({ handle: auth.user.handle, csrfToken }));
 });
 
 // Handle canvas creation
-router.post('/canvases/new', (req: Request, res: Response) => {
-  const auth = getCurrentUser(req);
+canvases.post('/canvases/new', async (c) => {
+  const auth = getCurrentUser(c);
   if (!auth) {
-    res.redirect('/');
-    return;
+    return c.redirect('/');
   }
 
-  const { title } = req.body;
-  const csrfToken = getCsrfToken(req.cookies?.session);
+  const body = await c.req.parseBody();
+  const title = body.title as string | undefined;
+  const csrfToken = getCsrfToken(getCookie(c, 'session'));
 
   if (!title || title.trim().length === 0) {
-    res.send(createCanvasPage({ handle: auth.user.handle, csrfToken }, 'Title is required'));
-    return;
+    return c.html(createCanvasPage({ handle: auth.user.handle, csrfToken }, 'Title is required'));
   }
 
   if (title.length > 128) {
-    res.send(createCanvasPage({ handle: auth.user.handle, csrfToken }, 'Title must be 128 characters or less'));
-    return;
+    return c.html(createCanvasPage({ handle: auth.user.handle, csrfToken }, 'Title must be 128 characters or less'));
   }
 
   const canvasId = generateCanvasId();
   db.createCanvas(canvasId, auth.user.id, title.trim());
 
-  res.redirect(`/canvases/${canvasId}`);
+  return c.redirect(`/canvases/${canvasId}`);
 });
 
 // View/edit a canvas
-router.get('/canvases/:id', (req: Request, res: Response) => {
-  const auth = getCurrentUser(req);
+canvases.get('/canvases/:id', (c) => {
+  const auth = getCurrentUser(c);
   if (!auth) {
-    res.redirect('/');
-    return;
+    return c.redirect('/');
   }
 
-  const canvasId = getParam(req.params, 'id');
-  const csrfToken = getCsrfToken(req.cookies?.session);
+  const canvasId = c.req.param('id');
+  const csrfToken = getCsrfToken(getCookie(c, 'session'));
 
   if (!isValidCanvasId(canvasId)) {
-    res.status(400).send(errorPage({ handle: auth.user.handle, csrfToken }, 'Invalid canvas identifier'));
-    return;
+    return c.html(errorPage({ handle: auth.user.handle, csrfToken }, 'Invalid canvas identifier'), 400);
   }
 
   const canvas = db.getCanvasById(canvasId);
   if (!canvas) {
-    res.status(404).send(notFoundPage({ handle: auth.user.handle, csrfToken }));
-    return;
+    return c.html(notFoundPage({ handle: auth.user.handle, csrfToken }), 404);
   }
 
   // Check ownership
   if (canvas.user_id !== auth.user.id) {
-    res.status(403).send(errorPage({ handle: auth.user.handle, csrfToken }, 'You do not have access to this canvas'));
-    return;
+    return c.html(errorPage({ handle: auth.user.handle, csrfToken }, 'You do not have access to this canvas'), 403);
   }
 
-  res.send(canvasEditorPage(canvas, { handle: auth.user.handle, csrfToken }));
+  return c.html(canvasEditorPage(canvas, { handle: auth.user.handle, csrfToken }));
 });
 
 // API: Get canvas data
-router.get('/api/canvases/:id', (req: Request, res: Response) => {
-  const auth = getCurrentUser(req);
+canvases.get('/api/canvases/:id', (c) => {
+  const auth = getCurrentUser(c);
   if (!auth) {
-    res.status(401).json({ error: 'Unauthorized' });
-    return;
+    return c.json({ error: 'Unauthorized' }, 401);
   }
 
-  const canvasId = getParam(req.params, 'id');
+  const canvasId = c.req.param('id');
 
   if (!isValidCanvasId(canvasId)) {
-    res.status(400).json({ error: 'Invalid canvas identifier' });
-    return;
+    return c.json({ error: 'Invalid canvas identifier' }, 400);
   }
 
   const canvas = db.getCanvasById(canvasId);
   if (!canvas) {
-    res.status(404).json({ error: 'Canvas not found' });
-    return;
+    return c.json({ error: 'Canvas not found' }, 404);
   }
 
   if (canvas.user_id !== auth.user.id) {
-    res.status(403).json({ error: 'Access denied' });
-    return;
+    return c.json({ error: 'Access denied' }, 403);
   }
 
-  res.json({
+  return c.json({
     id: canvas.id,
     title: canvas.title,
     blocks: JSON.parse(canvas.blocks),
@@ -167,66 +151,58 @@ router.get('/api/canvases/:id', (req: Request, res: Response) => {
 });
 
 // API: Update canvas
-router.put('/api/canvases/:id', async (req: Request, res: Response) => {
-  const auth = getCurrentUser(req);
+canvases.put('/api/canvases/:id', async (c) => {
+  const auth = getCurrentUser(c);
   if (!auth) {
-    res.status(401).json({ error: 'Unauthorized' });
-    return;
+    return c.json({ error: 'Unauthorized' }, 401);
   }
 
-  const canvasId = getParam(req.params, 'id');
+  const canvasId = c.req.param('id');
 
   if (!isValidCanvasId(canvasId)) {
-    res.status(400).json({ error: 'Invalid canvas identifier' });
-    return;
+    return c.json({ error: 'Invalid canvas identifier' }, 400);
   }
 
   const canvas = db.getCanvasById(canvasId);
   if (!canvas) {
-    res.status(404).json({ error: 'Canvas not found' });
-    return;
+    return c.json({ error: 'Canvas not found' }, 404);
   }
 
   if (canvas.user_id !== auth.user.id) {
-    res.status(403).json({ error: 'Access denied' });
-    return;
+    return c.json({ error: 'Access denied' }, 403);
   }
 
-  const { title, blocks, width, height } = req.body;
+  const body = await c.req.json();
+  const { title, blocks, width, height } = body;
   const updates: { title?: string; blocks?: string; width?: number; height?: number } = {};
 
   if (title !== undefined) {
     if (typeof title !== 'string' || title.trim().length === 0) {
-      res.status(400).json({ error: 'Title is required' });
-      return;
+      return c.json({ error: 'Title is required' }, 400);
     }
     if (title.length > 128) {
-      res.status(400).json({ error: 'Title must be 128 characters or less' });
-      return;
+      return c.json({ error: 'Title must be 128 characters or less' }, 400);
     }
     updates.title = title.trim();
   }
 
   if (blocks !== undefined) {
     if (!Array.isArray(blocks)) {
-      res.status(400).json({ error: 'Blocks must be an array' });
-      return;
+      return c.json({ error: 'Blocks must be an array' }, 400);
     }
     updates.blocks = JSON.stringify(blocks);
   }
 
   if (width !== undefined) {
     if (typeof width !== 'number' || width < 100 || width > 10000) {
-      res.status(400).json({ error: 'Width must be between 100 and 10000' });
-      return;
+      return c.json({ error: 'Width must be between 100 and 10000' }, 400);
     }
     updates.width = width;
   }
 
   if (height !== undefined) {
     if (typeof height !== 'number' || height < 100 || height > 10000) {
-      res.status(400).json({ error: 'Height must be between 100 and 10000' });
-      return;
+      return c.json({ error: 'Height must be between 100 and 10000' }, 400);
     }
     updates.height = height;
   }
@@ -256,7 +232,7 @@ router.put('/api/canvases/:id', async (req: Request, res: Response) => {
 
   // Return updated canvas with sync status
   const finalCanvas = db.getCanvasById(canvasId)!;
-  res.json({
+  return c.json({
     id: finalCanvas.id,
     title: finalCanvas.title,
     blocks: JSON.parse(finalCanvas.blocks),
@@ -271,29 +247,25 @@ router.put('/api/canvases/:id', async (req: Request, res: Response) => {
 });
 
 // Handle canvas deletion
-router.post('/canvases/:id/delete', async (req: Request, res: Response) => {
-  const auth = getCurrentUser(req);
+canvases.post('/canvases/:id/delete', async (c) => {
+  const auth = getCurrentUser(c);
   if (!auth) {
-    res.redirect('/');
-    return;
+    return c.redirect('/');
   }
 
-  const canvasId = getParam(req.params, 'id');
+  const canvasId = c.req.param('id');
 
   if (!isValidCanvasId(canvasId)) {
-    res.redirect('/canvases?message=Invalid canvas identifier');
-    return;
+    return c.redirect('/canvases?message=Invalid canvas identifier');
   }
 
   const canvas = db.getCanvasById(canvasId);
   if (!canvas) {
-    res.redirect('/canvases?message=Canvas not found');
-    return;
+    return c.redirect('/canvases?message=Canvas not found');
   }
 
   if (canvas.user_id !== auth.user.id) {
-    res.redirect('/canvases?message=You can only delete your own canvases');
-    return;
+    return c.redirect('/canvases?message=You can only delete your own canvases');
   }
 
   // Delete from ATProto first if synced
@@ -310,57 +282,51 @@ router.post('/canvases/:id/delete', async (req: Request, res: Response) => {
   }
 
   db.deleteCanvas(canvasId);
-  res.redirect('/canvases?message=Canvas deleted successfully');
+  return c.redirect('/canvases?message=Canvas deleted successfully');
 });
 
 // Publish canvas to ATProto (Leaflet format)
-router.post('/canvases/:id/publish', async (req: Request, res: Response) => {
-  const auth = getCurrentUser(req);
+canvases.post('/canvases/:id/publish', async (c) => {
+  const auth = getCurrentUser(c);
   if (!auth) {
-    res.redirect('/');
-    return;
+    return c.redirect('/');
   }
 
-  const canvasId = getParam(req.params, 'id');
-  const csrfToken = getCsrfToken(req.cookies?.session);
+  const canvasId = c.req.param('id');
+  const csrfToken = getCsrfToken(getCookie(c, 'session'));
 
   if (!isValidCanvasId(canvasId)) {
-    res.status(400).send(errorPage({ handle: auth.user.handle, csrfToken }, 'Invalid canvas identifier'));
-    return;
+    return c.html(errorPage({ handle: auth.user.handle, csrfToken }, 'Invalid canvas identifier'), 400);
   }
 
   const canvas = db.getCanvasById(canvasId);
   if (!canvas) {
-    res.status(404).send(notFoundPage({ handle: auth.user.handle, csrfToken }));
-    return;
+    return c.html(notFoundPage({ handle: auth.user.handle, csrfToken }), 404);
   }
 
   if (canvas.user_id !== auth.user.id) {
-    res.status(403).send(errorPage({ handle: auth.user.handle, csrfToken }, 'You do not own this canvas'));
-    return;
+    return c.html(errorPage({ handle: auth.user.handle, csrfToken }, 'You do not own this canvas'), 403);
   }
 
   // Get authenticated agent
   const agent = await getAuthenticatedAgent(auth.session, auth.user);
   if (!agent) {
-    res.status(401).send(errorPage({ handle: auth.user.handle, csrfToken }, 'Unable to authenticate with ATProto. Please log in again.'));
-    return;
+    return c.html(errorPage({ handle: auth.user.handle, csrfToken }, 'Unable to authenticate with ATProto. Please log in again.'), 401);
   }
 
   // Publish the canvas
   const result = await publishCanvas(agent, auth.user, { canvasId });
 
   if (!result.success) {
-    res.status(500).send(errorPage({ handle: auth.user.handle, csrfToken }, result.error || 'Failed to publish canvas'));
-    return;
+    return c.html(errorPage({ handle: auth.user.handle, csrfToken }, result.error || 'Failed to publish canvas'), 500);
   }
 
   // Redirect to the published post
   if (result.document) {
-    res.redirect(`/posts/${auth.user.did}/${result.document.rkey}?message=Canvas published successfully to ATProto`);
+    return c.redirect(`/posts/${auth.user.did}/${result.document.rkey}?message=Canvas published successfully to ATProto`);
   } else {
-    res.redirect(`/canvases?message=Canvas published successfully`);
+    return c.redirect(`/canvases?message=Canvas published successfully`);
   }
 });
 
-export default router;
+export default canvases;

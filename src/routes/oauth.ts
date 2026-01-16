@@ -1,4 +1,5 @@
-import { Router, Request, Response } from 'express';
+import { Hono } from 'hono';
+import { setCookie } from 'hono/cookie';
 import {
   getClientMetadataJson,
   initiateOAuth,
@@ -8,59 +9,56 @@ import {
 import { indexUserPDS } from '../services/indexer.js';
 import { loginPage } from '../views/pages.js';
 import { authLimiter } from '../middleware/rateLimit.js';
-import * as db from '../database/index.js';
 
-const router = Router();
+const oauth = new Hono();
 
 const isProduction = process.env.NODE_ENV === 'production';
 
 // Serve OAuth client metadata (required for ATProto OAuth)
-router.get('/client-metadata.json', (_req: Request, res: Response) => {
+oauth.get('/client-metadata.json', (c) => {
   if (!isOAuthConfigured()) {
-    res.status(404).json({ error: 'OAuth not configured' });
-    return;
+    return c.json({ error: 'OAuth not configured' }, 404);
   }
 
-  res.setHeader('Content-Type', 'application/json');
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.json(getClientMetadataJson());
+  c.header('Content-Type', 'application/json');
+  c.header('Access-Control-Allow-Origin', '*');
+  return c.json(getClientMetadataJson());
 });
 
 // Initiate OAuth flow
-router.post('/authorize', authLimiter, async (req: Request, res: Response) => {
+oauth.post('/authorize', authLimiter, async (c) => {
   if (!isOAuthConfigured()) {
-    res.send(loginPage('OAuth is not configured. Please use app password login.'));
-    return;
+    return c.html(loginPage('OAuth is not configured. Please use app password login.'));
   }
 
-  const { handle } = req.body;
+  const body = await c.req.parseBody();
+  const handle = body.handle as string | undefined;
 
   if (!handle) {
-    res.send(loginPage('Please provide your handle'));
-    return;
+    return c.html(loginPage('Please provide your handle'));
   }
 
   try {
     const authUrl = await initiateOAuth(handle);
-    res.redirect(authUrl);
+    return c.redirect(authUrl);
   } catch (error) {
     console.error('OAuth authorize error:', error);
     const message = error instanceof Error ? error.message : 'Failed to start OAuth flow';
-    res.send(loginPage(`OAuth error: ${message}`));
+    return c.html(loginPage(`OAuth error: ${message}`));
   }
 });
 
 // OAuth callback handler
-router.get('/callback', async (req: Request, res: Response) => {
+oauth.get('/callback', async (c) => {
   if (!isOAuthConfigured()) {
-    res.status(404).send('OAuth not configured');
-    return;
+    return c.text('OAuth not configured', 404);
   }
 
   try {
     // Get query parameters
     const params = new URLSearchParams();
-    for (const [key, value] of Object.entries(req.query)) {
+    const query = c.req.query();
+    for (const [key, value] of Object.entries(query)) {
       if (typeof value === 'string') {
         params.set(key, value);
       }
@@ -71,26 +69,24 @@ router.get('/callback', async (req: Request, res: Response) => {
       const error = params.get('error');
       const errorDescription = params.get('error_description') || 'Unknown error';
       console.error('OAuth callback error:', error, errorDescription);
-      res.send(loginPage(`OAuth error: ${errorDescription}`));
-      return;
+      return c.html(loginPage(`OAuth error: ${errorDescription}`));
     }
 
     const result = await handleOAuthCallback(params);
 
     if (!result.success || !result.user || !result.session) {
-      res.send(loginPage(result.error || 'OAuth authentication failed'));
-      return;
+      return c.html(loginPage(result.error || 'OAuth authentication failed'));
     }
 
     // Check if this is a new user (needs indexing)
     const isNewUser = !result.user.last_indexed_at;
 
     // Set session cookie with security flags
-    res.cookie('session', result.session.session_token, {
+    setCookie(c, 'session', result.session.session_token, {
       httpOnly: true,
       secure: isProduction,
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60, // 7 days in seconds
+      sameSite: 'Lax',
     });
 
     // If new user, index their PDS
@@ -104,12 +100,12 @@ router.get('/callback', async (req: Request, res: Response) => {
       }
     }
 
-    res.redirect('/profile');
+    return c.redirect('/profile');
   } catch (error) {
     console.error('OAuth callback error:', error);
     const message = error instanceof Error ? error.message : 'OAuth callback failed';
-    res.send(loginPage(`OAuth error: ${message}`));
+    return c.html(loginPage(`OAuth error: ${message}`));
   }
 });
 
-export default router;
+export default oauth;
