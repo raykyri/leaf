@@ -4,7 +4,7 @@ import { getCookie } from 'hono/cookie';
 import * as db from '../database/index.ts';
 import { getSessionUser, getAuthenticatedAgent } from '../services/auth.ts';
 import { indexUserPDS } from '../services/indexer.ts';
-import { createPost, deletePost } from '../services/posts.ts';
+import { createPost, updatePost, deletePost } from '../services/posts.ts';
 import { getCsrfToken } from '../middleware/csrf.ts';
 import { createPostLimiter } from '../middleware/rateLimit.ts';
 import {
@@ -13,6 +13,7 @@ import {
   userPostsPage,
   profilePage,
   createPostPage,
+  editPostPage,
   editProfilePage,
   notFoundPage,
   errorPage
@@ -252,6 +253,96 @@ posts.post('/create', createPostLimiter, async (c) => {
   } catch (error) {
     console.error('Error creating post:', error);
     return c.html(createPostPage(auth.user, csrfToken, 'An error occurred while creating your post'));
+  }
+});
+
+// Edit post form
+posts.get('/posts/:did/:rkey/edit', (c) => {
+  const auth = getCurrentUser(c);
+  if (!auth) {
+    return c.redirect('/');
+  }
+
+  const did = c.req.param('did');
+  const rkey = c.req.param('rkey');
+  const csrfToken = getCsrfToken(getCookie(c, 'session'));
+
+  // Validate input parameters
+  if (!isValidDid(did) || !isValidRkey(rkey)) {
+    return c.html(errorPage({ handle: auth.user.handle, csrfToken }, 'Invalid post identifier'), 400);
+  }
+
+  // Verify the user owns this post
+  if (auth.user.did !== did) {
+    return c.html(errorPage({ handle: auth.user.handle, csrfToken }, 'You can only edit your own posts'), 403);
+  }
+
+  // Get the post
+  const document = db.getDocumentByDidAndRkey(did, rkey);
+  if (!document) {
+    return c.html(notFoundPage({ handle: auth.user.handle, csrfToken }), 404);
+  }
+
+  return c.html(editPostPage(document, { handle: auth.user.handle, csrfToken }));
+});
+
+// Handle post update
+posts.post('/posts/:did/:rkey/edit', async (c) => {
+  const auth = getCurrentUser(c);
+  if (!auth) {
+    return c.redirect('/');
+  }
+
+  const did = c.req.param('did');
+  const rkey = c.req.param('rkey');
+  const csrfToken = getCsrfToken(getCookie(c, 'session'));
+
+  // Validate input parameters
+  if (!isValidDid(did) || !isValidRkey(rkey)) {
+    return c.redirect('/profile?message=Invalid post identifier');
+  }
+
+  // Verify the user owns this post
+  if (auth.user.did !== did) {
+    return c.redirect('/profile?message=You can only edit your own posts');
+  }
+
+  // Get the existing post
+  const document = db.getDocumentByDidAndRkey(did, rkey);
+  if (!document) {
+    return c.redirect('/profile?message=Post not found');
+  }
+
+  const body = await c.req.parseBody();
+  const title = body.title as string | undefined;
+  const description = body.description as string | undefined;
+  const content = body.content as string | undefined;
+
+  if (!title || !content) {
+    return c.html(editPostPage(document, { handle: auth.user.handle, csrfToken }, 'Title and content are required'));
+  }
+
+  try {
+    const agent = await getAuthenticatedAgent(auth.session, auth.user);
+    if (!agent) {
+      return c.html(editPostPage(document, { handle: auth.user.handle, csrfToken }, 'Failed to connect to your PDS. Please log in again.'));
+    }
+
+    const result = await updatePost(agent, auth.user, rkey, {
+      title,
+      content,
+      description: description || undefined
+    });
+
+    if (!result.success) {
+      return c.html(editPostPage(document, { handle: auth.user.handle, csrfToken }, result.error || 'Failed to update post'));
+    }
+
+    // Redirect to the updated post
+    return c.redirect(`/posts/${encodeURIComponent(auth.user.did)}/${encodeURIComponent(rkey)}`);
+  } catch (error) {
+    console.error('Error updating post:', error);
+    return c.html(editPostPage(document, { handle: auth.user.handle, csrfToken }, 'An error occurred while updating your post'));
   }
 });
 

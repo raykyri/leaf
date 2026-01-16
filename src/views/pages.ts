@@ -104,6 +104,10 @@ export function postPage(
 ): string {
   const renderedContent = renderDocumentContent(post.content);
 
+  const editButton = isOwner && user?.csrfToken ? `
+    <a href="/posts/${encodeURIComponent(post.author)}/${encodeURIComponent(post.rkey)}/edit" class="secondary-btn" style="text-decoration: none;">Edit Post</a>
+  ` : '';
+
   const deleteButton = isOwner && user?.csrfToken ? `
     <form action="/posts/${encodeURIComponent(post.author)}/${encodeURIComponent(post.rkey)}/delete" method="POST" class="inline-form" onsubmit="return confirm('Are you sure you want to delete this post? This cannot be undone.');">
       <input type="hidden" name="_csrf" value="${escapeHtml(user.csrfToken)}">
@@ -128,6 +132,7 @@ export function postPage(
     <div class="post-actions">
       <a href="/posts">&larr; Back to all posts</a>
       <a href="https://leaflet.pub/p/${encodeURIComponent(post.author)}/${encodeURIComponent(post.rkey)}" target="_blank" rel="noopener" class="external-link">View on leaflet.pub</a>
+      ${editButton}
       ${deleteButton}
     </div>
   `;
@@ -299,6 +304,64 @@ Separate paragraphs with blank lines."></textarea>
   `;
 
   return layout('Create Post', content, { handle: user.handle, csrfToken });
+}
+
+export function editPostPage(
+  post: Document,
+  user: { handle: string; csrfToken?: string },
+  error?: string
+): string {
+  // Extract plain text content from the document pages
+  let content = '';
+  try {
+    const pages = JSON.parse(post.content);
+    if (Array.isArray(pages)) {
+      const paragraphs: string[] = [];
+      for (const page of pages) {
+        if (page.blocks && Array.isArray(page.blocks)) {
+          for (const blockWrapper of page.blocks) {
+            const block = blockWrapper.block || blockWrapper;
+            if (block.plaintext) {
+              paragraphs.push(block.plaintext);
+            }
+          }
+        }
+      }
+      content = paragraphs.join('\n\n');
+    }
+  } catch {
+    content = '';
+  }
+
+  const formContent = `
+    <div class="card">
+      <h2>Edit Post</h2>
+      ${error ? `<div class="error">${escapeHtml(error)}</div>` : ''}
+      <form action="/posts/${encodeURIComponent(post.author)}/${encodeURIComponent(post.rkey)}/edit" method="POST">
+        <input type="hidden" name="_csrf" value="${escapeHtml(user.csrfToken || '')}">
+        <div>
+          <label for="title">Title</label>
+          <input type="text" id="title" name="title" required maxlength="280" value="${escapeHtml(post.title)}">
+        </div>
+        <div>
+          <label for="description">Description (optional)</label>
+          <input type="text" id="description" name="description" maxlength="500" placeholder="A brief summary of your post" value="${escapeHtml(post.description || '')}">
+        </div>
+        <div>
+          <label for="content">Content</label>
+          <textarea id="content" name="content" required placeholder="Write your post content here...
+
+Separate paragraphs with blank lines.">${escapeHtml(content)}</textarea>
+        </div>
+        <div style="display: flex; gap: 1rem; align-items: center;">
+          <button type="submit">Update Post</button>
+          <a href="/posts/${encodeURIComponent(post.author)}/${encodeURIComponent(post.rkey)}" style="color: var(--text-muted);">Cancel</a>
+        </div>
+      </form>
+    </div>
+  `;
+
+  return layout('Edit Post', formContent, user);
 }
 
 export function notFoundPage(user?: { handle: string; csrfToken?: string }): string {
