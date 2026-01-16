@@ -44,7 +44,7 @@ export function Layout({ children, fullWidth = false }: LayoutProps) {
               )}
               <ThemeToggle />
               {user ? (
-                <DropdownMenu.Root>
+                <DropdownMenu.Root modal={false}>
                   <DropdownMenu.Trigger asChild>
                     <button className={styles.userBtn}>
                       {user.handle}
