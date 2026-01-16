@@ -277,6 +277,88 @@ npm run test:coverage # Run tests with coverage report
 | `TEST_HANDLE` | Test account handle | (optional) |
 | `TEST_APP_PASSWORD` | Test account app password | (optional) |
 
+## Deployment
+
+### Railway
+
+Railway provides a simple way to deploy this application with persistent storage for SQLite.
+
+#### Quick Deploy
+
+1. **Create a Railway account** at [railway.app](https://railway.app)
+
+2. **Create a new project** from your GitHub repository or use the CLI:
+   ```bash
+   npm install -g @railway/cli
+   railway login
+   railway init
+   ```
+
+3. **Add a volume** for SQLite persistence:
+   - Go to your service in the Railway dashboard
+   - Click "Add Volume"
+   - Set mount path to `/app/data`
+   - This ensures your database persists across deployments
+
+4. **Configure environment variables** in Railway dashboard:
+   ```
+   SESSION_SECRET=<generate-a-secure-random-string-min-32-chars>
+   PUBLIC_URL=https://your-app.up.railway.app
+   DATABASE_PATH=/app/data/app.db
+   ```
+
+   Generate a session secret:
+   ```bash
+   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+   ```
+
+5. **Deploy**:
+   ```bash
+   railway up
+   ```
+
+   Or push to your connected GitHub repo for automatic deployment.
+
+#### Environment Variables for Railway
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `SESSION_SECRET` | Yes | Min 32 chars, used for session encryption |
+| `PUBLIC_URL` | Yes | Your Railway app URL (enables OAuth) |
+| `DATABASE_PATH` | No | Defaults to `/app/data/app.db` |
+| `PORT` | No | Railway sets this automatically |
+
+#### Custom Domain
+
+1. Go to your service Settings in Railway
+2. Click "Generate Domain" or add a custom domain
+3. Update `PUBLIC_URL` to match your domain
+
+### Docker
+
+You can also deploy using Docker directly:
+
+```bash
+# Build the image
+docker build -t leaf .
+
+# Run with a volume for data persistence
+docker run -d \
+  --name leaf \
+  -p 3000:3000 \
+  -v leaf-data:/app/data \
+  -e SESSION_SECRET="your-secret-min-32-chars" \
+  -e PUBLIC_URL="https://yourdomain.com" \
+  leaf
+```
+
+### Other Platforms
+
+The included `Dockerfile` works with any container platform:
+- **Fly.io**: Add a `fly.toml` and create a volume for `/app/data`
+- **Render**: Create a new Web Service from Docker, add a disk mounted at `/app/data`
+- **DigitalOcean App Platform**: Deploy from Dockerfile with a managed database or persistent volume
+
 ## License
 
 [AGPL-3.0](https://www.gnu.org/licenses/agpl-3.0.en.html)
