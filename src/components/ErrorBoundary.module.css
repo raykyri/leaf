@@ -1,0 +1,43 @@
+.container {
+  text-align: center;
+  padding: 4rem 2rem;
+  max-width: 500px;
+  margin: 0 auto;
+}
+
+.title {
+  margin-bottom: 1rem;
+  color: var(--text-primary);
+}
+
+.message {
+  margin-bottom: 1.5rem;
+  color: var(--text-muted);
+}
+
+.details {
+  text-align: left;
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  background-color: var(--bg-secondary);
+  border-radius: 8px;
+  font-size: 0.875rem;
+}
+
+.summary {
+  cursor: pointer;
+  color: var(--text-muted);
+}
+
+.errorMessage {
+  margin-top: 0.5rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text-primary);
+}
+
+.actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+}

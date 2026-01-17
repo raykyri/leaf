@@ -1,5 +1,6 @@
 import { Routes, Route } from 'react-router-dom';
 import { Layout } from './components/Layout';
+import { LoadingSpinner } from './components/ui';
 import { useAuth } from './hooks/useAuth';
 
 // Pages
@@ -16,21 +17,15 @@ import { CanvasEditorPage } from './pages/CanvasEditorPage';
 import { CreateCanvasPage } from './pages/CreateCanvasPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 
-function LoadingSpinner() {
-  return (
-    <Layout>
-      <div style={{ textAlign: 'center', padding: '4rem 2rem', color: 'var(--text-muted)' }}>
-        Loading...
-      </div>
-    </Layout>
-  );
-}
-
 export default function App() {
   const { isLoading } = useAuth();
 
   if (isLoading) {
-    return <LoadingSpinner />;
+    return (
+      <Layout>
+        <LoadingSpinner />
+      </Layout>
+    );
   }
 
   return (
