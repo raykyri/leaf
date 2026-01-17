@@ -74,7 +74,7 @@ api.post('/auth/login', async (c) => {
       return c.json({ error: result.error || 'Authentication failed' }, 401);
     }
 
-    setCookie(c, 'session', result.session.token, {
+    setCookie(c, 'session', result.session.session_token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'Strict',
