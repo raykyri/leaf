@@ -38,6 +38,9 @@ app.use('*', securityHeaders);
 app.use('*', generalLimiter);
 app.use('*', csrfProtection);
 
+// Serve static files from server/public (for server-rendered pages like canvas editor)
+app.use('/js/*', serveStatic({ root: './server/public' }));
+
 // Health check endpoint
 app.get('/healthz', (c) => {
   return c.text('ok', 200);
