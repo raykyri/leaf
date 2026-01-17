@@ -2,9 +2,16 @@ import type { Context, Next, MiddlewareHandler } from 'hono';
 import { getCookie } from 'hono/cookie';
 import crypto from 'crypto';
 
-// Get the secret key for HMAC from environment or generate a default
-// In production, SESSION_SECRET should always be set
-const CSRF_SECRET = process.env.SESSION_SECRET || 'default-csrf-secret-change-me';
+// Get the secret key for HMAC from environment
+// SESSION_SECRET is required for secure CSRF token generation
+const CSRF_SECRET = process.env.SESSION_SECRET;
+
+if (!CSRF_SECRET || CSRF_SECRET.length < 32) {
+  throw new Error(
+    'SESSION_SECRET environment variable is required and must be at least 32 characters. ' +
+    'Generate one with: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"'
+  );
+}
 
 // Token validity period in milliseconds (1 hour)
 const TOKEN_VALIDITY_MS = 3600000;
