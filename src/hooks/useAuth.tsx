@@ -61,12 +61,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = async () => {
-    await fetch('/api/auth/logout', {
-      method: 'POST',
-      headers: csrfToken ? { 'X-CSRF-Token': csrfToken } : {},
-    });
-    setUser(null);
-    setCsrfToken(null);
+    try {
+      const response = await fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: csrfToken ? { 'X-CSRF-Token': csrfToken } : {},
+      });
+      if (!response.ok) {
+        console.error('Logout request failed:', response.status);
+      }
+    } catch (error) {
+      // Log but don't throw - we still want to clear local state
+      console.error('Logout error:', error);
+    } finally {
+      // Always clear local state, even if the API call failed
+      setUser(null);
+      setCsrfToken(null);
+    }
   };
 
   return (
