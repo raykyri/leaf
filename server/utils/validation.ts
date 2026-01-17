@@ -199,7 +199,10 @@ export function is<T>(value: unknown, schema: z.ZodType<T>): value is T {
 // ============ Validation Patterns ============
 
 // DID format validation
-export const didPattern = /^did:(plc|web):[a-zA-Z0-9._-]+$/;
+// did:plc identifiers are base32-encoded (lowercase a-z, digits 2-7)
+// did:web identifiers are domain names (lowercase, digits, dots, hyphens)
+// Neither should contain colons after the method prefix
+export const didPattern = /^did:plc:[a-z2-7]{24}$|^did:web:[a-z0-9.-]+$/;
 export function isValidDid(did: unknown): did is string {
   return typeof did === 'string' && didPattern.test(did) && did.length <= 2048;
 }
