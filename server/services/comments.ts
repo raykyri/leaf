@@ -1,14 +1,8 @@
 import { AtpAgent } from '@atproto/api';
 import type { LeafletComment, CommentReplyRef, Facet } from '../types/leaflet.ts';
+import { LEAFLET_COLLECTIONS, generateTid } from './atproto-sync.ts';
 
-const LEAFLET_COMMENT_COLLECTION = 'pub.leaflet.comment';
-
-// Generate a TID (Timestamp ID) for record keys
-function generateTid(): string {
-  const timestamp = Date.now();
-  const random = Math.random().toString(36).substring(2, 6);
-  return timestamp.toString(36) + random;
-}
+const LEAFLET_COMMENT_COLLECTION = LEAFLET_COLLECTIONS.COMMENT;
 
 export interface CreateCommentInput {
   subject: string; // AT-URI of the document being commented on

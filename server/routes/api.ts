@@ -1,7 +1,6 @@
 import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
-import crypto from 'crypto';
 import * as db from '../database/index.ts';
 import { getSessionUser, getAuthenticatedAgent, authenticateUser } from '../services/auth.ts';
 import { indexUserPDS } from '../services/indexer.ts';
@@ -21,6 +20,7 @@ import {
   isValidRkey,
   isValidCanvasId,
   validateBody,
+  generateCanvasId,
   LoginRequestSchema,
   CreatePostRequestSchema,
   UpdatePostRequestSchema,
@@ -28,20 +28,15 @@ import {
   CreateCanvasRequestSchema,
   UpdateCanvasRequestSchema
 } from '../utils/validation.ts';
+import { ITEMS_PER_PAGE, SESSION_EXPIRY_SECONDS } from '../utils/constants.ts';
 
 const api = new Hono();
-const ITEMS_PER_PAGE = 20;
 
 // Get current user from session
 function getCurrentUser(c: Context): { user: db.User; session: db.Session } | null {
   const sessionToken = getCookie(c, 'session');
   if (!sessionToken) return null;
   return getSessionUser(sessionToken);
-}
-
-// Generate a unique canvas ID
-function generateCanvasId(): string {
-  return crypto.randomBytes(8).toString('hex');
 }
 
 // ============ Auth API ============
@@ -84,7 +79,7 @@ api.post('/auth/login', async (c) => {
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'Strict',
       path: '/',
-      maxAge: 60 * 60 * 24 * 7, // 1 week
+      maxAge: SESSION_EXPIRY_SECONDS,
     });
 
     return c.json({

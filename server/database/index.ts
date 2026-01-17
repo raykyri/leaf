@@ -2,6 +2,7 @@ import Database from 'better-sqlite3';
 import { initializeDatabase } from './schema.ts';
 import path from 'path';
 import fs from 'fs';
+import { SESSION_EXPIRY_MS, DEFAULT_CANVAS_WIDTH, DEFAULT_CANVAS_HEIGHT } from '../utils/constants.ts';
 
 let db: Database.Database | null = null;
 
@@ -109,7 +110,7 @@ export interface Session {
 
 export function createSession(userId: number, sessionToken: string, accessJwt: string, refreshJwt: string): Session {
   const db = getDatabase();
-  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(); // 7 days
+  const expiresAt = new Date(Date.now() + SESSION_EXPIRY_MS).toISOString();
   const stmt = db.prepare(`
     INSERT INTO sessions (user_id, session_token, access_jwt, refresh_jwt, expires_at)
     VALUES (?, ?, ?, ?, ?)
@@ -376,7 +377,7 @@ export interface Canvas {
   updated_at: string;
 }
 
-export function createCanvas(id: string, userId: number, title: string, width = 1200, height = 800): Canvas {
+export function createCanvas(id: string, userId: number, title: string, width = DEFAULT_CANVAS_WIDTH, height = DEFAULT_CANVAS_HEIGHT): Canvas {
   const db = getDatabase();
   const stmt = db.prepare(`
     INSERT INTO canvases (id, user_id, title, blocks, width, height)
