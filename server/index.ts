@@ -7,6 +7,7 @@ import { getDatabase, closeDatabase, deleteExpiredSessions, cleanupOldOAuthState
 import { startJetstreamListener, stopJetstreamListener } from './services/jetstream.ts';
 import { csrfProtection, getCsrfToken } from './middleware/csrf.ts';
 import { generalLimiter } from './middleware/rateLimit.ts';
+import { securityHeaders } from './middleware/securityHeaders.ts';
 import authRoutes from './routes/auth.ts';
 import oauthRoutes from './routes/oauth.ts';
 import apiRoutes from './routes/api.ts';
@@ -33,6 +34,7 @@ const PORT = parseInt(process.env.PORT || '3333', 10);
 const isProduction = process.env.NODE_ENV === 'production';
 
 // Middleware
+app.use('*', securityHeaders);
 app.use('*', generalLimiter);
 app.use('*', csrfProtection);
 
