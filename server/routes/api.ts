@@ -73,23 +73,23 @@ api.post('/auth/login', async (c) => {
 
   try {
     const result = await authenticateUser(handle, password);
-    if (!result.success || !result.session) {
+    if (!result.success || !result.session || !result.user) {
       return c.json({ error: result.error || 'Authentication failed' }, 401);
     }
 
     setCookie(c, 'session', result.session.token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'Lax',
+      sameSite: 'Strict',
       path: '/',
       maxAge: 60 * 60 * 24 * 7, // 1 week
     });
 
     return c.json({
       user: {
-        did: result.user!.did,
-        handle: result.user!.handle,
-        displayName: result.user!.display_name,
+        did: result.user.did,
+        handle: result.user.handle,
+        displayName: result.user.display_name,
       },
     });
   } catch (error) {
@@ -272,13 +272,13 @@ api.post('/posts', createPostLimiter, async (c) => {
       description: description || undefined,
     });
 
-    if (!result.success) {
+    if (!result.success || !result.document) {
       return c.json({ error: result.error || 'Failed to create post' }, 500);
     }
 
     return c.json({
       author: auth.user.did,
-      rkey: result.document!.rkey,
+      rkey: result.document.rkey,
     });
   } catch (error) {
     console.error('Error creating post:', error);
@@ -636,7 +636,10 @@ api.put('/canvases/:id', async (c) => {
   }
 
   db.updateCanvas(canvasId, updates);
-  const updatedCanvas = db.getCanvasById(canvasId)!;
+  const updatedCanvas = db.getCanvasById(canvasId);
+  if (!updatedCanvas) {
+    return c.json({ error: 'Failed to retrieve updated canvas' }, 500);
+  }
 
   // Sync to ATProto
   let syncError: string | undefined;
@@ -654,10 +657,17 @@ api.put('/canvases/:id', async (c) => {
     syncError = error instanceof Error ? error.message : 'ATProto sync failed';
   }
 
+  let parsedBlocks: unknown[] = [];
+  try {
+    parsedBlocks = JSON.parse(updatedCanvas.blocks);
+  } catch {
+    // Return empty blocks if parsing fails
+  }
+
   return c.json({
     id: updatedCanvas.id,
     title: updatedCanvas.title,
-    blocks: JSON.parse(updatedCanvas.blocks),
+    blocks: parsedBlocks,
     width: updatedCanvas.width,
     height: updatedCanvas.height,
     updated_at: updatedCanvas.updated_at,

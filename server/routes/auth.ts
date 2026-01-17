@@ -48,7 +48,7 @@ auth.post('/login', authLimiter, async (c) => {
     httpOnly: true,
     secure: isProduction,
     maxAge: 7 * 24 * 60 * 60, // 7 days in seconds
-    sameSite: 'Lax'
+    sameSite: 'Strict'
   });
 
   // If new user, index their PDS
@@ -76,7 +76,7 @@ auth.post('/logout', async (c) => {
   deleteCookie(c, 'session', {
     httpOnly: true,
     secure: isProduction,
-    sameSite: 'Lax'
+    sameSite: 'Strict'
   });
   return c.redirect('/');
 });

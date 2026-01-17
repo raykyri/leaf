@@ -236,7 +236,7 @@ Tests will be skipped if credentials are not provided.
 
 - **CSRF Protection**: All POST requests require valid CSRF tokens
 - **XSS Prevention**: All user content is HTML-escaped
-- **Secure Cookies**: HTTP-only, SameSite=Lax session cookies
+- **Secure Cookies**: HTTP-only, SameSite=Strict session cookies
 - **Input Validation**: DID and rkey format validation
 - **URL Validation**: Only http/https URLs allowed in links
 
