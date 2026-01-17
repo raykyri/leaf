@@ -71,11 +71,13 @@ export function validateCsrfToken(sessionToken: string, token: string): boolean 
 }
 
 /**
- * Middleware to check CSRF token on POST requests
+ * Middleware to check CSRF token on state-changing requests
+ * Protects POST, PUT, PATCH, and DELETE requests
  */
 export const csrfProtection: MiddlewareHandler = async (c: Context, next: Next) => {
-  // Skip CSRF for non-POST requests
-  if (c.req.method !== 'POST') {
+  // Only check state-changing methods
+  const method = c.req.method;
+  if (method !== 'POST' && method !== 'PUT' && method !== 'PATCH' && method !== 'DELETE') {
     return next();
   }
 
@@ -83,7 +85,7 @@ export const csrfProtection: MiddlewareHandler = async (c: Context, next: Next) 
   const path = new URL(c.req.url).pathname;
 
   // Login/OAuth doesn't require CSRF (no session yet, or starting new auth flow)
-  if (path === '/auth/login' || path === '/oauth/authorize') {
+  if (path === '/auth/login' || path === '/api/auth/login' || path === '/oauth/authorize') {
     return next();
   }
 
@@ -92,7 +94,7 @@ export const csrfProtection: MiddlewareHandler = async (c: Context, next: Next) 
     // Try to get CSRF token from body or header
     let csrfToken: string | undefined;
 
-    // Check header first
+    // Check header first (preferred for API requests)
     csrfToken = c.req.header('x-csrf-token');
 
     // If not in header, check body
@@ -103,7 +105,9 @@ export const csrfProtection: MiddlewareHandler = async (c: Context, next: Next) 
           const body = await c.req.parseBody();
           csrfToken = body._csrf as string | undefined;
         } else if (contentType.includes('application/json')) {
-          const body = await c.req.json();
+          // Clone the request to read the body without consuming it
+          const clonedReq = c.req.raw.clone();
+          const body = await clonedReq.json();
           csrfToken = body._csrf;
         }
       } catch {
@@ -112,6 +116,10 @@ export const csrfProtection: MiddlewareHandler = async (c: Context, next: Next) 
     }
 
     if (!csrfToken || typeof csrfToken !== 'string' || !validateCsrfToken(sessionToken, csrfToken)) {
+      // Return JSON error for API routes, text for others
+      if (path.startsWith('/api/')) {
+        return c.json({ error: 'Invalid CSRF token' }, 403);
+      }
       return c.text('Invalid CSRF token', 403);
     }
   }
