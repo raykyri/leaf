@@ -5,6 +5,7 @@ import type { Document, User, Canvas } from '../database/index.ts';
 
 export function loginPage(error?: string): string {
   const oauthEnabled = !!process.env.PUBLIC_URL;
+  const isOAuthError = error?.startsWith('OAuth error:');
 
   const oauthSection = oauthEnabled ? `
     <div class="card">
@@ -12,7 +13,7 @@ export function loginPage(error?: string): string {
       <p style="margin-bottom: 1rem; color: var(--text-muted);">
         Sign in securely using your Bluesky account. You'll be redirected to authorize this app.
       </p>
-      ${error ? `<div class="error">${escapeHtml(error)}</div>` : ''}
+      ${isOAuthError ? `<div class="error">${escapeHtml(error)}</div>` : ''}
       <form action="/oauth/authorize" method="POST">
         <div>
           <label for="oauth-handle">Handle</label>
@@ -33,7 +34,7 @@ export function loginPage(error?: string): string {
         Use your Bluesky handle and an app password to sign in.
         ${!oauthEnabled ? 'If you don\'t have an account yet, signing in will create one.' : ''}
       </p>
-      ${!oauthEnabled && error ? `<div class="error">${escapeHtml(error)}</div>` : ''}
+      ${error && !isOAuthError ? `<div class="error">${escapeHtml(error)}</div>` : ''}
       <form action="/auth/login" method="POST">
         <div>
           <label for="handle">Handle</label>
