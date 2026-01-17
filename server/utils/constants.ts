@@ -22,5 +22,5 @@ export const BSKY_SOCIAL_URL = 'https://bsky.social';
 export const BSKY_APP_PROFILE_URL = 'https://bsky.app/profile/';
 
 // Server ports (defaults)
-export const DEFAULT_SERVER_PORT = 3333;
-export const DEV_CLIENT_PORT = 3334;
+export const DEFAULT_SERVER_PORT = 3334;
+export const DEV_CLIENT_PORT = 3333;

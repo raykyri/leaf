@@ -35,7 +35,7 @@ cp .env.example .env
 Edit `.env` with your settings:
 
 ```env
-PORT=3333
+PORT=3334
 DATABASE_PATH=./data/app.db
 SESSION_SECRET=your-random-secret-key-change-this
 JETSTREAM_URL=wss://jetstream2.us-east.bsky.network/subscribe
@@ -55,7 +55,7 @@ ATProto OAuth provides a secure way for users to authenticate without sharing th
 1. **Set the PUBLIC_URL**: Set this to your application's URL.
    ```env
    # For local development
-   PUBLIC_URL=http://localhost:3333
+   PUBLIC_URL=http://localhost:3334
 
    # For production
    PUBLIC_URL=https://yourdomain.com
@@ -68,15 +68,15 @@ ATProto OAuth provides a secure way for users to authenticate without sharing th
 #### Local Development with OAuth
 
 OAuth works in local development using loopback addresses. You can use:
-- `http://localhost:PORT` (e.g., `http://localhost:3333`)
-- `http://127.0.0.1:PORT` (e.g., `http://127.0.0.1:3333`)
+- `http://localhost:PORT` (e.g., `http://localhost:3334`)
+- `http://127.0.0.1:PORT` (e.g., `http://127.0.0.1:3334`)
 
 The app automatically configures the OAuth client metadata according to the ATProto spec for loopback clients.
 
 To test OAuth locally:
 ```bash
 # Set PUBLIC_URL in your .env (either localhost or 127.0.0.1 works)
-echo "PUBLIC_URL=http://localhost:3333" >> .env
+echo "PUBLIC_URL=http://localhost:3334" >> .env
 
 # Start the dev server
 npm run dev
@@ -104,7 +104,7 @@ npm run build
 npm start
 ```
 
-The application will be available at `http://localhost:3333`.
+The application will be available at `http://localhost:3334`.
 
 ## Usage
 
@@ -269,7 +269,7 @@ npm run test:coverage # Run tests with coverage report
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `PORT` | HTTP server port | `3333` |
+| `PORT` | HTTP server port | `3334` |
 | `DATABASE_PATH` | SQLite database path | `./data/app.db` |
 | `SESSION_SECRET` | Secret for session tokens | (required) |
 | `PUBLIC_URL` | Public URL for OAuth (e.g., `https://yourdomain.com`) | (optional, enables OAuth) |

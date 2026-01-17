@@ -30,7 +30,7 @@ if (process.env.SESSION_SECRET.length < 32) {
 }
 
 const app = new Hono();
-const PORT = parseInt(process.env.PORT || '3333', 10);
+const PORT = parseInt(process.env.PORT || '3334', 10);
 const isProduction = process.env.NODE_ENV === 'production';
 
 // Middleware
@@ -101,17 +101,17 @@ if (isProduction) {
   });
 } else {
   // Development: only API routes are handled, Vite dev server handles frontend
-  // Redirect root to Vite dev server (running on port 3334)
+  // Redirect root to Vite dev server (running on port 3333)
   app.get('/', (c) => {
     const sessionToken = getCookie(c, 'session');
     if (sessionToken) {
       const auth = getSessionUser(sessionToken);
       if (auth) {
         // User is logged in, they should use the React app
-        return c.text('Please access the app at http://localhost:3334', 200);
+        return c.text('Please access the app at http://localhost:3333', 200);
       }
     }
-    return c.text('Please access the app at http://localhost:3334', 200);
+    return c.text('Please access the app at http://localhost:3333', 200);
   });
 }
 
@@ -152,7 +152,7 @@ const server = serve({
   console.log(`Server running at http://localhost:${PORT}`);
 
   if (!isProduction) {
-    console.log(`Frontend dev server at http://localhost:3334`);
+    console.log(`Frontend dev server at http://localhost:3333`);
   }
 
   // Warn if OAuth is not configured
