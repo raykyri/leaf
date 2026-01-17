@@ -28,11 +28,12 @@ export const securityHeaders: MiddlewareHandler = async (c, next) => {
   }
 
   // Content Security Policy
-  // Note: Inline scripts/styles are needed for the canvas editor in layout.ts
-  // Consider extracting those to external files to enable stricter CSP
+  // Note: Inline scripts for theme initialization still require 'unsafe-inline'
+  // The canvas editor has been extracted to /js/canvas-editor.js
+  // TODO: Consider nonce-based CSP or extracting theme scripts for stricter policy
   const csp = [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline'", // unsafe-inline needed for canvas editor
+    "script-src 'self' 'unsafe-inline'", // unsafe-inline needed for theme initialization
     "style-src 'self' 'unsafe-inline'",  // unsafe-inline needed for inline styles
     "img-src 'self' https: data: blob:",
     "font-src 'self'",
