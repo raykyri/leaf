@@ -37,6 +37,8 @@ export interface LeafletCanvas {
 export interface PublicationPreferences {
   showInDiscover?: boolean;
   showComments?: boolean;
+  showMentions?: boolean;
+  showPrevNext?: boolean;
 }
 
 export interface PublicationTheme {
@@ -52,8 +54,9 @@ export interface PublicationTheme {
 }
 
 export interface BackgroundImage {
-  image?: BlobRef;
-  // Additional background image properties as defined in official lexicon
+  image: BlobRef;
+  width?: number;
+  repeat?: boolean;
 }
 
 export type ColorValue = RGBAColor | RGBColor;
@@ -138,7 +141,7 @@ export interface TextBlock {
 export interface HeaderBlock {
   $type: 'pub.leaflet.blocks.header';
   plaintext: string;
-  level: 1 | 2 | 3 | 4 | 5 | 6;
+  level?: 1 | 2 | 3 | 4 | 5 | 6;
   facets?: Facet[];
 }
 
@@ -152,7 +155,12 @@ export interface ImageBlock {
   $type: 'pub.leaflet.blocks.image';
   image: BlobRef;
   alt?: string;
-  caption?: string;
+  aspectRatio: AspectRatio;
+}
+
+export interface AspectRatio {
+  width: number;
+  height: number;
 }
 
 export interface HorizontalRuleBlock {
@@ -173,6 +181,7 @@ export interface CodeBlock {
   $type: 'pub.leaflet.blocks.code';
   plaintext: string;
   language?: string;
+  syntaxHighlightingTheme?: string;
 }
 
 export interface IframeBlock {
@@ -183,15 +192,15 @@ export interface IframeBlock {
 
 export interface WebsiteBlock {
   $type: 'pub.leaflet.blocks.website';
-  url: string;
+  src: string;
   title?: string;
   description?: string;
-  image?: BlobRef;
+  previewImage?: BlobRef;
 }
 
 export interface BskyPostBlock {
   $type: 'pub.leaflet.blocks.bskyPost';
-  uri: string;
+  postRef: StrongRef;
 }
 
 export interface ButtonBlock {
@@ -276,7 +285,7 @@ export interface DidMentionFacet {
 // Official Leaflet facet type for AT-URI mentions
 export interface AtMentionFacet {
   $type: 'pub.leaflet.richtext.facet#atMention';
-  uri: string;
+  atURI: string;
 }
 
 export interface CodeFacet {

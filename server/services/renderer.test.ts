@@ -119,7 +119,8 @@ test('renderDocument › should escape HTML in code blocks', t => {
   }];
 
   const html = renderDocument(pages);
-  t.true(html.includes('&lt;div&gt;Not HTML&lt;/div&gt;'));
+  // Forward slashes are also escaped for XSS protection
+  t.true(html.includes('&lt;div&gt;Not HTML&lt;&#x2F;div&gt;'));
 });
 
 test('renderDocument › should render unordered lists', t => {
@@ -191,14 +192,14 @@ test('renderDocument › should render image placeholders', t => {
         $type: 'pub.leaflet.blocks.image',
         image: { $type: 'blob', ref: { $link: 'bafybeig...' }, mimeType: 'image/png', size: 1234 },
         alt: 'Test image',
-        caption: 'A test caption'
+        aspectRatio: { width: 800, height: 600 }
       }
     }]
   }];
 
   const html = renderDocument(pages);
   t.true(html.includes('[Image: Test image]'));
-  t.true(html.includes('<figcaption>A test caption</figcaption>'));
+  t.true(html.includes('data-aspect-ratio="800/600"'));
 });
 
 // Alignment handling tests
@@ -312,7 +313,8 @@ test('Facets › should apply link formatting with valid URLs', t => {
   }];
 
   const html = renderDocument(pages);
-  t.true(html.includes('<a href="https://example.com" target="_blank" rel="noopener noreferrer">here</a>'));
+  // URLs are escaped with forward slashes as &#x2F; for XSS protection
+  t.true(html.includes('<a href="https:&#x2F;&#x2F;example.com" target="_blank" rel="noopener noreferrer">here</a>'));
 });
 
 test('Facets › should reject invalid link URLs (javascript:)', t => {
@@ -460,13 +462,17 @@ test('Bluesky post embeds › should render valid bsky post links', t => {
     blocks: [{
       block: {
         $type: 'pub.leaflet.blocks.bskyPost',
-        uri: 'at://did:plc:abc123/app.bsky.feed.post/xyz789'
+        postRef: {
+          uri: 'at://did:plc:abc123/app.bsky.feed.post/xyz789',
+          cid: 'bafyreiabc123'
+        }
       }
     }]
   }];
 
   const html = renderDocument(pages);
-  t.true(html.includes('bsky.app/profile/did%3Aplc%3Aabc123/post/xyz789'));
+  // URLs are escaped with forward slashes as &#x2F; for XSS protection
+  t.true(html.includes('bsky.app&#x2F;profile&#x2F;did%3Aplc%3Aabc123&#x2F;post&#x2F;xyz789'));
 });
 
 test('Bluesky post embeds › should reject invalid DIDs in bsky post blocks', t => {
@@ -475,7 +481,10 @@ test('Bluesky post embeds › should reject invalid DIDs in bsky post blocks', t
     blocks: [{
       block: {
         $type: 'pub.leaflet.blocks.bskyPost',
-        uri: 'at://invalid-did/app.bsky.feed.post/xyz789'
+        postRef: {
+          uri: 'at://invalid-did/app.bsky.feed.post/xyz789',
+          cid: 'bafyreiabc123'
+        }
       }
     }]
   }];
@@ -491,7 +500,7 @@ test('Website blocks › should render website links', t => {
     blocks: [{
       block: {
         $type: 'pub.leaflet.blocks.website',
-        url: 'https://example.com',
+        src: 'https://example.com',
         title: 'Example Site',
         description: 'An example website'
       }
@@ -499,7 +508,8 @@ test('Website blocks › should render website links', t => {
   }];
 
   const html = renderDocument(pages);
-  t.true(html.includes('href="https://example.com"'));
+  // URLs are escaped with forward slashes as &#x2F; for XSS protection
+  t.true(html.includes('href="https:&#x2F;&#x2F;example.com"'));
   t.true(html.includes('Example Site'));
   t.true(html.includes('An example website'));
 });
@@ -510,7 +520,7 @@ test('Website blocks › should reject invalid URLs in website blocks', t => {
     blocks: [{
       block: {
         $type: 'pub.leaflet.blocks.website',
-        url: 'javascript:alert(1)'
+        src: 'javascript:alert(1)'
       }
     }]
   }];

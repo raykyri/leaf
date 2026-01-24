@@ -102,7 +102,7 @@ function applyFacets(text: string, facets?: Facet[]): string {
         // AT-URI mentions (links to AT Protocol resources)
         case 'pub.leaflet.richtext.facet#atMention':
           // AT-URIs are internal references, render as a data attribute link
-          wrapped = `<a href="#" data-at-uri="${escapeHtml(feature.uri)}" class="at-mention">${wrapped}</a>`;
+          wrapped = `<a href="#" data-at-uri="${escapeHtml(feature.atURI)}" class="at-mention">${wrapped}</a>`;
           break;
         // ID facet for linking to segments
         case 'pub.leaflet.richtext.facet#id':
@@ -167,10 +167,10 @@ function renderBlock(blockWithAlignment: BlockWithAlignment): string {
       return '<p><em>[Embedded content not displayed]</em></p>';
 
     case 'pub.leaflet.blocks.website':
-      return renderWebsiteBlock(block as { url: string; title?: string; description?: string });
+      return renderWebsiteBlock(block as { src: string; title?: string; description?: string });
 
     case 'pub.leaflet.blocks.bskyPost':
-      return renderBskyPostBlock(block as { uri: string });
+      return renderBskyPostBlock(block as { postRef: { uri: string; cid: string } });
 
     case 'pub.leaflet.blocks.button':
       return renderButtonBlock(block as ButtonBlock, alignStyle);
@@ -213,11 +213,11 @@ function renderImageBlock(block: ImageBlock, alignStyle: string): string {
   // Images are stored as blob references, we'd need the PDS URL to fetch them
   // For now, show a placeholder or skip
   const alt = block.alt ? escapeHtml(block.alt) : 'Image';
-  const caption = block.caption ? `<figcaption>${escapeHtml(block.caption)}</figcaption>` : '';
+  const aspectRatio = block.aspectRatio ? ` data-aspect-ratio="${block.aspectRatio.width}/${block.aspectRatio.height}"` : '';
 
   // If we had the blob URL, we'd render it here
   // For now, show that there's an image
-  return `<figure${alignStyle}><div class="image-placeholder">[Image: ${alt}]</div>${caption}</figure>`;
+  return `<figure${alignStyle}${aspectRatio}><div class="image-placeholder">[Image: ${alt}]</div></figure>`;
 }
 
 function renderUnorderedListBlock(block: UnorderedListBlock): string {
@@ -255,17 +255,17 @@ function renderCodeBlock(block: CodeBlock): string {
   return `<pre><code${language}>${escapeHtml(block.plaintext)}</code></pre>`;
 }
 
-function renderWebsiteBlock(block: { url: string; title?: string; description?: string }): string {
-  if (!isValidUrl(block.url)) {
+function renderWebsiteBlock(block: { src: string; title?: string; description?: string }): string {
+  if (!isValidUrl(block.src)) {
     return '<p><em>[Invalid URL]</em></p>';
   }
 
-  const title = block.title ? escapeHtml(block.title) : escapeHtml(block.url);
+  const title = block.title ? escapeHtml(block.title) : escapeHtml(block.src);
   const description = block.description ? `<p>${escapeHtml(block.description)}</p>` : '';
 
   return `
     <div class="website-embed">
-      <a href="${escapeHtml(block.url)}" target="_blank" rel="noopener noreferrer">${title}</a>
+      <a href="${escapeHtml(block.src)}" target="_blank" rel="noopener noreferrer">${title}</a>
       ${description}
     </div>
   `;
@@ -295,10 +295,14 @@ function isValidAtUri(uri: string): boolean {
   return isValidDid(did);
 }
 
-function renderBskyPostBlock(block: { uri: string }): string {
+function renderBskyPostBlock(block: { postRef: { uri: string; cid: string } }): string {
   // Parse AT-URI to get the post URL
   // Format: at://did:plc:xxx/app.bsky.feed.post/xxx
-  const parts = block.uri.replace('at://', '').split('/');
+  if (!block.postRef || !block.postRef.uri) {
+    return '<p><em>[Bluesky post]</em></p>';
+  }
+
+  const parts = block.postRef.uri.replace('at://', '').split('/');
   if (parts.length >= 3) {
     const did = parts[0];
     const rkey = parts[2];
