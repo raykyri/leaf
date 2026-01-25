@@ -103,6 +103,20 @@ export function getPdsAccountByDid(did: string): PdsAccount | null {
   return stmt.get(did) as PdsAccount | null;
 }
 
+/**
+ * Get account by DID including deactivated accounts (for read-only operations)
+ * Use this for public read operations where data should still be accessible.
+ */
+export function getPdsAccountByDidForRead(did: string): { account: PdsAccount | null; deactivated: boolean } {
+  const db = getDatabase();
+  const stmt = db.prepare('SELECT * FROM pds_accounts WHERE did = ?');
+  const account = stmt.get(did) as PdsAccount | null;
+  return {
+    account,
+    deactivated: account?.deactivated_at !== null,
+  };
+}
+
 export function getPdsAccountByHandle(handle: string): PdsAccount | null {
   const db = getDatabase();
   const stmt = db.prepare('SELECT * FROM pds_accounts WHERE handle = ? AND deactivated_at IS NULL');

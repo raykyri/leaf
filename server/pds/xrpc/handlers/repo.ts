@@ -9,7 +9,7 @@ import { getPdsConfig } from '../../config.ts';
 import { requireAuth } from './server.ts';
 import { getRepository } from '../../repo/repository.ts';
 import { uploadBlob, getBlob, extractBlobCids, addBlobReference } from '../../repo/blobs.ts';
-import { getPdsAccountByDid, countPdsRecords } from '../../database/queries.ts';
+import { getPdsAccountByDid, getPdsAccountByDidForRead, countPdsRecords } from '../../database/queries.ts';
 import { generateTid } from '../../identity/keys.ts';
 import type { EncryptedKeyData } from '../../identity/keys.ts';
 
@@ -30,7 +30,7 @@ export async function describeRepoHandler(c: Context) {
     return c.json({ error: 'InvalidRequest', message: 'Invalid repo identifier' }, 400);
   }
 
-  const account = getPdsAccountByDid(did);
+  const { account, deactivated } = getPdsAccountByDidForRead(did);
   if (!account) {
     return c.json({ error: 'RepoNotFound', message: 'Repository not found' }, 404);
   }
@@ -45,6 +45,7 @@ export async function describeRepoHandler(c: Context) {
     didDoc: {}, // Could include full DID document
     collections: description.collections,
     handleIsCorrect: true,
+    deactivated, // Include deactivation status
   });
 }
 
@@ -231,7 +232,7 @@ export async function getRecordHandler(c: Context) {
     return c.json({ error: 'InvalidRequest', message: 'Invalid repo identifier' }, 400);
   }
 
-  const account = getPdsAccountByDid(did);
+  const { account } = getPdsAccountByDidForRead(did);
   if (!account) {
     return c.json({ error: 'RepoNotFound', message: 'Repository not found' }, 404);
   }
@@ -271,7 +272,7 @@ export async function listRecordsHandler(c: Context) {
     return c.json({ error: 'InvalidRequest', message: 'Invalid repo identifier' }, 400);
   }
 
-  const account = getPdsAccountByDid(did);
+  const { account } = getPdsAccountByDidForRead(did);
   if (!account) {
     return c.json({ error: 'RepoNotFound', message: 'Repository not found' }, 404);
   }

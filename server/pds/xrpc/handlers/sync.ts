@@ -7,7 +7,7 @@
 import type { Context } from 'hono';
 import { exportRepoCar, getRepoHead, repoExists } from '../../repo/car.ts';
 import { getBlob, listBlobsForDid } from '../../repo/blobs.ts';
-import { getPdsAccountByDid, getLatestPdsCommit, getPdsCommitsSince } from '../../database/queries.ts';
+import { getPdsAccountByDid, getPdsAccountByDidForRead, getLatestPdsCommit, getPdsCommitsSince } from '../../database/queries.ts';
 
 /**
  * com.atproto.sync.getRepo
@@ -21,7 +21,7 @@ export async function getRepoHandler(c: Context) {
     return c.json({ error: 'InvalidRequest', message: 'did parameter required' }, 400);
   }
 
-  const account = getPdsAccountByDid(did);
+  const { account } = getPdsAccountByDidForRead(did);
   if (!account) {
     return c.json({ error: 'RepoNotFound', message: 'Repository not found' }, 404);
   }
@@ -52,7 +52,7 @@ export async function getLatestCommitHandler(c: Context) {
     return c.json({ error: 'InvalidRequest', message: 'did parameter required' }, 400);
   }
 
-  const account = getPdsAccountByDid(did);
+  const { account } = getPdsAccountByDidForRead(did);
   if (!account) {
     return c.json({ error: 'RepoNotFound', message: 'Repository not found' }, 404);
   }
@@ -79,7 +79,7 @@ export async function getRepoStatusHandler(c: Context) {
     return c.json({ error: 'InvalidRequest', message: 'did parameter required' }, 400);
   }
 
-  const account = getPdsAccountByDid(did);
+  const { account, deactivated } = getPdsAccountByDidForRead(did);
   if (!account) {
     return c.json({ error: 'RepoNotFound', message: 'Repository not found' }, 404);
   }
@@ -89,8 +89,8 @@ export async function getRepoStatusHandler(c: Context) {
 
   return c.json({
     did,
-    active: account.deactivated_at === null,
-    status: account.deactivated_at ? 'deactivated' : 'active',
+    active: !deactivated,
+    status: deactivated ? 'deactivated' : 'active',
     rev: head?.rev,
   });
 }
@@ -134,7 +134,7 @@ export async function listBlobsHandler(c: Context) {
     return c.json({ error: 'InvalidRequest', message: 'did parameter required' }, 400);
   }
 
-  const account = getPdsAccountByDid(did);
+  const { account } = getPdsAccountByDidForRead(did);
   if (!account) {
     return c.json({ error: 'RepoNotFound', message: 'Repository not found' }, 404);
   }
