@@ -11,7 +11,7 @@ import { getPDSConfig, isPDSEnabled } from '../config.ts';
 import { handleDescribeServer, handleCreateSession, handleRefreshSession, handleDeleteSession, handleGetSession } from './routes/server.ts';
 import { handleCreateRecord, handleGetRecord, handleListRecords, handleDeleteRecord, handlePutRecord, handleApplyWrites, handleDescribeRepo, handleUploadBlob } from './routes/repo.ts';
 import { handleGetRepo, handleGetBlob, handleListBlobs, handleGetLatestCommit, handleSubscribeRepos, handleListRepos, handleGetRepoStatus } from './routes/sync.ts';
-import { handleResolveHandle, handleUpdateHandle } from './routes/identity.ts';
+import { handleResolveHandle, handleUpdateHandle, handleGetRecommendedDidCredentials, handleSignPlcOperation, handleSubmitPlcOperation, handleRequestPlcOperationSignature } from './routes/identity.ts';
 
 /**
  * Mount XRPC routes on Hono app
@@ -54,6 +54,10 @@ export function mountXRPCRoutes(app: Hono): void {
   // Identity endpoints
   app.get('/xrpc/com.atproto.identity.resolveHandle', handleResolveHandle);
   app.post('/xrpc/com.atproto.identity.updateHandle', handleUpdateHandle);
+  app.get('/xrpc/com.atproto.identity.getRecommendedDidCredentials', handleGetRecommendedDidCredentials);
+  app.post('/xrpc/com.atproto.identity.signPlcOperation', handleSignPlcOperation);
+  app.post('/xrpc/com.atproto.identity.submitPlcOperation', handleSubmitPlcOperation);
+  app.post('/xrpc/com.atproto.identity.requestPlcOperationSignature', handleRequestPlcOperationSignature);
 
   // Well-known endpoints for OAuth and identity
   app.get('/.well-known/atproto-did', handleAtProtoDid);

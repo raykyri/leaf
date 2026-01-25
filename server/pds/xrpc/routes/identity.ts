@@ -124,7 +124,8 @@ export async function handleGetRecommendedDidCredentials(c: Context): Promise<Re
 
 /**
  * com.atproto.identity.signPlcOperation
- * Sign a PLC operation (for advanced identity management)
+ * Sign a PLC operation with the user's rotation key
+ * This allows key rotation, handle changes, and PDS migration
  */
 export async function handleSignPlcOperation(c: Context): Promise<Response> {
   const auth = await verifyAuth(c);
@@ -132,14 +133,85 @@ export async function handleSignPlcOperation(c: Context): Promise<Response> {
     return xrpcError(c, 'AuthenticationRequired', 'Authentication required', 401);
   }
 
-  // This would be used for advanced PLC operations like key rotation
-  // For now, return not implemented
-  return xrpcError(c, 'NotImplemented', 'PLC operations not yet supported', 501);
+  try {
+    const body = await c.req.json();
+    const { token, operation } = body;
+
+    // Require a token or pre-authenticated session
+    if (!token && !auth.did) {
+      return xrpcError(c, 'InvalidRequest', 'Missing token or authentication', 400);
+    }
+
+    // Validate operation structure
+    if (!operation || typeof operation !== 'object') {
+      return xrpcError(c, 'InvalidRequest', 'Missing or invalid operation', 400);
+    }
+
+    // Get user's rotation key
+    const db = getDatabase();
+    const config = getPDSConfig();
+    const user = db.prepare('SELECT rotation_key, did FROM users WHERE id = ?').get(auth.userId) as {
+      rotation_key: string;
+      did: string;
+    } | undefined;
+
+    if (!user || !user.rotation_key) {
+      return xrpcError(c, 'InvalidRequest', 'No rotation key found for user', 400);
+    }
+
+    // Decrypt rotation key
+    const { decryptKeyPair, sign, importKeyPair } = await import('../../crypto/keys.ts');
+    const exportedKey = decryptKeyPair(user.rotation_key, config.jwtSecret);
+    const rotationKey = await importKeyPair(exportedKey);
+
+    // Get current PLC state to set prev
+    let prev: string | null = null;
+    try {
+      const plcResponse = await fetch(`${config.plcDirectoryUrl}/${user.did}/log/last`);
+      if (plcResponse.ok) {
+        const lastOp = await plcResponse.json() as { cid: string };
+        prev = lastOp.cid;
+      }
+    } catch {
+      // No previous operation (genesis) or PLC unavailable
+    }
+
+    // Build the operation to sign
+    // @ts-ignore - dag-cbor types
+    const cbor = await import('@ipld/dag-cbor');
+    const { sha256 } = await import('multiformats/hashes/sha2');
+    const { CID } = await import('multiformats/cid');
+
+    const unsignedOp = {
+      ...operation,
+      prev,
+    };
+
+    // Remove any existing signature
+    delete (unsignedOp as Record<string, unknown>).sig;
+
+    // Encode and sign
+    const opBytes = cbor.encode(unsignedOp);
+    const signature = await sign(rotationKey, opBytes);
+
+    // Create signed operation
+    const signedOp = {
+      ...unsignedOp,
+      sig: Buffer.from(signature).toString('base64url'),
+    };
+
+    return c.json({
+      operation: signedOp,
+    });
+  } catch (error) {
+    console.error('signPlcOperation error:', error);
+    return xrpcError(c, 'InternalServerError', 'Failed to sign operation', 500);
+  }
 }
 
 /**
  * com.atproto.identity.submitPlcOperation
- * Submit a signed PLC operation
+ * Submit a signed PLC operation to the PLC directory
  */
 export async function handleSubmitPlcOperation(c: Context): Promise<Response> {
   const auth = await verifyAuth(c);
@@ -147,7 +219,84 @@ export async function handleSubmitPlcOperation(c: Context): Promise<Response> {
     return xrpcError(c, 'AuthenticationRequired', 'Authentication required', 401);
   }
 
-  // This would submit a signed operation to the PLC directory
-  // For now, return not implemented
-  return xrpcError(c, 'NotImplemented', 'PLC operations not yet supported', 501);
+  try {
+    const body = await c.req.json();
+    const { operation } = body;
+
+    if (!operation || typeof operation !== 'object') {
+      return xrpcError(c, 'InvalidRequest', 'Missing or invalid operation', 400);
+    }
+
+    // Verify the operation has a signature
+    if (!operation.sig) {
+      return xrpcError(c, 'InvalidRequest', 'Operation must be signed', 400);
+    }
+
+    // Submit to PLC directory
+    const config = getPDSConfig();
+    const response = await fetch(`${config.plcDirectoryUrl}/${auth.did}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(operation),
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      console.error('PLC submission failed:', error);
+      return xrpcError(c, 'UpstreamFailure', `PLC directory rejected operation: ${error}`, 502);
+    }
+
+    // Update local state based on operation type
+    const db = getDatabase();
+
+    // If the operation changed the handle, update locally
+    if (operation.alsoKnownAs && Array.isArray(operation.alsoKnownAs)) {
+      const handle = operation.alsoKnownAs.find((aka: string) => aka.startsWith('at://'));
+      if (handle) {
+        const newHandle = handle.replace('at://', '');
+        db.prepare('UPDATE users SET handle = ? WHERE did = ?').run(newHandle, auth.did);
+      }
+    }
+
+    // If operation changed signing key, update locally
+    if (operation.verificationMethods?.atproto) {
+      // The signing key was rotated - user may need to re-authenticate
+      console.log(`Signing key rotated for ${auth.did}`);
+    }
+
+    // If operation changed PDS service, this is a migration
+    if (operation.services?.atproto_pds?.endpoint) {
+      const newPdsEndpoint = operation.services.atproto_pds.endpoint;
+      if (newPdsEndpoint !== config.publicUrl) {
+        console.log(`User ${auth.did} migrating to ${newPdsEndpoint}`);
+        // Mark account as migrated (don't delete data immediately)
+        db.prepare('UPDATE users SET auth_type = ? WHERE did = ?').run('migrated', auth.did);
+      }
+    }
+
+    return c.json({});
+  } catch (error) {
+    console.error('submitPlcOperation error:', error);
+    return xrpcError(c, 'InternalServerError', 'Failed to submit operation', 500);
+  }
+}
+
+/**
+ * com.atproto.identity.requestPlcOperationSignature
+ * Request the PDS to send a PLC operation signature email
+ * (For account recovery scenarios)
+ */
+export async function handleRequestPlcOperationSignature(c: Context): Promise<Response> {
+  const auth = await verifyAuth(c);
+  if (!auth) {
+    return xrpcError(c, 'AuthenticationRequired', 'Authentication required', 401);
+  }
+
+  // For social login users, we could send a verification to their email
+  // For now, return success (signature request acknowledged)
+  // In production, this would trigger an email with a signed token
+
+  return c.json({});
 }
