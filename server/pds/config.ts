@@ -57,6 +57,22 @@ export function getPDSConfig(): PDSConfig {
   const publicUrl = getEnvOrDefault('PUBLIC_URL', 'http://localhost:5001');
   const hostname = new URL(publicUrl).hostname;
 
+  // JWT_SECRET or SESSION_SECRET is required for key encryption
+  // SESSION_SECRET is already validated at app startup in server/index.ts
+  const jwtSecret = process.env.JWT_SECRET || process.env.SESSION_SECRET;
+  if (!jwtSecret) {
+    throw new Error(
+      'PDS requires JWT_SECRET or SESSION_SECRET environment variable to be set. ' +
+      'This secret is used to encrypt user signing keys.'
+    );
+  }
+
+  if (jwtSecret.length < 32) {
+    throw new Error(
+      'JWT_SECRET/SESSION_SECRET must be at least 32 characters for secure key encryption.'
+    );
+  }
+
   _config = {
     hostname,
     publicUrl,
@@ -65,7 +81,7 @@ export function getPDSConfig(): PDSConfig {
     handleDomain: getEnvOrDefault('HANDLE_DOMAIN', hostname),
     blobStoragePath: getEnvOrDefault('BLOB_STORAGE_PATH', './data/blobs'),
     maxBlobSize: parseInt(getEnvOrDefault('MAX_BLOB_SIZE', String(5 * 1024 * 1024)), 10),
-    jwtSecret: getEnvOrDefault('JWT_SECRET', getEnvOrDefault('SESSION_SECRET', 'dev-secret-change-me')),
+    jwtSecret,
     accessTokenExpiry: parseInt(getEnvOrDefault('ACCESS_TOKEN_EXPIRY', String(15 * 60)), 10),
     refreshTokenExpiry: parseInt(getEnvOrDefault('REFRESH_TOKEN_EXPIRY', String(90 * 24 * 60 * 60)), 10),
   };
