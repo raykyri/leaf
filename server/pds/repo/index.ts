@@ -285,8 +285,9 @@ export class Repository {
     // Store all blocks
     await this.storage.putMany(newBlocks);
 
-    // Update database state
-    db.prepare(
+    // Update database state and records in a single transaction
+    // This ensures atomicity - either all updates succeed or none
+    const stateStmt = db.prepare(
       `INSERT INTO repo_state (did, head_cid, rev, root_cid)
        VALUES (?, ?, ?, ?)
        ON CONFLICT(did) DO UPDATE SET
@@ -294,9 +295,7 @@ export class Repository {
          rev = excluded.rev,
          root_cid = excluded.root_cid,
          updated_at = CURRENT_TIMESTAMP`
-    ).run(this.did, commitCid.toString(), rev, rootCid.toString());
-
-    // Update records index
+    );
     const deleteStmt = db.prepare(
       'DELETE FROM repo_records WHERE repo_did = ? AND collection = ? AND rkey = ?'
     );
@@ -309,7 +308,11 @@ export class Repository {
          indexed_at = CURRENT_TIMESTAMP`
     );
 
-    const updateRecords = db.transaction(() => {
+    const commitTransaction = db.transaction(() => {
+      // Update repository state
+      stateStmt.run(this.did, commitCid.toString(), rev, rootCid.toString());
+
+      // Update records index
       for (const write of writes) {
         if (write.action === 'delete') {
           deleteStmt.run(this.did, write.collection, write.rkey);
@@ -328,7 +331,7 @@ export class Repository {
       }
     });
 
-    updateRecords();
+    commitTransaction();
 
     // Emit firehose event
     await emitCommitEvent(this.did, commitCid, rev, state?.rev || null, ops, newBlocks);
