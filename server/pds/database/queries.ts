@@ -491,3 +491,46 @@ export function getLatestSequence(): number {
   const result = stmt.get() as { max_seq: number | null };
   return result.max_seq || 0;
 }
+
+// OAuth state operations
+
+export interface PdsOAuthState {
+  state: string;
+  provider: string;
+  data: string;
+  created_at: string;
+}
+
+export function savePdsOAuthState(state: string, provider: string, data: object): void {
+  const db = getDatabase();
+  const stmt = db.prepare(`
+    INSERT INTO pds_oauth_state (state, provider, data)
+    VALUES (?, ?, ?)
+  `);
+  stmt.run(state, provider, JSON.stringify(data));
+}
+
+export function getPdsOAuthState(state: string): { provider: string; data: object } | null {
+  const db = getDatabase();
+  const stmt = db.prepare('SELECT * FROM pds_oauth_state WHERE state = ?');
+  const row = stmt.get(state) as PdsOAuthState | null;
+  if (!row) {
+    return null;
+  }
+  return {
+    provider: row.provider,
+    data: JSON.parse(row.data),
+  };
+}
+
+export function deletePdsOAuthState(state: string): void {
+  const db = getDatabase();
+  const stmt = db.prepare('DELETE FROM pds_oauth_state WHERE state = ?');
+  stmt.run(state);
+}
+
+export function cleanupExpiredPdsOAuthState(maxAgeMinutes = 10): void {
+  const db = getDatabase();
+  const stmt = db.prepare("DELETE FROM pds_oauth_state WHERE created_at < datetime('now', '-' || ? || ' minutes')");
+  stmt.run(maxAgeMinutes);
+}

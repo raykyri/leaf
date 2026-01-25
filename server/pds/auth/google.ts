@@ -8,6 +8,11 @@
 import crypto from 'crypto';
 import { getPdsConfig } from '../config.ts';
 import { generateHandle } from '../identity/handles.ts';
+import {
+  savePdsOAuthState,
+  getPdsOAuthState,
+  deletePdsOAuthState,
+} from '../database/queries.ts';
 
 export interface GoogleUser {
   id: string;
@@ -20,26 +25,10 @@ export interface GoogleUser {
 }
 
 export interface GoogleOAuthState {
-  state: string;
   codeVerifier: string;
   nonce: string;
   redirectUri: string;
-  createdAt: number;
 }
-
-// Store OAuth states temporarily
-const pendingStates = new Map<string, GoogleOAuthState>();
-
-// Clean up old states periodically
-setInterval(() => {
-  const now = Date.now();
-  const maxAge = 10 * 60 * 1000; // 10 minutes
-  for (const [key, value] of pendingStates) {
-    if (now - value.createdAt > maxAge) {
-      pendingStates.delete(key);
-    }
-  }
-}, 60 * 1000);
 
 /**
  * Generate the Google authorization URL
@@ -65,13 +54,11 @@ export function getGoogleAuthorizationUrl(): { url: string; state: string } {
   // Build redirect URI
   const redirectUri = `${config.publicUrl}/pds/auth/google/callback`;
 
-  // Store state for verification
-  pendingStates.set(state, {
-    state,
+  // Store state in database for verification
+  savePdsOAuthState(state, 'google', {
     codeVerifier,
     nonce,
     redirectUri,
-    createdAt: Date.now(),
   });
 
   // Build authorization URL
@@ -106,12 +93,13 @@ export async function handleGoogleCallback(
     throw new Error('Google OAuth is not configured');
   }
 
-  // Verify state
-  const storedState = pendingStates.get(state);
-  if (!storedState) {
+  // Verify state from database
+  const storedStateData = getPdsOAuthState(state);
+  if (!storedStateData) {
     throw new Error('Invalid or expired OAuth state');
   }
-  pendingStates.delete(state);
+  deletePdsOAuthState(state);
+  const storedState = storedStateData.data as GoogleOAuthState;
 
   // Exchange code for access token
   const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {

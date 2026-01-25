@@ -25,6 +25,7 @@ import { createAccountHandler } from './xrpc/handlers/server.ts';
 import { serveAtprotoDid } from './xrpc/handlers/identity.ts';
 import { createFirehoseServer, handleFirehoseConnection } from './sync/firehose.ts';
 import { cleanupExpiredSessions } from './auth/session.ts';
+import { cleanupExpiredPdsOAuthState } from './database/queries.ts';
 import { SESSION_EXPIRY_MS } from '../utils/constants.ts';
 
 /**
@@ -56,6 +57,11 @@ export function initializePds(): void {
   setInterval(() => {
     cleanupExpiredSessions();
   }, SESSION_EXPIRY_MS / 2);
+
+  // Start periodic cleanup of expired OAuth states
+  setInterval(() => {
+    cleanupExpiredPdsOAuthState();
+  }, 60 * 1000); // Every minute
 }
 
 /**

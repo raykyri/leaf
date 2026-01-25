@@ -165,4 +165,19 @@ export function initializePdsSchema(db: Database.Database): void {
   db.exec(`
     INSERT OR IGNORE INTO pds_sequencer_counter (id, next_seq) VALUES (1, 1)
   `);
+
+  // PDS OAuth State - temporary storage for OAuth flow state
+  // Replaces in-memory Map to support multi-instance deployments and survive restarts
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS pds_oauth_state (
+      state TEXT PRIMARY KEY NOT NULL,
+      provider TEXT NOT NULL,
+      data TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_pds_oauth_state_created_at ON pds_oauth_state(created_at);
+  `);
 }

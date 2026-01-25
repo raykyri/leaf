@@ -7,6 +7,11 @@
 import crypto from 'crypto';
 import { getPdsConfig } from '../config.ts';
 import { generateHandle } from '../identity/handles.ts';
+import {
+  savePdsOAuthState,
+  getPdsOAuthState,
+  deletePdsOAuthState,
+} from '../database/queries.ts';
 
 export interface GitHubUser {
   id: number;
@@ -17,25 +22,9 @@ export interface GitHubUser {
 }
 
 export interface GitHubOAuthState {
-  state: string;
   codeVerifier: string;
   redirectUri: string;
-  createdAt: number;
 }
-
-// Store OAuth states temporarily (in production, use Redis or database)
-const pendingStates = new Map<string, GitHubOAuthState>();
-
-// Clean up old states periodically
-setInterval(() => {
-  const now = Date.now();
-  const maxAge = 10 * 60 * 1000; // 10 minutes
-  for (const [key, value] of pendingStates) {
-    if (now - value.createdAt > maxAge) {
-      pendingStates.delete(key);
-    }
-  }
-}, 60 * 1000);
 
 /**
  * Generate the GitHub authorization URL
@@ -60,12 +49,10 @@ export function getGitHubAuthorizationUrl(): { url: string; state: string } {
   // Build redirect URI
   const redirectUri = `${config.publicUrl}/pds/auth/github/callback`;
 
-  // Store state for verification
-  pendingStates.set(state, {
-    state,
+  // Store state in database for verification
+  savePdsOAuthState(state, 'github', {
     codeVerifier,
     redirectUri,
-    createdAt: Date.now(),
   });
 
   // Build authorization URL
@@ -95,12 +82,13 @@ export async function handleGitHubCallback(
     throw new Error('GitHub OAuth is not configured');
   }
 
-  // Verify state
-  const storedState = pendingStates.get(state);
-  if (!storedState) {
+  // Verify state from database
+  const storedStateData = getPdsOAuthState(state);
+  if (!storedStateData) {
     throw new Error('Invalid or expired OAuth state');
   }
-  pendingStates.delete(state);
+  deletePdsOAuthState(state);
+  const storedState = storedStateData.data as GitHubOAuthState;
 
   // Exchange code for access token
   const tokenResponse = await fetch('https://github.com/login/oauth/access_token', {
