@@ -107,58 +107,63 @@ async function handlePAR(c: Context): Promise<Response> {
 
 /**
  * Authorization endpoint - displays consent screen
+ * ATProto requires PAR (Pushed Authorization Request) - clients must first
+ * POST to /oauth/par and use the returned request_uri here.
  */
 async function handleAuthorize(c: Context): Promise<Response> {
   const requestUri = c.req.query('request_uri');
-  const clientId = c.req.query('client_id');
 
-  if (!requestUri && !clientId) {
-    return c.json({ error: 'invalid_request' }, 400);
+  // PAR is required per ATProto OAuth spec
+  if (!requestUri) {
+    return c.json(
+      {
+        error: 'invalid_request',
+        error_description: 'Pushed Authorization Request (PAR) is required. Use POST /oauth/par first.',
+      },
+      400
+    );
   }
 
-  let authRequest: AuthorizationRequest;
-
-  if (requestUri) {
-    // Look up PAR request
-    const db = getDatabase();
-    const row = db
-      .prepare(
-        `SELECT client_id, redirect_uri, scope, code_challenge, code_challenge_method, dpop_jkt
-         FROM pds_oauth_codes
-         WHERE code = ? AND expires_at > datetime('now')`
-      )
-      .get(requestUri) as {
-      client_id: string;
-      redirect_uri: string;
-      scope: string;
-      code_challenge: string;
-      code_challenge_method: string;
-      dpop_jkt: string | null;
-    } | undefined;
-
-    if (!row) {
-      return c.json({ error: 'invalid_request', error_description: 'Request expired or not found' }, 400);
-    }
-
-    authRequest = {
-      clientId: row.client_id,
-      redirectUri: row.redirect_uri,
-      scope: row.scope,
-      codeChallenge: row.code_challenge,
-      codeChallengeMethod: row.code_challenge_method,
-      dpopJkt: row.dpop_jkt || undefined,
-    };
-  } else {
-    // Direct authorization (less secure, but allowed)
-    authRequest = {
-      clientId: clientId!,
-      redirectUri: c.req.query('redirect_uri') || '',
-      scope: c.req.query('scope') || 'atproto',
-      codeChallenge: c.req.query('code_challenge') || '',
-      codeChallengeMethod: c.req.query('code_challenge_method') || 'S256',
-      state: c.req.query('state'),
-    };
+  // Validate request_uri format
+  if (!requestUri.startsWith('urn:ietf:params:oauth:request_uri:')) {
+    return c.json(
+      {
+        error: 'invalid_request',
+        error_description: 'Invalid request_uri format',
+      },
+      400
+    );
   }
+
+  // Look up PAR request
+  const db = getDatabase();
+  const row = db
+    .prepare(
+      `SELECT client_id, redirect_uri, scope, code_challenge, code_challenge_method, dpop_jkt
+       FROM pds_oauth_codes
+       WHERE code = ? AND user_did = '' AND expires_at > datetime('now')`
+    )
+    .get(requestUri) as {
+    client_id: string;
+    redirect_uri: string;
+    scope: string;
+    code_challenge: string;
+    code_challenge_method: string;
+    dpop_jkt: string | null;
+  } | undefined;
+
+  if (!row) {
+    return c.json({ error: 'invalid_request', error_description: 'Request expired or not found' }, 400);
+  }
+
+  const authRequest: AuthorizationRequest = {
+    clientId: row.client_id,
+    redirectUri: row.redirect_uri,
+    scope: row.scope,
+    codeChallenge: row.code_challenge,
+    codeChallengeMethod: row.code_challenge_method,
+    dpopJkt: row.dpop_jkt || undefined,
+  };
 
   // Render authorization page
   const config = getPDSConfig();
