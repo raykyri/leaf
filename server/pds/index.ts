@@ -28,6 +28,23 @@ import { cleanupExpiredSessions } from './auth/session.ts';
 import { SESSION_EXPIRY_MS } from '../utils/constants.ts';
 
 /**
+ * Build a secure session cookie string
+ */
+function buildSessionCookie(token: string): string {
+  const isProduction = process.env.NODE_ENV === 'production';
+  const maxAge = 60 * 60 * 24 * 7; // 7 days
+
+  let cookie = `pds_session=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${maxAge}`;
+
+  // Add Secure flag in production (requires HTTPS)
+  if (isProduction) {
+    cookie += '; Secure';
+  }
+
+  return cookie;
+}
+
+/**
  * Initialize the PDS database schema
  */
 export function initializePds(): void {
@@ -87,8 +104,8 @@ export function createPdsRoutes(): Hono {
         generateHandleFromGitHub(user.login, config.handleDomain)
       );
 
-      // Set session cookie
-      c.header('Set-Cookie', `pds_session=${result.accessJwt}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${60 * 60 * 24 * 7}`);
+      // Set session cookie with Secure flag in production
+      c.header('Set-Cookie', buildSessionCookie(result.accessJwt));
 
       // Redirect to profile
       return c.redirect('/profile');
@@ -135,8 +152,8 @@ export function createPdsRoutes(): Hono {
         generateHandleFromGoogle(user, config.handleDomain)
       );
 
-      // Set session cookie
-      c.header('Set-Cookie', `pds_session=${result.accessJwt}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${60 * 60 * 24 * 7}`);
+      // Set session cookie with Secure flag in production
+      c.header('Set-Cookie', buildSessionCookie(result.accessJwt));
 
       // Redirect to profile
       return c.redirect('/profile');
