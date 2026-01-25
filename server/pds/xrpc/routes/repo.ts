@@ -10,6 +10,7 @@ import { uploadBlob, createBlobRef, addBlobReference, removeBlobReference } from
 import { getSocialUserSigningKey } from '../../social-auth/index.ts';
 import { getDatabase } from '../../../database/index.ts';
 import { getPDSConfig } from '../../config.ts';
+import { isValidCollection, isValidRkey, isValidDid } from '../../utils.ts';
 
 /**
  * com.atproto.repo.createRecord
@@ -33,6 +34,16 @@ export async function handleCreateRecord(c: Context): Promise<Response> {
     // Validate required fields
     if (!collection || !record) {
       return xrpcError(c, 'InvalidRequest', 'collection and record are required', 400);
+    }
+
+    // Validate collection NSID format
+    if (!isValidCollection(collection)) {
+      return xrpcError(c, 'InvalidRequest', 'Invalid collection NSID format', 400);
+    }
+
+    // Validate rkey if provided
+    if (rkey && !isValidRkey(rkey)) {
+      return xrpcError(c, 'InvalidRequest', 'Invalid record key format', 400);
     }
 
     // Get signing key
@@ -72,6 +83,17 @@ export async function handleGetRecord(c: Context): Promise<Response> {
 
   if (!repo || !collection || !rkey) {
     return xrpcError(c, 'InvalidRequest', 'repo, collection, and rkey are required', 400);
+  }
+
+  // Validate formats
+  if (!isValidDid(repo)) {
+    return xrpcError(c, 'InvalidRequest', 'Invalid repo DID format', 400);
+  }
+  if (!isValidCollection(collection)) {
+    return xrpcError(c, 'InvalidRequest', 'Invalid collection NSID format', 400);
+  }
+  if (!isValidRkey(rkey)) {
+    return xrpcError(c, 'InvalidRequest', 'Invalid record key format', 400);
   }
 
   // Check if repo exists on this PDS
@@ -114,6 +136,19 @@ export async function handleListRecords(c: Context): Promise<Response> {
     return xrpcError(c, 'InvalidRequest', 'repo and collection are required', 400);
   }
 
+  // Validate formats
+  if (!isValidDid(repo)) {
+    return xrpcError(c, 'InvalidRequest', 'Invalid repo DID format', 400);
+  }
+  if (!isValidCollection(collection)) {
+    return xrpcError(c, 'InvalidRequest', 'Invalid collection NSID format', 400);
+  }
+
+  // Validate limit range
+  if (limit < 1 || limit > 100) {
+    return xrpcError(c, 'InvalidRequest', 'limit must be between 1 and 100', 400);
+  }
+
   if (!repositoryExists(repo)) {
     return xrpcError(c, 'RepoNotFound', 'Repository not found', 404);
   }
@@ -147,6 +182,14 @@ export async function handleDeleteRecord(c: Context): Promise<Response> {
 
     if (!collection || !rkey) {
       return xrpcError(c, 'InvalidRequest', 'collection and rkey are required', 400);
+    }
+
+    // Validate formats
+    if (!isValidCollection(collection)) {
+      return xrpcError(c, 'InvalidRequest', 'Invalid collection NSID format', 400);
+    }
+    if (!isValidRkey(rkey)) {
+      return xrpcError(c, 'InvalidRequest', 'Invalid record key format', 400);
     }
 
     const signingKey = await getSocialUserSigningKey(auth.userId);
@@ -187,6 +230,14 @@ export async function handlePutRecord(c: Context): Promise<Response> {
 
     if (!collection || !rkey || !record) {
       return xrpcError(c, 'InvalidRequest', 'collection, rkey, and record are required', 400);
+    }
+
+    // Validate formats
+    if (!isValidCollection(collection)) {
+      return xrpcError(c, 'InvalidRequest', 'Invalid collection NSID format', 400);
+    }
+    if (!isValidRkey(rkey)) {
+      return xrpcError(c, 'InvalidRequest', 'Invalid record key format', 400);
     }
 
     const signingKey = await getSocialUserSigningKey(auth.userId);
@@ -242,9 +293,22 @@ export async function handleApplyWrites(c: Context): Promise<Response> {
       return xrpcError(c, 'InternalServerError', 'Failed to get signing key', 500);
     }
 
-    // Transform writes to internal format
-    const writeOps = writes.map((write: any) => {
-      const { $type, collection, rkey, value } = write;
+    // Validate and transform writes to internal format
+    const writeOps: Array<{
+      action: 'create' | 'update' | 'delete';
+      collection: string;
+      rkey: string;
+      record?: unknown;
+    }> = [];
+
+    for (const write of writes) {
+      const { $type, collection, rkey, value } = write as {
+        $type: string;
+        collection: string;
+        rkey?: string;
+        value?: unknown;
+      };
+
       let action: 'create' | 'update' | 'delete';
 
       if ($type === 'com.atproto.repo.applyWrites#create') {
@@ -254,16 +318,27 @@ export async function handleApplyWrites(c: Context): Promise<Response> {
       } else if ($type === 'com.atproto.repo.applyWrites#delete') {
         action = 'delete';
       } else {
-        throw new Error(`Unknown write type: ${$type}`);
+        return xrpcError(c, 'InvalidRequest', `Unknown write type: ${$type}`, 400);
       }
 
-      return {
+      // Validate collection NSID
+      if (!collection || !isValidCollection(collection)) {
+        return xrpcError(c, 'InvalidRequest', 'Invalid collection NSID format in write operation', 400);
+      }
+
+      // Validate rkey if provided
+      const recordKey = rkey || generateTid();
+      if (rkey && !isValidRkey(rkey)) {
+        return xrpcError(c, 'InvalidRequest', 'Invalid record key format in write operation', 400);
+      }
+
+      writeOps.push({
         action,
         collection,
-        rkey: rkey || generateTid(),
+        rkey: recordKey,
         record: value,
-      };
-    });
+      });
+    }
 
     const repository = getRepository(auth.did);
     const result = await repository.applyWrites(writeOps, signingKey);
