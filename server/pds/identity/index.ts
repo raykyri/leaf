@@ -267,26 +267,89 @@ export async function resolveHandle(handle: string): Promise<string | null> {
 
 /**
  * Resolve an external handle via DNS TXT or HTTPS
+ * ATProto handles can be verified via:
+ * 1. HTTPS: GET https://<handle>/.well-known/atproto-did
+ * 2. DNS TXT: _atproto.<handle> containing "did=<did>"
  */
 async function resolveExternalHandle(handle: string): Promise<string | null> {
-  // Try HTTPS well-known first
+  // Try both methods in parallel for faster resolution
+  const [httpsResult, dnsResult] = await Promise.allSettled([
+    resolveHandleViaHttps(handle),
+    resolveHandleViaDns(handle),
+  ]);
+
+  // Prefer HTTPS result if successful
+  if (httpsResult.status === 'fulfilled' && httpsResult.value) {
+    return httpsResult.value;
+  }
+
+  // Fall back to DNS result
+  if (dnsResult.status === 'fulfilled' && dnsResult.value) {
+    return dnsResult.value;
+  }
+
+  return null;
+}
+
+/**
+ * Resolve handle via HTTPS well-known endpoint
+ */
+async function resolveHandleViaHttps(handle: string): Promise<string | null> {
   try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+
     const response = await fetch(`https://${handle}/.well-known/atproto-did`, {
       headers: { Accept: 'text/plain' },
+      signal: controller.signal,
     });
+
+    clearTimeout(timeout);
 
     if (response.ok) {
       const did = (await response.text()).trim();
-      if (did.startsWith('did:')) {
+      if (did.startsWith('did:') && did.length < 2048) {
         return did;
       }
     }
   } catch {
-    // HTTPS resolution failed, try DNS
+    // HTTPS resolution failed
   }
 
-  // DNS TXT record resolution would require a DNS library
-  // For now, return null and rely on HTTPS
+  return null;
+}
+
+/**
+ * Resolve handle via DNS TXT record
+ * Looks up _atproto.<handle> TXT record
+ */
+async function resolveHandleViaDns(handle: string): Promise<string | null> {
+  try {
+    const dns = await import('dns');
+    const { promisify } = await import('util');
+    const resolveTxt = promisify(dns.resolveTxt);
+
+    // DNS TXT record is at _atproto.<handle>
+    const dnsName = `_atproto.${handle}`;
+
+    const records = await resolveTxt(dnsName);
+
+    // TXT records come as arrays of strings that need to be joined
+    for (const record of records) {
+      const txt = Array.isArray(record) ? record.join('') : record;
+
+      // Look for "did=<did>" format
+      if (txt.startsWith('did=')) {
+        const did = txt.slice(4).trim();
+        if (did.startsWith('did:') && did.length < 2048) {
+          return did;
+        }
+      }
+    }
+  } catch {
+    // DNS resolution failed (NXDOMAIN, timeout, etc.)
+  }
+
   return null;
 }
 
