@@ -8,6 +8,7 @@ import { xrpcError, verifyAuth } from '../index.ts';
 import { resolveHandle, updateHandle as updateHandleIdentity } from '../../identity/index.ts';
 import { getPDSConfig } from '../../config.ts';
 import { getDatabase } from '../../../database/index.ts';
+import { isValidHandle } from '../../utils.ts';
 
 /**
  * com.atproto.identity.resolveHandle
@@ -18,6 +19,11 @@ export async function handleResolveHandle(c: Context): Promise<Response> {
 
   if (!handle) {
     return xrpcError(c, 'InvalidRequest', 'handle is required', 400);
+  }
+
+  // Validate handle format
+  if (!isValidHandle(handle)) {
+    return xrpcError(c, 'InvalidHandle', 'Invalid handle format', 400);
   }
 
   const did = await resolveHandle(handle);
@@ -48,9 +54,18 @@ export async function handleUpdateHandle(c: Context): Promise<Response> {
     }
 
     // Validate handle format
-    const config = getPDSConfig();
-    if (!isValidHandle(handle, config.handleDomain)) {
+    if (!isValidHandle(handle)) {
       return xrpcError(c, 'InvalidHandle', 'Invalid handle format', 400);
+    }
+
+    // Check if handle is on our domain or a custom domain
+    const config = getPDSConfig();
+    const isOurDomain = handle.endsWith(`.${config.handleDomain}`);
+
+    // For custom domains, we'd need to verify ownership via DNS/HTTP
+    // For now, only allow handles on our domain
+    if (!isOurDomain) {
+      return xrpcError(c, 'InvalidHandle', 'Only handles on our domain are currently supported', 400);
     }
 
     // Update handle
@@ -65,54 +80,6 @@ export async function handleUpdateHandle(c: Context): Promise<Response> {
     console.error('updateHandle error:', error);
     return xrpcError(c, 'InternalServerError', 'Failed to update handle', 500);
   }
-}
-
-/**
- * Validate handle format
- */
-function isValidHandle(handle: string, domain: string): boolean {
-  // Handle must be lowercase
-  if (handle !== handle.toLowerCase()) {
-    return false;
-  }
-
-  // Handle must end with our domain or be a custom domain
-  if (!handle.endsWith(`.${domain}`) && !handle.includes('.')) {
-    return false;
-  }
-
-  // Handle parts must be valid
-  const parts = handle.split('.');
-  for (const part of parts) {
-    // Each part must be 1-63 characters
-    if (part.length < 1 || part.length > 63) {
-      return false;
-    }
-    // Must start and end with alphanumeric
-    if (!/^[a-z0-9]/.test(part) || !/[a-z0-9]$/.test(part)) {
-      return false;
-    }
-    // Can only contain alphanumeric and hyphens
-    if (!/^[a-z0-9-]+$/.test(part)) {
-      return false;
-    }
-    // No consecutive hyphens
-    if (part.includes('--')) {
-      return false;
-    }
-  }
-
-  // Total handle must be <= 253 characters
-  if (handle.length > 253) {
-    return false;
-  }
-
-  // Must have at least 2 parts
-  if (parts.length < 2) {
-    return false;
-  }
-
-  return true;
 }
 
 /**

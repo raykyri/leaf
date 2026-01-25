@@ -60,3 +60,71 @@ export function isValidRkey(rkey: string): boolean {
   const rkeyPattern = /^[a-zA-Z0-9._:~-]+$/;
   return rkeyPattern.test(rkey);
 }
+
+/**
+ * Validate handle format (ATProto handle / domain name)
+ * Handles must:
+ * - Be valid domain names
+ * - Have at least 2 segments (name.domain)
+ * - Each segment 1-63 chars
+ * - Total length max 253 chars
+ * - Lowercase alphanumeric and hyphens only
+ * - Segments can't start or end with hyphens
+ */
+export function isValidHandle(handle: string): boolean {
+  if (!handle || handle.length > 253) {
+    return false;
+  }
+
+  // Must be lowercase
+  if (handle !== handle.toLowerCase()) {
+    return false;
+  }
+
+  const segments = handle.split('.');
+
+  // Must have at least 2 segments
+  if (segments.length < 2) {
+    return false;
+  }
+
+  // Each segment must be valid
+  const segmentPattern = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/;
+
+  for (const segment of segments) {
+    // Segment length must be 1-63
+    if (segment.length < 1 || segment.length > 63) {
+      return false;
+    }
+
+    // Must match pattern (alphanumeric, hyphens in middle)
+    if (!segmentPattern.test(segment)) {
+      // Special case: single character segments are valid
+      if (segment.length === 1 && /^[a-z0-9]$/.test(segment)) {
+        continue;
+      }
+      return false;
+    }
+  }
+
+  // TLD can't be all numeric
+  const tld = segments[segments.length - 1];
+  if (/^\d+$/.test(tld)) {
+    return false;
+  }
+
+  return true;
+}
+
+/**
+ * Validate DID format
+ */
+export function isValidDid(did: string): boolean {
+  if (!did || !did.startsWith('did:')) {
+    return false;
+  }
+
+  // Basic DID pattern: did:method:identifier
+  const didPattern = /^did:[a-z]+:[a-zA-Z0-9._:%-]+$/;
+  return didPattern.test(did);
+}
