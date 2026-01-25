@@ -10,7 +10,7 @@ import { getPDSConfig, isPDSEnabled } from '../config.ts';
 // Import route handlers
 import { handleDescribeServer, handleCreateSession, handleRefreshSession, handleDeleteSession, handleGetSession } from './routes/server.ts';
 import { handleCreateRecord, handleGetRecord, handleListRecords, handleDeleteRecord, handlePutRecord, handleApplyWrites, handleDescribeRepo, handleUploadBlob } from './routes/repo.ts';
-import { handleGetRepo, handleGetBlob, handleListBlobs, handleGetLatestCommit, handleSubscribeRepos } from './routes/sync.ts';
+import { handleGetRepo, handleGetBlob, handleListBlobs, handleGetLatestCommit, handleSubscribeRepos, handleListRepos, handleGetRepoStatus } from './routes/sync.ts';
 import { handleResolveHandle, handleUpdateHandle } from './routes/identity.ts';
 
 /**
@@ -47,6 +47,8 @@ export function mountXRPCRoutes(app: Hono): void {
   app.get('/xrpc/com.atproto.sync.getBlob', handleGetBlob);
   app.get('/xrpc/com.atproto.sync.listBlobs', handleListBlobs);
   app.get('/xrpc/com.atproto.sync.getLatestCommit', handleGetLatestCommit);
+  app.get('/xrpc/com.atproto.sync.listRepos', handleListRepos);
+  app.get('/xrpc/com.atproto.sync.getRepoStatus', handleGetRepoStatus);
   // WebSocket endpoint handled separately
 
   // Identity endpoints
