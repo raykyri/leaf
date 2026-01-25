@@ -18,6 +18,31 @@ import {
 
 const LEAFLET_DOCUMENT_COLLECTION = LEAFLET_COLLECTIONS.DOCUMENT;
 
+/**
+ * Check if a user is a social login user (uses local PDS)
+ */
+function isSocialUser(user: db.User): boolean {
+  const database = db.getDatabase();
+  const row = database.prepare('SELECT auth_type FROM users WHERE id = ?').get(user.id) as { auth_type: string } | undefined;
+  return row?.auth_type === 'social';
+}
+
+/**
+ * Get signing key for social user
+ */
+async function getSocialUserSigningKey(userId: number) {
+  const { getSocialUserSigningKey: getKey } = await import('../pds/social-auth/index.ts');
+  return getKey(userId);
+}
+
+/**
+ * Get repository for social user
+ */
+async function getSocialUserRepo(did: string) {
+  const { getRepository } = await import('../pds/repo/index.ts');
+  return getRepository(did);
+}
+
 export interface CreatePostInput {
   title: string;
   content: string; // Plain text content
@@ -32,7 +57,7 @@ export interface CreatePostResult {
 }
 
 export async function createPost(
-  agent: AtpAgent,
+  agent: AtpAgent | null,
   user: db.User,
   input: CreatePostInput
 ): Promise<CreatePostResult> {
@@ -69,15 +94,40 @@ export async function createPost(
       publishedAt: new Date().toISOString()
     };
 
-    // Write to user's PDS
-    const response = await agent.com.atproto.repo.createRecord({
-      repo: user.did,
-      collection: LEAFLET_DOCUMENT_COLLECTION,
-      rkey,
-      record: document as unknown as Record<string, unknown>
-    });
+    let uri: string;
 
-    const uri = response.data.uri;
+    // Check if this is a social login user (uses local PDS)
+    if (isSocialUser(user)) {
+      // Use local PDS
+      const signingKey = await getSocialUserSigningKey(user.id);
+      if (!signingKey) {
+        return { success: false, error: 'Failed to get signing key' };
+      }
+
+      const repo = await getSocialUserRepo(user.did);
+      const result = await repo.createRecord(
+        LEAFLET_DOCUMENT_COLLECTION,
+        rkey,
+        document,
+        signingKey
+      );
+
+      uri = buildAtUri(user.did, LEAFLET_DOCUMENT_COLLECTION, rkey);
+    } else {
+      // Use external PDS via agent
+      if (!agent) {
+        return { success: false, error: 'No authenticated agent available' };
+      }
+
+      const response = await agent.com.atproto.repo.createRecord({
+        repo: user.did,
+        collection: LEAFLET_DOCUMENT_COLLECTION,
+        rkey,
+        record: document as unknown as Record<string, unknown>
+      });
+
+      uri = response.data.uri;
+    }
 
     // Store in local database
     const dbDocument = db.upsertDocument(
@@ -121,7 +171,7 @@ export interface UpdatePostResult {
 }
 
 export async function updatePost(
-  agent: AtpAgent,
+  agent: AtpAgent | null,
   user: db.User,
   rkey: string,
   input: UpdatePostInput
@@ -153,15 +203,35 @@ export async function updatePost(
       publishedAt: new Date().toISOString()
     };
 
-    // Update on user's PDS using putRecord
-    const response = await agent.com.atproto.repo.putRecord({
-      repo: user.did,
-      collection: LEAFLET_DOCUMENT_COLLECTION,
-      rkey,
-      record: document as unknown as Record<string, unknown>
-    });
+    let uri: string;
 
-    const uri = response.data.uri;
+    // Check if this is a social login user (uses local PDS)
+    if (isSocialUser(user)) {
+      // Use local PDS
+      const signingKey = await getSocialUserSigningKey(user.id);
+      if (!signingKey) {
+        return { success: false, error: 'Failed to get signing key' };
+      }
+
+      const repo = await getSocialUserRepo(user.did);
+      await repo.updateRecord(LEAFLET_DOCUMENT_COLLECTION, rkey, document, signingKey);
+
+      uri = buildAtUri(user.did, LEAFLET_DOCUMENT_COLLECTION, rkey);
+    } else {
+      // Use external PDS via agent
+      if (!agent) {
+        return { success: false, error: 'No authenticated agent available' };
+      }
+
+      const response = await agent.com.atproto.repo.putRecord({
+        repo: user.did,
+        collection: LEAFLET_DOCUMENT_COLLECTION,
+        rkey,
+        record: document as unknown as Record<string, unknown>
+      });
+
+      uri = response.data.uri;
+    }
 
     // Update in local database
     const dbDocument = db.upsertDocument(
@@ -192,18 +262,36 @@ export async function updatePost(
 }
 
 export async function deletePost(
-  agent: AtpAgent,
+  agent: AtpAgent | null,
   user: db.User,
   rkey: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    await agent.com.atproto.repo.deleteRecord({
-      repo: user.did,
-      collection: LEAFLET_DOCUMENT_COLLECTION,
-      rkey
-    });
-
     const uri = buildAtUri(user.did, LEAFLET_DOCUMENT_COLLECTION, rkey);
+
+    // Check if this is a social login user (uses local PDS)
+    if (isSocialUser(user)) {
+      // Use local PDS
+      const signingKey = await getSocialUserSigningKey(user.id);
+      if (!signingKey) {
+        return { success: false, error: 'Failed to get signing key' };
+      }
+
+      const repo = await getSocialUserRepo(user.did);
+      await repo.deleteRecord(LEAFLET_DOCUMENT_COLLECTION, rkey, signingKey);
+    } else {
+      // Use external PDS via agent
+      if (!agent) {
+        return { success: false, error: 'No authenticated agent available' };
+      }
+
+      await agent.com.atproto.repo.deleteRecord({
+        repo: user.did,
+        collection: LEAFLET_DOCUMENT_COLLECTION,
+        rkey
+      });
+    }
+
     db.deleteDocument(uri);
 
     console.log(`Deleted post ${uri} for user ${user.handle}`);
@@ -230,7 +318,7 @@ export interface PublishCanvasResult {
 }
 
 export async function publishCanvas(
-  agent: AtpAgent,
+  agent: AtpAgent | null,
   user: db.User,
   input: PublishCanvasInput
 ): Promise<PublishCanvasResult> {
@@ -268,15 +356,35 @@ export async function publishCanvas(
       publishedAt: new Date().toISOString()
     };
 
-    // Write to user's PDS
-    const response = await agent.com.atproto.repo.createRecord({
-      repo: user.did,
-      collection: LEAFLET_DOCUMENT_COLLECTION,
-      rkey,
-      record: document as unknown as Record<string, unknown>
-    });
+    let uri: string;
 
-    const uri = response.data.uri;
+    // Check if this is a social login user (uses local PDS)
+    if (isSocialUser(user)) {
+      // Use local PDS
+      const signingKey = await getSocialUserSigningKey(user.id);
+      if (!signingKey) {
+        return { success: false, error: 'Failed to get signing key' };
+      }
+
+      const repo = await getSocialUserRepo(user.did);
+      await repo.createRecord(LEAFLET_DOCUMENT_COLLECTION, rkey, document, signingKey);
+
+      uri = buildAtUri(user.did, LEAFLET_DOCUMENT_COLLECTION, rkey);
+    } else {
+      // Use external PDS via agent
+      if (!agent) {
+        return { success: false, error: 'No authenticated agent available' };
+      }
+
+      const response = await agent.com.atproto.repo.createRecord({
+        repo: user.did,
+        collection: LEAFLET_DOCUMENT_COLLECTION,
+        rkey,
+        record: document as unknown as Record<string, unknown>
+      });
+
+      uri = response.data.uri;
+    }
 
     // Store in local database
     const dbDocument = db.upsertDocument(

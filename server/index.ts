@@ -13,6 +13,7 @@ import oauthRoutes from './routes/oauth.ts';
 import apiRoutes from './routes/api.ts';
 import { getSessionUser } from './services/auth.ts';
 import { isOAuthConfigured } from './services/oauth-client.ts';
+import { initializePDS, mountPDSRoutes, isPDSEnabled } from './pds/index.ts';
 import fs from 'fs';
 import path from 'path';
 
@@ -55,6 +56,10 @@ deleteExpiredSessions();
 cleanupOldOAuthState();
 cleanupOldOAuthSessions();
 
+// Initialize and mount PDS routes (for social login users)
+initializePDS();
+mountPDSRoutes(app);
+
 // API routes (JSON endpoints for React frontend)
 app.route('/api', apiRoutes);
 
@@ -70,8 +75,8 @@ if (isProduction) {
   // Serve any static files that exist
   app.use('*', async (c, next) => {
     const reqPath = c.req.path;
-    // Skip API and auth routes
-    if (reqPath.startsWith('/api/') || reqPath.startsWith('/auth/') || reqPath.startsWith('/oauth/')) {
+    // Skip API, auth, XRPC, and well-known routes
+    if (reqPath.startsWith('/api/') || reqPath.startsWith('/auth/') || reqPath.startsWith('/oauth/') || reqPath.startsWith('/xrpc/') || reqPath.startsWith('/.well-known/')) {
       return next();
     }
 
@@ -89,8 +94,8 @@ if (isProduction) {
   // SPA fallback: serve index.html for all non-API routes
   app.get('*', async (c) => {
     const reqPath = c.req.path;
-    // Skip API and auth routes
-    if (reqPath.startsWith('/api/') || reqPath.startsWith('/auth/') || reqPath.startsWith('/oauth/')) {
+    // Skip API, auth, XRPC, and well-known routes
+    if (reqPath.startsWith('/api/') || reqPath.startsWith('/auth/') || reqPath.startsWith('/oauth/') || reqPath.startsWith('/xrpc/') || reqPath.startsWith('/.well-known/')) {
       return c.text('Not Found', 404);
     }
 
@@ -168,6 +173,17 @@ const server = serve({
     console.log(`${cyan}  PUBLIC_URL=https://yourdomain.com${reset}`)
     console.log(`${cyan}  PUBLIC_URL=http://localhost:3333${reset}`)
     console.log('');
+  }
+
+  // Info about social login
+  if (isPDSEnabled()) {
+    const green = '\x1b[32m';
+    const reset = '\x1b[0m';
+    console.log(`${green}Custom PDS enabled - social login (GitHub/Google) available.${reset}`);
+  } else {
+    const yellow = '\x1b[33m';
+    const reset = '\x1b[0m';
+    console.log(`${yellow}Social login not enabled. Set GITHUB_CLIENT_ID/GOOGLE_CLIENT_ID to enable.${reset}`);
   }
 
   // Start Jetstream listener
