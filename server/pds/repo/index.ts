@@ -89,6 +89,8 @@ export interface RepoState {
 export interface CommitResult {
   cid: CID;
   rev: string;
+  /** Record CIDs keyed by "collection/rkey" */
+  recordCids: Map<string, CID>;
 }
 
 export interface WriteOp {
@@ -336,7 +338,15 @@ export class Repository {
     // Emit firehose event
     await emitCommitEvent(this.did, commitCid, rev, state?.rev || null, ops, newBlocks);
 
-    return { cid: commitCid, rev };
+    // Build record CIDs map for response
+    const recordCids = new Map<string, CID>();
+    for (const op of ops) {
+      if (op.cid) {
+        recordCids.set(op.path, op.cid);
+      }
+    }
+
+    return { cid: commitCid, rev, recordCids };
   }
 
   /**

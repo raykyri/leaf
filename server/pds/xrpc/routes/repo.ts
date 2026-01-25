@@ -357,10 +357,14 @@ export async function handleApplyWrites(c: Context): Promise<Response> {
         cid: result.cid.toString(),
         rev: result.rev,
       },
-      results: writeOps.map((write) => ({
-        uri: `at://${auth.did}/${write.collection}/${write.rkey}`,
-        cid: result.cid.toString(),
-      })),
+      results: writeOps.map((write) => {
+        const path = `${write.collection}/${write.rkey}`;
+        const recordCid = result.recordCids.get(path);
+        return {
+          uri: `at://${auth.did}/${write.collection}/${write.rkey}`,
+          cid: recordCid?.toString() || null, // null for deletes
+        };
+      }),
     });
   } catch (error) {
     console.error('applyWrites error:', error);
