@@ -75,13 +75,22 @@ function verifyToken(token: string, secret: string): { payload: Record<string, u
 
     const [headerB64, payloadB64, signature] = parts;
 
-    // Verify signature
+    // Verify signature using constant-time comparison to prevent timing attacks
     const expectedSignature = crypto
       .createHmac('sha256', secret)
       .update(`${headerB64}.${payloadB64}`)
       .digest('base64url');
 
-    if (signature !== expectedSignature) {
+    // Convert to buffers for timing-safe comparison
+    const signatureBuffer = Buffer.from(signature, 'utf8');
+    const expectedBuffer = Buffer.from(expectedSignature, 'utf8');
+
+    // Ensure same length before comparison (timingSafeEqual requires equal lengths)
+    if (signatureBuffer.length !== expectedBuffer.length) {
+      return { payload: {}, valid: false, expired: false };
+    }
+
+    if (!crypto.timingSafeEqual(signatureBuffer, expectedBuffer)) {
       return { payload: {}, valid: false, expired: false };
     }
 
