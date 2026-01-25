@@ -358,22 +358,26 @@ export class Repository {
     records: Map<string, { cid: CID; record: unknown }>
   ): Promise<{ rootCid: CID; mstBlocks: Map<CID, Uint8Array> }> {
     const mstBlocks = new Map<CID, Uint8Array>();
+    const encoder = new TextEncoder();
 
-    // Sort keys for deterministic ordering
-    const sortedKeys = [...records.keys()].sort();
+    // Convert keys to bytes for proper byte-wise sorting (ATProto requirement)
+    const keyEntries = [...records.entries()].map(([key, value]) => ({
+      key,
+      keyBytes: encoder.encode(key),
+      value,
+    }));
+
+    // Sort by UTF-8 byte representation (required by ATProto MST spec)
+    keyEntries.sort((a, b) => compareBytes(a.keyBytes, b.keyBytes));
 
     // Build a simple single-node MST for now
     // A full implementation would create a balanced tree based on key hashes
     const entries: MSTEntry[] = [];
-    let prevKey = '';
+    let prevKeyBytes = new Uint8Array(0);
 
-    for (const key of sortedKeys) {
-      const recordInfo = records.get(key)!;
-      const keyBytes = new TextEncoder().encode(key);
-
+    for (const { keyBytes, value: recordInfo } of keyEntries) {
       // Calculate prefix length (shared with previous key)
       let prefixLen = 0;
-      const prevKeyBytes = new TextEncoder().encode(prevKey);
       while (prefixLen < prevKeyBytes.length && prefixLen < keyBytes.length) {
         if (prevKeyBytes[prefixLen] !== keyBytes[prefixLen]) break;
         prefixLen++;
@@ -386,7 +390,7 @@ export class Repository {
         t: null,
       });
 
-      prevKey = key;
+      prevKeyBytes = keyBytes;
     }
 
     const rootNode: MSTNode = {
@@ -589,4 +593,18 @@ export function repositoryExists(did: string): boolean {
   const db = getDatabase();
   const row = db.prepare('SELECT 1 FROM repo_state WHERE did = ?').get(did);
   return !!row;
+}
+
+/**
+ * Compare two byte arrays lexicographically
+ * Returns negative if a < b, positive if a > b, 0 if equal
+ */
+function compareBytes(a: Uint8Array, b: Uint8Array): number {
+  const minLen = Math.min(a.length, b.length);
+  for (let i = 0; i < minLen; i++) {
+    if (a[i] !== b[i]) {
+      return a[i] - b[i];
+    }
+  }
+  return a.length - b.length;
 }
