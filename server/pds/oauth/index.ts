@@ -11,6 +11,265 @@ import { getPDSConfig } from '../config.ts';
 import { getDatabase } from '../../database/index.ts';
 import { escapeHtml } from '../utils.ts';
 
+// DPoP proof maximum age (5 minutes)
+const DPOP_MAX_AGE_MS = 5 * 60 * 1000;
+
+// Track used DPoP jti values to prevent replay (in-memory, would use Redis in production)
+const usedDPoPJtis = new Map<string, number>();
+
+// Clean up old jti values periodically
+setInterval(() => {
+  const now = Date.now();
+  for (const [jti, timestamp] of usedDPoPJtis) {
+    if (now - timestamp > DPOP_MAX_AGE_MS * 2) {
+      usedDPoPJtis.delete(jti);
+    }
+  }
+}, 60000);
+
+/**
+ * DPoP proof validation result
+ */
+export interface DPoPValidationResult {
+  valid: boolean;
+  jkt?: string;
+  error?: string;
+}
+
+/**
+ * Validate a DPoP proof JWT
+ * @param dpopHeader - The DPoP header value (a JWT)
+ * @param httpMethod - The HTTP method of the request
+ * @param httpUri - The HTTP URI of the request
+ * @param expectedJkt - Optional expected JWK thumbprint (for token binding verification)
+ */
+export function validateDPoPProof(
+  dpopHeader: string,
+  httpMethod: string,
+  httpUri: string,
+  expectedJkt?: string
+): DPoPValidationResult {
+  try {
+    // Parse the JWT (header.payload.signature)
+    const parts = dpopHeader.split('.');
+    if (parts.length !== 3) {
+      return { valid: false, error: 'Invalid DPoP JWT format' };
+    }
+
+    const [headerB64, payloadB64, signatureB64] = parts;
+
+    // Decode header
+    const header = JSON.parse(Buffer.from(headerB64, 'base64url').toString());
+
+    // Validate header
+    if (header.typ !== 'dpop+jwt') {
+      return { valid: false, error: 'Invalid DPoP typ' };
+    }
+
+    if (!['ES256', 'ES384', 'ES512', 'RS256', 'RS384', 'RS512'].includes(header.alg)) {
+      return { valid: false, error: 'Unsupported DPoP algorithm' };
+    }
+
+    if (!header.jwk) {
+      return { valid: false, error: 'Missing JWK in DPoP header' };
+    }
+
+    // Decode payload
+    const payload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString());
+
+    // Validate payload claims
+    if (!payload.jti || typeof payload.jti !== 'string') {
+      return { valid: false, error: 'Missing or invalid jti claim' };
+    }
+
+    if (!payload.htm || payload.htm !== httpMethod) {
+      return { valid: false, error: 'HTTP method mismatch' };
+    }
+
+    if (!payload.htu) {
+      return { valid: false, error: 'Missing htu claim' };
+    }
+
+    // Normalize and compare URIs (ignore query string and fragment)
+    const proofUri = new URL(payload.htu);
+    const requestUri = new URL(httpUri);
+    if (proofUri.origin + proofUri.pathname !== requestUri.origin + requestUri.pathname) {
+      return { valid: false, error: 'HTTP URI mismatch' };
+    }
+
+    if (!payload.iat || typeof payload.iat !== 'number') {
+      return { valid: false, error: 'Missing or invalid iat claim' };
+    }
+
+    // Check timestamp (allow 5 minute window)
+    const now = Math.floor(Date.now() / 1000);
+    if (payload.iat > now + 60) {
+      return { valid: false, error: 'DPoP proof issued in the future' };
+    }
+    if (payload.iat < now - 300) {
+      return { valid: false, error: 'DPoP proof expired' };
+    }
+
+    // Check for replay (jti uniqueness)
+    if (usedDPoPJtis.has(payload.jti)) {
+      return { valid: false, error: 'DPoP jti already used (replay attack)' };
+    }
+
+    // Calculate JWK thumbprint
+    const jkt = calculateJwkThumbprint(header.jwk);
+
+    // If expected JKT provided, verify it matches
+    if (expectedJkt && jkt !== expectedJkt) {
+      return { valid: false, error: 'JWK thumbprint mismatch' };
+    }
+
+    // Verify signature
+    const signatureValid = verifyDPoPSignature(
+      header.alg,
+      header.jwk,
+      `${headerB64}.${payloadB64}`,
+      signatureB64
+    );
+
+    if (!signatureValid) {
+      return { valid: false, error: 'Invalid DPoP signature' };
+    }
+
+    // Mark jti as used
+    usedDPoPJtis.set(payload.jti, Date.now());
+
+    return { valid: true, jkt };
+  } catch (error) {
+    console.error('DPoP validation error:', error);
+    return { valid: false, error: 'DPoP validation failed' };
+  }
+}
+
+/**
+ * Calculate JWK thumbprint (RFC 7638)
+ * For EC keys: {"crv":"...","kty":"EC","x":"...","y":"..."}
+ * For RSA keys: {"e":"...","kty":"RSA","n":"..."}
+ */
+function calculateJwkThumbprint(jwk: Record<string, unknown>): string {
+  let normalized: Record<string, unknown>;
+
+  if (jwk.kty === 'EC') {
+    normalized = {
+      crv: jwk.crv,
+      kty: jwk.kty,
+      x: jwk.x,
+      y: jwk.y,
+    };
+  } else if (jwk.kty === 'RSA') {
+    normalized = {
+      e: jwk.e,
+      kty: jwk.kty,
+      n: jwk.n,
+    };
+  } else if (jwk.kty === 'OKP') {
+    normalized = {
+      crv: jwk.crv,
+      kty: jwk.kty,
+      x: jwk.x,
+    };
+  } else {
+    throw new Error(`Unsupported key type: ${jwk.kty}`);
+  }
+
+  // JSON with sorted keys, no whitespace
+  const json = JSON.stringify(normalized, Object.keys(normalized).sort());
+  const hash = crypto.createHash('sha256').update(json).digest();
+  return hash.toString('base64url');
+}
+
+/**
+ * Verify DPoP signature
+ */
+function verifyDPoPSignature(
+  alg: string,
+  jwk: Record<string, unknown>,
+  data: string,
+  signatureB64: string
+): boolean {
+  try {
+    const signature = Buffer.from(signatureB64, 'base64url');
+
+    // Convert JWK to Node.js key object
+    const keyObject = crypto.createPublicKey({ key: jwk as crypto.JsonWebKey, format: 'jwk' });
+
+    // Map JWT algorithm to Node.js algorithm
+    const algMap: Record<string, string> = {
+      ES256: 'sha256',
+      ES384: 'sha384',
+      ES512: 'sha512',
+      RS256: 'sha256',
+      RS384: 'sha384',
+      RS512: 'sha512',
+    };
+
+    const hashAlg = algMap[alg];
+    if (!hashAlg) {
+      return false;
+    }
+
+    // For ECDSA, the signature needs to be converted from raw format to DER
+    let sig = signature;
+    if (alg.startsWith('ES')) {
+      sig = ecdsaRawToDer(signature, alg);
+    }
+
+    const verifier = crypto.createVerify(hashAlg);
+    verifier.update(data);
+    return verifier.verify(keyObject, sig);
+  } catch (error) {
+    console.error('Signature verification error:', error);
+    return false;
+  }
+}
+
+/**
+ * Convert ECDSA raw signature (r || s) to DER format
+ */
+function ecdsaRawToDer(signature: Buffer, alg: string): Buffer {
+  // Determine component size based on algorithm
+  const sizes: Record<string, number> = { ES256: 32, ES384: 48, ES512: 66 };
+  const size = sizes[alg];
+
+  if (!size || signature.length !== size * 2) {
+    return signature; // Return as-is if format doesn't match
+  }
+
+  const r = signature.subarray(0, size);
+  const s = signature.subarray(size);
+
+  // Remove leading zeros but ensure positive (add 0x00 if high bit set)
+  const trimInt = (buf: Buffer): Buffer => {
+    let i = 0;
+    while (i < buf.length - 1 && buf[i] === 0 && !(buf[i + 1] & 0x80)) {
+      i++;
+    }
+    const trimmed = buf.subarray(i);
+    if (trimmed[0] & 0x80) {
+      return Buffer.concat([Buffer.from([0x00]), trimmed]);
+    }
+    return trimmed;
+  };
+
+  const rTrimmed = trimInt(r);
+  const sTrimmed = trimInt(s);
+
+  // DER SEQUENCE: 0x30 [total length] 0x02 [r length] [r] 0x02 [s length] [s]
+  const totalLen = 2 + rTrimmed.length + 2 + sTrimmed.length;
+
+  return Buffer.concat([
+    Buffer.from([0x30, totalLen]),
+    Buffer.from([0x02, rTrimmed.length]),
+    rTrimmed,
+    Buffer.from([0x02, sTrimmed.length]),
+    sTrimmed,
+  ]);
+}
+
 const AUTH_CODE_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes
 const ACCESS_TOKEN_EXPIRY_MS = 15 * 60 * 1000; // 15 minutes
 const REFRESH_TOKEN_EXPIRY_MS = 90 * 24 * 60 * 60 * 1000; // 90 days
@@ -50,6 +309,7 @@ export function mountOAuthRoutes(app: Hono): void {
 async function handlePAR(c: Context): Promise<Response> {
   try {
     const body = await parseFormBody(c);
+    const config = getPDSConfig();
 
     const clientId = body.client_id;
     const redirectUri = body.redirect_uri;
@@ -57,7 +317,24 @@ async function handlePAR(c: Context): Promise<Response> {
     const codeChallenge = body.code_challenge;
     const codeChallengeMethod = body.code_challenge_method;
     const state = body.state;
-    const dpopJkt = c.req.header('DPoP') ? extractDPoPJkt(c.req.header('DPoP')!) : undefined;
+
+    // Validate DPoP proof if provided
+    let dpopJkt: string | undefined;
+    const dpopHeader = c.req.header('DPoP');
+    if (dpopHeader) {
+      const dpopResult = validateDPoPProof(
+        dpopHeader,
+        'POST',
+        `${config.publicUrl}/oauth/par`
+      );
+      if (!dpopResult.valid) {
+        return c.json(
+          { error: 'invalid_dpop_proof', error_description: dpopResult.error },
+          400
+        );
+      }
+      dpopJkt = dpopResult.jkt;
+    }
 
     // Validate required parameters
     if (!clientId || !redirectUri || !codeChallenge) {
@@ -232,6 +509,7 @@ async function handleAuthorizeSubmit(c: Context): Promise<Response> {
 async function handleToken(c: Context): Promise<Response> {
   try {
     const body = await parseFormBody(c);
+    const config = getPDSConfig();
 
     const grantType = body.grant_type;
     const code = body.code;
@@ -242,12 +520,36 @@ async function handleToken(c: Context): Promise<Response> {
 
     const db = getDatabase();
 
+    // DPoP is required for ATProto OAuth
+    const dpopHeader = c.req.header('DPoP');
+    if (!dpopHeader) {
+      return c.json(
+        { error: 'invalid_request', error_description: 'DPoP proof required' },
+        400
+      );
+    }
+
+    // Validate DPoP proof
+    const dpopResult = validateDPoPProof(
+      dpopHeader,
+      'POST',
+      `${config.publicUrl}/oauth/token`
+    );
+    if (!dpopResult.valid) {
+      return c.json(
+        { error: 'invalid_dpop_proof', error_description: dpopResult.error },
+        400
+      );
+    }
+
+    const dpopJkt = dpopResult.jkt!;
+
     if (grantType === 'authorization_code') {
       // Validate code
       const codeRow = db
         .prepare(
           `SELECT * FROM pds_oauth_codes
-           WHERE code = ? AND expires_at > datetime('now')`
+           WHERE code = ? AND user_did != '' AND expires_at > datetime('now')`
         )
         .get(code) as {
         user_did: string;
@@ -256,6 +558,7 @@ async function handleToken(c: Context): Promise<Response> {
         scope: string;
         code_challenge: string;
         code_challenge_method: string;
+        dpop_jkt: string | null;
       } | undefined;
 
       if (!codeRow) {
@@ -265,6 +568,14 @@ async function handleToken(c: Context): Promise<Response> {
       // Validate redirect URI
       if (codeRow.redirect_uri !== redirectUri) {
         return c.json({ error: 'invalid_grant', error_description: 'Redirect URI mismatch' }, 400);
+      }
+
+      // If DPoP was used at PAR, verify JKT matches
+      if (codeRow.dpop_jkt && codeRow.dpop_jkt !== dpopJkt) {
+        return c.json(
+          { error: 'invalid_dpop_proof', error_description: 'DPoP key mismatch with PAR request' },
+          400
+        );
       }
 
       // Validate code verifier (PKCE)
@@ -290,14 +601,13 @@ async function handleToken(c: Context): Promise<Response> {
       const newRefreshToken = crypto.randomBytes(32).toString('base64url');
       const tokenId = crypto.randomBytes(16).toString('hex');
 
-      const accessExpiry = new Date(Date.now() + ACCESS_TOKEN_EXPIRY_MS).toISOString();
       const refreshExpiry = new Date(Date.now() + REFRESH_TOKEN_EXPIRY_MS).toISOString();
 
-      // Store tokens
+      // Store tokens with DPoP JKT binding
       db.prepare(
         `INSERT INTO pds_oauth_tokens
-         (token_id, user_did, client_id, scope, access_token_hash, refresh_token_hash, expires_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`
+         (token_id, user_did, client_id, scope, access_token_hash, refresh_token_hash, dpop_jkt, expires_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
       ).run(
         tokenId,
         codeRow.user_did,
@@ -305,6 +615,7 @@ async function handleToken(c: Context): Promise<Response> {
         codeRow.scope,
         hashToken(accessToken),
         hashToken(newRefreshToken),
+        dpopJkt,
         refreshExpiry
       );
 
@@ -325,6 +636,7 @@ async function handleToken(c: Context): Promise<Response> {
         )
         .get(hashToken(refreshToken || '')) as {
         token_id: string;
+        dpop_jkt: string | null;
         user_did: string;
         client_id: string;
         scope: string;
@@ -334,18 +646,26 @@ async function handleToken(c: Context): Promise<Response> {
         return c.json({ error: 'invalid_grant', error_description: 'Invalid refresh token' }, 400);
       }
 
-      // Generate new tokens
+      // Verify DPoP JKT matches the one used when token was issued
+      if (tokenRow.dpop_jkt && tokenRow.dpop_jkt !== dpopJkt) {
+        return c.json(
+          { error: 'invalid_dpop_proof', error_description: 'DPoP key mismatch' },
+          400
+        );
+      }
+
+      // Generate new tokens (rotate refresh token for security)
       const accessToken = crypto.randomBytes(32).toString('base64url');
       const newRefreshToken = crypto.randomBytes(32).toString('base64url');
 
       const refreshExpiry = new Date(Date.now() + REFRESH_TOKEN_EXPIRY_MS).toISOString();
 
-      // Update tokens
+      // Update tokens (refresh token rotation)
       db.prepare(
         `UPDATE pds_oauth_tokens
-         SET access_token_hash = ?, refresh_token_hash = ?, expires_at = ?, updated_at = CURRENT_TIMESTAMP
+         SET access_token_hash = ?, refresh_token_hash = ?, dpop_jkt = ?, expires_at = ?, updated_at = CURRENT_TIMESTAMP
          WHERE token_id = ?`
-      ).run(hashToken(accessToken), hashToken(newRefreshToken), refreshExpiry, tokenRow.token_id);
+      ).run(hashToken(accessToken), hashToken(newRefreshToken), dpopJkt, refreshExpiry, tokenRow.token_id);
 
       return c.json({
         access_token: accessToken,
@@ -412,15 +732,6 @@ async function parseFormBody(c: Context): Promise<Record<string, string>> {
  */
 function hashToken(token: string): string {
   return crypto.createHash('sha256').update(token).digest('hex');
-}
-
-/**
- * Extract JWK thumbprint from DPoP header
- */
-function extractDPoPJkt(dpopHeader: string): string | undefined {
-  // DPoP header is a JWT - we'd need to parse and extract JWK thumbprint
-  // For now, return undefined (DPoP validation not fully implemented)
-  return undefined;
 }
 
 /**
