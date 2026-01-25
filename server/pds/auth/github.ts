@@ -6,6 +6,7 @@
 
 import crypto from 'crypto';
 import { getPdsConfig } from '../config.ts';
+import { generateHandle } from '../identity/handles.ts';
 
 export interface GitHubUser {
   id: number;
@@ -190,26 +191,8 @@ export async function handleGitHubCallback(
 
 /**
  * Generate a handle from GitHub username
+ * Uses the shared generateHandle function from identity/handles.ts
  */
-export function generateHandleFromGitHub(username: string, domain: string): string {
-  // Sanitize username: lowercase, replace invalid chars
-  let handle = username.toLowerCase();
-
-  // Replace any characters not allowed in handles
-  handle = handle.replace(/[^a-z0-9-]/g, '-');
-
-  // Remove leading/trailing dashes
-  handle = handle.replace(/^-+|-+$/g, '');
-
-  // Ensure it's not empty
-  if (!handle) {
-    handle = 'user';
-  }
-
-  // Limit length (handles have a max length)
-  if (handle.length > 20) {
-    handle = handle.slice(0, 20);
-  }
-
-  return `${handle}.${domain}`;
+export function generateHandleFromGitHub(username: string, _domain: string): string {
+  return generateHandle(username);
 }

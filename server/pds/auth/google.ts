@@ -7,6 +7,7 @@
 
 import crypto from 'crypto';
 import { getPdsConfig } from '../config.ts';
+import { generateHandle } from '../identity/handles.ts';
 
 export interface GoogleUser {
   id: string;
@@ -174,34 +175,10 @@ export async function handleGoogleCallback(
 
 /**
  * Generate a handle from Google user info
+ * Uses the shared generateHandle function from identity/handles.ts
  */
-export function generateHandleFromGoogle(user: GoogleUser, domain: string): string {
-  // Try to use the email prefix first
-  let handle = user.email.split('@')[0].toLowerCase();
-
-  // Sanitize: replace invalid chars with dashes
-  handle = handle.replace(/[^a-z0-9-]/g, '-');
-
-  // Remove leading/trailing dashes
-  handle = handle.replace(/^-+|-+$/g, '');
-
-  // Collapse multiple dashes
-  handle = handle.replace(/-+/g, '-');
-
-  // Ensure it's not empty
-  if (!handle) {
-    // Fall back to given name
-    if (user.given_name) {
-      handle = user.given_name.toLowerCase().replace(/[^a-z0-9-]/g, '-');
-    } else {
-      handle = 'user';
-    }
-  }
-
-  // Limit length
-  if (handle.length > 20) {
-    handle = handle.slice(0, 20);
-  }
-
-  return `${handle}.${domain}`;
+export function generateHandleFromGoogle(user: GoogleUser, _domain: string): string {
+  // Try to use the email prefix first, fall back to given name
+  const username = user.email.split('@')[0] || user.given_name || 'user';
+  return generateHandle(username);
 }
