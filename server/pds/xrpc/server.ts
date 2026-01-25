@@ -6,6 +6,7 @@
 
 import { Hono } from 'hono';
 import type { Context } from 'hono';
+import { rateLimits } from '../middleware/ratelimit.ts';
 
 // Server handlers
 import {
@@ -66,54 +67,54 @@ export function createXrpcRouter(): Hono {
   // com.atproto.server.* endpoints
   // ============================================
 
-  app.get('/xrpc/com.atproto.server.describeServer', describeServer);
-  app.post('/xrpc/com.atproto.server.createSession', createSessionHandler);
-  app.post('/xrpc/com.atproto.server.refreshSession', refreshSessionHandler);
-  app.get('/xrpc/com.atproto.server.getSession', getSessionHandler);
-  app.post('/xrpc/com.atproto.server.deleteSession', deleteSessionHandler);
-  app.get('/xrpc/com.atproto.server.getAccountInviteCodes', getAccountInviteCodesHandler);
-  app.post('/xrpc/com.atproto.server.requestPasswordReset', requestPasswordResetHandler);
-  app.post('/xrpc/com.atproto.server.resetPassword', resetPasswordHandler);
+  app.get('/xrpc/com.atproto.server.describeServer', rateLimits.read, describeServer);
+  app.post('/xrpc/com.atproto.server.createSession', rateLimits.auth, createSessionHandler);
+  app.post('/xrpc/com.atproto.server.refreshSession', rateLimits.auth, refreshSessionHandler);
+  app.get('/xrpc/com.atproto.server.getSession', rateLimits.standard, getSessionHandler);
+  app.post('/xrpc/com.atproto.server.deleteSession', rateLimits.standard, deleteSessionHandler);
+  app.get('/xrpc/com.atproto.server.getAccountInviteCodes', rateLimits.standard, getAccountInviteCodesHandler);
+  app.post('/xrpc/com.atproto.server.requestPasswordReset', rateLimits.auth, requestPasswordResetHandler);
+  app.post('/xrpc/com.atproto.server.resetPassword', rateLimits.auth, resetPasswordHandler);
 
   // ============================================
   // com.atproto.repo.* endpoints
   // ============================================
 
-  app.get('/xrpc/com.atproto.repo.describeRepo', describeRepoHandler);
-  app.post('/xrpc/com.atproto.repo.createRecord', createRecordHandler);
-  app.post('/xrpc/com.atproto.repo.putRecord', putRecordHandler);
-  app.post('/xrpc/com.atproto.repo.deleteRecord', deleteRecordHandler);
-  app.get('/xrpc/com.atproto.repo.getRecord', getRecordHandler);
-  app.get('/xrpc/com.atproto.repo.listRecords', listRecordsHandler);
-  app.post('/xrpc/com.atproto.repo.uploadBlob', uploadBlobHandler);
-  app.post('/xrpc/com.atproto.repo.applyWrites', applyWritesHandler);
+  app.get('/xrpc/com.atproto.repo.describeRepo', rateLimits.read, describeRepoHandler);
+  app.post('/xrpc/com.atproto.repo.createRecord', rateLimits.write, createRecordHandler);
+  app.post('/xrpc/com.atproto.repo.putRecord', rateLimits.write, putRecordHandler);
+  app.post('/xrpc/com.atproto.repo.deleteRecord', rateLimits.write, deleteRecordHandler);
+  app.get('/xrpc/com.atproto.repo.getRecord', rateLimits.read, getRecordHandler);
+  app.get('/xrpc/com.atproto.repo.listRecords', rateLimits.read, listRecordsHandler);
+  app.post('/xrpc/com.atproto.repo.uploadBlob', rateLimits.upload, uploadBlobHandler);
+  app.post('/xrpc/com.atproto.repo.applyWrites', rateLimits.write, applyWritesHandler);
 
   // ============================================
   // com.atproto.sync.* endpoints
   // ============================================
 
-  app.get('/xrpc/com.atproto.sync.getRepo', getRepoHandler);
-  app.get('/xrpc/com.atproto.sync.getLatestCommit', getLatestCommitHandler);
-  app.get('/xrpc/com.atproto.sync.getRepoStatus', getRepoStatusHandler);
-  app.get('/xrpc/com.atproto.sync.getBlob', getBlobHandler);
-  app.get('/xrpc/com.atproto.sync.listBlobs', listBlobsHandler);
-  app.get('/xrpc/com.atproto.sync.getRecord', getSyncRecordHandler);
-  app.get('/xrpc/com.atproto.sync.getBlocks', getBlocksHandler);
-  app.get('/xrpc/com.atproto.sync.getCheckout', getCheckoutHandler);
-  app.get('/xrpc/com.atproto.sync.listRepos', listReposHandler);
-  app.post('/xrpc/com.atproto.sync.notifyOfUpdate', notifyOfUpdateHandler);
-  app.post('/xrpc/com.atproto.sync.requestCrawl', requestCrawlHandler);
+  app.get('/xrpc/com.atproto.sync.getRepo', rateLimits.standard, getRepoHandler);
+  app.get('/xrpc/com.atproto.sync.getLatestCommit', rateLimits.read, getLatestCommitHandler);
+  app.get('/xrpc/com.atproto.sync.getRepoStatus', rateLimits.read, getRepoStatusHandler);
+  app.get('/xrpc/com.atproto.sync.getBlob', rateLimits.standard, getBlobHandler);
+  app.get('/xrpc/com.atproto.sync.listBlobs', rateLimits.read, listBlobsHandler);
+  app.get('/xrpc/com.atproto.sync.getRecord', rateLimits.read, getSyncRecordHandler);
+  app.get('/xrpc/com.atproto.sync.getBlocks', rateLimits.standard, getBlocksHandler);
+  app.get('/xrpc/com.atproto.sync.getCheckout', rateLimits.standard, getCheckoutHandler);
+  app.get('/xrpc/com.atproto.sync.listRepos', rateLimits.read, listReposHandler);
+  app.post('/xrpc/com.atproto.sync.notifyOfUpdate', rateLimits.standard, notifyOfUpdateHandler);
+  app.post('/xrpc/com.atproto.sync.requestCrawl', rateLimits.standard, requestCrawlHandler);
 
   // ============================================
   // com.atproto.identity.* endpoints
   // ============================================
 
-  app.get('/xrpc/com.atproto.identity.resolveHandle', resolveHandleHandler);
-  app.post('/xrpc/com.atproto.identity.updateHandle', updateHandleHandler);
-  app.get('/xrpc/com.atproto.identity.getRecommendedDidCredentials', getRecommendedDidCredentialsHandler);
-  app.post('/xrpc/com.atproto.identity.signPlcOperation', signPlcOperationHandler);
-  app.post('/xrpc/com.atproto.identity.submitPlcOperation', submitPlcOperationHandler);
-  app.post('/xrpc/com.atproto.identity.requestPlcOperationSignature', requestPlcOperationSignatureHandler);
+  app.get('/xrpc/com.atproto.identity.resolveHandle', rateLimits.read, resolveHandleHandler);
+  app.post('/xrpc/com.atproto.identity.updateHandle', rateLimits.write, updateHandleHandler);
+  app.get('/xrpc/com.atproto.identity.getRecommendedDidCredentials', rateLimits.standard, getRecommendedDidCredentialsHandler);
+  app.post('/xrpc/com.atproto.identity.signPlcOperation', rateLimits.write, signPlcOperationHandler);
+  app.post('/xrpc/com.atproto.identity.submitPlcOperation', rateLimits.write, submitPlcOperationHandler);
+  app.post('/xrpc/com.atproto.identity.requestPlcOperationSignature', rateLimits.write, requestPlcOperationSignatureHandler);
 
   // ============================================
   // Catch-all for unknown XRPC methods

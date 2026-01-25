@@ -27,6 +27,7 @@ import { createFirehoseServer, handleFirehoseConnection } from './sync/firehose.
 import { cleanupExpiredSessions } from './auth/session.ts';
 import { cleanupExpiredPdsOAuthState } from './database/queries.ts';
 import { SESSION_EXPIRY_MS } from '../utils/constants.ts';
+import { rateLimits } from './middleware/ratelimit.ts';
 
 /**
  * Build a secure session cookie string
@@ -75,7 +76,7 @@ export function createPdsRoutes(): Hono {
   // ============================================
 
   // GitHub OAuth
-  app.get('/pds/auth/github', (c: Context) => {
+  app.get('/pds/auth/github', rateLimits.auth, (c: Context) => {
     const config = getPdsConfig();
     if (!config.github) {
       return c.json({ error: 'GitHub login not configured' }, 400);
@@ -85,7 +86,7 @@ export function createPdsRoutes(): Hono {
     return c.redirect(url);
   });
 
-  app.get('/pds/auth/github/callback', async (c: Context) => {
+  app.get('/pds/auth/github/callback', rateLimits.auth, async (c: Context) => {
     const code = c.req.query('code');
     const state = c.req.query('state');
     const error = c.req.query('error');
@@ -123,7 +124,7 @@ export function createPdsRoutes(): Hono {
   });
 
   // Google OAuth
-  app.get('/pds/auth/google', (c: Context) => {
+  app.get('/pds/auth/google', rateLimits.auth, (c: Context) => {
     const config = getPdsConfig();
     if (!config.google) {
       return c.json({ error: 'Google login not configured' }, 400);
@@ -133,7 +134,7 @@ export function createPdsRoutes(): Hono {
     return c.redirect(url);
   });
 
-  app.get('/pds/auth/google/callback', async (c: Context) => {
+  app.get('/pds/auth/google/callback', rateLimits.auth, async (c: Context) => {
     const code = c.req.query('code');
     const state = c.req.query('state');
     const error = c.req.query('error');
