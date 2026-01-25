@@ -10,7 +10,7 @@ import { uploadBlob, createBlobRef, addBlobReference, removeBlobReference } from
 import { getSocialUserSigningKey } from '../../social-auth/index.ts';
 import { getDatabase } from '../../../database/index.ts';
 import { getPDSConfig } from '../../config.ts';
-import { isValidCollection, isValidRkey, isValidDid } from '../../utils.ts';
+import { isValidCollection, isValidRkey, isValidDid, validateRecordSchema } from '../../utils.ts';
 
 /**
  * com.atproto.repo.createRecord
@@ -44,6 +44,19 @@ export async function handleCreateRecord(c: Context): Promise<Response> {
     // Validate rkey if provided
     if (rkey && !isValidRkey(rkey)) {
       return xrpcError(c, 'InvalidRequest', 'Invalid record key format', 400);
+    }
+
+    // Validate record schema (enabled by default, can be disabled with validate=false)
+    if (validate !== false) {
+      const validation = validateRecordSchema(record, collection);
+      if (!validation.valid) {
+        return xrpcError(
+          c,
+          'InvalidRecord',
+          `Record validation failed: ${validation.errors.join('; ')}`,
+          400
+        );
+      }
     }
 
     // Get signing key
@@ -270,6 +283,19 @@ export async function handlePutRecord(c: Context): Promise<Response> {
       return xrpcError(c, 'InvalidRequest', 'Invalid record key format', 400);
     }
 
+    // Validate record schema (enabled by default, can be disabled with validate=false)
+    if (validate !== false) {
+      const validation = validateRecordSchema(record, collection);
+      if (!validation.valid) {
+        return xrpcError(
+          c,
+          'InvalidRecord',
+          `Record validation failed: ${validation.errors.join('; ')}`,
+          400
+        );
+      }
+    }
+
     const signingKey = await getSocialUserSigningKey(auth.userId);
     if (!signingKey) {
       return xrpcError(c, 'InternalServerError', 'Failed to get signing key', 500);
@@ -390,6 +416,19 @@ export async function handleApplyWrites(c: Context): Promise<Response> {
       const recordKey = rkey || generateTid();
       if (rkey && !isValidRkey(rkey)) {
         return xrpcError(c, 'InvalidRequest', 'Invalid record key format in write operation', 400);
+      }
+
+      // Validate record schema for create/update operations (unless validate=false)
+      if ((action === 'create' || action === 'update') && validate !== false && value) {
+        const validation = validateRecordSchema(value, collection);
+        if (!validation.valid) {
+          return xrpcError(
+            c,
+            'InvalidRecord',
+            `Record validation failed for ${collection}/${recordKey}: ${validation.errors.join('; ')}`,
+            400
+          );
+        }
       }
 
       writeOps.push({
