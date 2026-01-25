@@ -13,6 +13,7 @@ import oauthRoutes from './routes/oauth.ts';
 import apiRoutes from './routes/api.ts';
 import { getSessionUser } from './services/auth.ts';
 import { isOAuthConfigured } from './services/oauth-client.ts';
+import { initializePds, createPdsRoutes, isPdsEnabled, getPdsConfig } from './pds/index.ts';
 import fs from 'fs';
 import path from 'path';
 
@@ -50,6 +51,12 @@ app.get('/healthz', (c) => {
 console.log('Initializing database...');
 getDatabase();
 
+// Initialize PDS if configured
+if (isPdsEnabled()) {
+  console.log('Initializing PDS...');
+  initializePds();
+}
+
 // Clean up expired sessions and old OAuth state on startup
 deleteExpiredSessions();
 cleanupOldOAuthState();
@@ -61,6 +68,12 @@ app.route('/api', apiRoutes);
 // Auth routes (HTML form-based, for backward compatibility)
 app.route('/auth', authRoutes);
 app.route('/oauth', oauthRoutes);
+
+// PDS routes (ATProto endpoints for social login users)
+if (isPdsEnabled()) {
+  const pdsRoutes = createPdsRoutes();
+  app.route('/', pdsRoutes);
+}
 
 // In production, serve static files from dist/client
 if (isProduction) {
@@ -167,6 +180,28 @@ const server = serve({
     console.log(`${cyan}To enable OAuth login, set PUBLIC_URL to your app's public URL.${reset}`);
     console.log(`${cyan}  PUBLIC_URL=https://yourdomain.com${reset}`)
     console.log(`${cyan}  PUBLIC_URL=http://localhost:3333${reset}`)
+    console.log('');
+  }
+
+  // Show PDS status
+  if (isPdsEnabled()) {
+    const green = '\x1b[32m';
+    const reset = '\x1b[0m';
+    const config = getPdsConfig();
+    console.log('');
+    console.log(`${green}PDS (Personal Data Server) is enabled${reset}`);
+    console.log(`${green}  Handle domain: ${config.handleDomain}${reset}`);
+    console.log(`${green}  Social login providers:${reset}`);
+    if (config.github) console.log(`${green}    - GitHub${reset}`);
+    if (config.google) console.log(`${green}    - Google${reset}`);
+    console.log('');
+  } else {
+    const yellow = '\x1b[33m';
+    const reset = '\x1b[0m';
+    console.log('');
+    console.log(`${yellow}PDS is not enabled. To enable social login:${reset}`);
+    console.log(`${yellow}  Set GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET for GitHub login${reset}`);
+    console.log(`${yellow}  Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET for Google login${reset}`);
     console.log('');
   }
 
