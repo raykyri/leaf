@@ -17,7 +17,13 @@ const DPOP_MAX_AGE_MS = 5 * 60 * 1000;
 // Track used DPoP jti values to prevent replay (in-memory, would use Redis in production)
 const usedDPoPJtis = new Map<string, number>();
 
-// Clean up old jti values periodically
+// CSRF token expiry (10 minutes)
+const CSRF_TOKEN_EXPIRY_MS = 10 * 60 * 1000;
+
+// Track CSRF tokens (in-memory for simplicity, would use database in production)
+const csrfTokens = new Map<string, { requestUri: string; createdAt: number }>();
+
+// Clean up old jti values and CSRF tokens periodically
 setInterval(() => {
   const now = Date.now();
   for (const [jti, timestamp] of usedDPoPJtis) {
@@ -25,7 +31,46 @@ setInterval(() => {
       usedDPoPJtis.delete(jti);
     }
   }
+  for (const [token, data] of csrfTokens) {
+    if (now - data.createdAt > CSRF_TOKEN_EXPIRY_MS * 2) {
+      csrfTokens.delete(token);
+    }
+  }
 }, 60000);
+
+/**
+ * Generate a CSRF token for the authorization form
+ */
+function generateCsrfToken(requestUri: string): string {
+  const token = crypto.randomBytes(32).toString('base64url');
+  csrfTokens.set(token, { requestUri, createdAt: Date.now() });
+  return token;
+}
+
+/**
+ * Validate a CSRF token
+ */
+function validateCsrfToken(token: string, requestUri: string): boolean {
+  const data = csrfTokens.get(token);
+  if (!data) {
+    return false;
+  }
+
+  // Check expiry
+  if (Date.now() - data.createdAt > CSRF_TOKEN_EXPIRY_MS) {
+    csrfTokens.delete(token);
+    return false;
+  }
+
+  // Check request_uri matches
+  if (data.requestUri !== requestUri) {
+    return false;
+  }
+
+  // Delete token after use (single use)
+  csrfTokens.delete(token);
+  return true;
+}
 
 /**
  * DPoP proof validation result
@@ -442,11 +487,20 @@ async function handleAuthorize(c: Context): Promise<Response> {
     dpopJkt: row.dpop_jkt || undefined,
   };
 
-  // Render authorization page
-  const config = getPDSConfig();
-  const html = renderAuthorizePage(authRequest, config.publicUrl);
+  // Generate CSRF token for the form
+  const csrfToken = generateCsrfToken(requestUri);
 
-  return c.html(html);
+  // Render authorization page with security headers
+  const config = getPDSConfig();
+  const html = renderAuthorizePage(authRequest, config.publicUrl, csrfToken, requestUri);
+
+  return c.html(html, {
+    headers: {
+      'X-Frame-Options': 'DENY',
+      'X-Content-Type-Options': 'nosniff',
+      'Content-Security-Policy': "default-src 'self'; style-src 'unsafe-inline'; frame-ancestors 'none'",
+    },
+  });
 }
 
 /**
@@ -462,7 +516,27 @@ async function handleAuthorizeSubmit(c: Context): Promise<Response> {
   const codeChallenge = body.code_challenge;
   const codeChallengeMethod = body.code_challenge_method;
   const state = body.state;
+  const csrfToken = body.csrf_token;
+  const requestUri = body.request_uri;
   const sessionToken = body.session_token || c.req.header('Cookie')?.match(/session=([^;]+)/)?.[1];
+
+  // Validate CSRF token
+  if (!csrfToken || !requestUri || !validateCsrfToken(csrfToken, requestUri)) {
+    return c.html(
+      `<!DOCTYPE html><html><body>
+        <h1>Security Error</h1>
+        <p>Invalid or expired CSRF token. Please try again.</p>
+        <a href="/oauth/authorize?request_uri=${encodeURIComponent(requestUri || '')}">Go back</a>
+      </body></html>`,
+      403,
+      {
+        headers: {
+          'X-Frame-Options': 'DENY',
+          'Content-Security-Policy': "default-src 'self'; frame-ancestors 'none'",
+        },
+      }
+    );
+  }
 
   if (action === 'deny') {
     const redirectUrl = new URL(redirectUri);
@@ -737,7 +811,12 @@ function hashToken(token: string): string {
 /**
  * Render authorization consent page
  */
-function renderAuthorizePage(request: AuthorizationRequest, publicUrl: string): string {
+function renderAuthorizePage(
+  request: AuthorizationRequest,
+  publicUrl: string,
+  csrfToken: string,
+  requestUri: string
+): string {
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -763,6 +842,8 @@ function renderAuthorizePage(request: AuthorizationRequest, publicUrl: string): 
     <p>This will allow the application to:</p>
     <div class="scope">${escapeHtml(request.scope)}</div>
     <form method="POST">
+      <input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}">
+      <input type="hidden" name="request_uri" value="${escapeHtml(requestUri)}">
       <input type="hidden" name="client_id" value="${escapeHtml(request.clientId)}">
       <input type="hidden" name="redirect_uri" value="${escapeHtml(request.redirectUri)}">
       <input type="hidden" name="scope" value="${escapeHtml(request.scope)}">
