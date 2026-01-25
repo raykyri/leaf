@@ -453,7 +453,7 @@ async function processBlobReferences(
   did: string,
   collection: string,
   rkey: string,
-  record: any
+  record: unknown
 ): Promise<void> {
   // First, remove existing references for this record
   removeBlobReference(did, collection, rkey);
@@ -470,16 +470,22 @@ async function processBlobReferences(
 /**
  * Recursively find all blob references in a record
  */
-function findBlobRefs(obj: any): string[] {
+function findBlobRefs(obj: unknown): string[] {
   const refs: string[] = [];
 
   if (!obj || typeof obj !== 'object') {
     return refs;
   }
 
+  // Type guard for blob ref
+  const record = obj as Record<string, unknown>;
+
   // Check if this is a blob ref
-  if (obj.$type === 'blob' && obj.ref?.$link) {
-    refs.push(obj.ref.$link);
+  if (record.$type === 'blob') {
+    const ref = record.ref as Record<string, unknown> | undefined;
+    if (ref?.$link && typeof ref.$link === 'string') {
+      refs.push(ref.$link);
+    }
   }
 
   // Recurse into arrays and objects
@@ -488,7 +494,7 @@ function findBlobRefs(obj: any): string[] {
       refs.push(...findBlobRefs(item));
     }
   } else {
-    for (const value of Object.values(obj)) {
+    for (const value of Object.values(record)) {
       refs.push(...findBlobRefs(value));
     }
   }

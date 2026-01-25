@@ -22,6 +22,29 @@ export interface SocialUserInfo {
   username: string | null;
 }
 
+// GitHub API response types
+export interface GitHubUserResponse {
+  id: number;
+  login: string;
+  email: string | null;
+  name: string | null;
+  avatar_url: string | null;
+}
+
+export interface GitHubEmailResponse {
+  email: string;
+  primary: boolean;
+  verified: boolean;
+}
+
+// Google API response types
+export interface GoogleUserResponse {
+  id: string;
+  email: string | null;
+  name: string | null;
+  picture: string | null;
+}
+
 export function getGitHubConfig(): OAuthProviderConfig | null {
   const clientId = process.env.GITHUB_CLIENT_ID;
   const clientSecret = process.env.GITHUB_CLIENT_SECRET;
@@ -81,11 +104,11 @@ export function getAvailableProviders(): Array<'github' | 'google'> {
 /**
  * Parse user info response from GitHub
  */
-export function parseGitHubUserInfo(data: any, emails?: any[]): SocialUserInfo {
+export function parseGitHubUserInfo(data: GitHubUserResponse, emails?: GitHubEmailResponse[]): SocialUserInfo {
   // Find primary email from emails endpoint if available
   let email = data.email;
   if (!email && emails && emails.length > 0) {
-    const primaryEmail = emails.find((e: any) => e.primary && e.verified);
+    const primaryEmail = emails.find((e) => e.primary && e.verified);
     email = primaryEmail?.email || emails[0]?.email || null;
   }
 
@@ -102,7 +125,7 @@ export function parseGitHubUserInfo(data: any, emails?: any[]): SocialUserInfo {
 /**
  * Parse user info response from Google
  */
-export function parseGoogleUserInfo(data: any): SocialUserInfo {
+export function parseGoogleUserInfo(data: GoogleUserResponse): SocialUserInfo {
   return {
     provider: 'google',
     providerId: data.id,

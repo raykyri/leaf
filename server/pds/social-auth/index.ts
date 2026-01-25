@@ -11,6 +11,9 @@ import {
   parseGoogleUserInfo,
   type SocialUserInfo,
   type OAuthProviderConfig,
+  type GitHubUserResponse,
+  type GitHubEmailResponse,
+  type GoogleUserResponse,
 } from './providers.ts';
 import {
   generateSigningKey,
@@ -176,26 +179,27 @@ async function fetchUserInfo(
       return null;
     }
 
-    const userData = await response.json() as Record<string, any>;
-
-    // For GitHub, also fetch emails if not public
-    let emails: any[] | undefined;
-    if (provider === 'github' && !userData.email) {
-      try {
-        const emailResponse = await fetch('https://api.github.com/user/emails', {
-          headers,
-        });
-        if (emailResponse.ok) {
-          emails = await emailResponse.json();
-        }
-      } catch {
-        // Email fetch failed, continue without
-      }
-    }
-
     if (provider === 'github') {
+      const userData = await response.json() as GitHubUserResponse;
+
+      // For GitHub, also fetch emails if not public
+      let emails: GitHubEmailResponse[] | undefined;
+      if (!userData.email) {
+        try {
+          const emailResponse = await fetch('https://api.github.com/user/emails', {
+            headers,
+          });
+          if (emailResponse.ok) {
+            emails = await emailResponse.json() as GitHubEmailResponse[];
+          }
+        } catch {
+          // Email fetch failed, continue without
+        }
+      }
+
       return parseGitHubUserInfo(userData, emails);
     } else {
+      const userData = await response.json() as GoogleUserResponse;
       return parseGoogleUserInfo(userData);
     }
   } catch (error) {

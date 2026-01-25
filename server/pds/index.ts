@@ -4,6 +4,7 @@
  */
 
 import type { Hono } from 'hono';
+import type { IncomingMessage } from 'http';
 import { getDatabase } from '../database/index.ts';
 import { initializePDSSchema } from './schema.ts';
 import { getPDSConfig, isPDSEnabled } from './config.ts';
@@ -12,6 +13,16 @@ import { mountOAuthRoutes } from './oauth/index.ts';
 import { mountSocialAuthRoutes } from './routes/social-auth.ts';
 import { addSubscriber, getLatestSeq } from './firehose/index.ts';
 import { garbageCollectBlobs } from './blob/index.ts';
+
+// WebSocket types for ws library
+interface WebSocketLike {
+  send(data: Uint8Array | string): void;
+  on(event: 'close', listener: () => void): void;
+}
+
+interface WebSocketServerLike {
+  on(event: 'connection', listener: (ws: WebSocketLike, req: IncomingMessage) => void): void;
+}
 
 let initialized = false;
 
@@ -71,12 +82,12 @@ export function mountPDSRoutes(app: Hono): void {
 /**
  * Set up WebSocket handler for firehose
  */
-export function setupFirehoseWebSocket(wss: any): void {
+export function setupFirehoseWebSocket(wss: WebSocketServerLike): void {
   if (!isPDSEnabled()) {
     return;
   }
 
-  wss.on('connection', (ws: any, req: any) => {
+  wss.on('connection', (ws: WebSocketLike, req: IncomingMessage) => {
     const url = new URL(req.url, 'http://localhost');
 
     // Only handle firehose endpoint
