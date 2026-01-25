@@ -5,9 +5,22 @@
  */
 
 import type { Context } from 'hono';
-import { exportRepoCar, getRepoHead, repoExists } from '../../repo/car.ts';
+import { CID } from 'multiformats/cid';
+import { CarWriter } from '@ipld/car';
+import { exportRepoCar, exportRecordCar, getRepoHead, repoExists } from '../../repo/car.ts';
 import { getBlob, listBlobsForDid } from '../../repo/blobs.ts';
-import { getPdsAccountByDid, getPdsAccountByDidForRead, getLatestPdsCommit, getPdsCommitsSince } from '../../database/queries.ts';
+import { getRepository } from '../../repo/repository.ts';
+import {
+  getPdsAccountByDid,
+  getPdsAccountByDidForRead,
+  getLatestPdsCommit,
+  getPdsCommitsSince,
+  getPdsCommitByCid,
+  getPdsRecord,
+  getAllPdsAccountDids,
+  getPdsRepoState,
+} from '../../database/queries.ts';
+import type { EncryptedKeyData } from '../../identity/keys.ts';
 
 /**
  * com.atproto.sync.getRepo
@@ -158,14 +171,39 @@ export async function getRecordHandler(c: Context) {
   const did = c.req.query('did');
   const collection = c.req.query('collection');
   const rkey = c.req.query('rkey');
+  const commit = c.req.query('commit');
 
   if (!did || !collection || !rkey) {
     return c.json({ error: 'InvalidRequest', message: 'did, collection, and rkey parameters required' }, 400);
   }
 
-  // For now, redirect to the regular getRecord endpoint
-  // A full implementation would return the record as CAR
-  return c.json({ error: 'NotImplemented', message: 'Use com.atproto.repo.getRecord instead' }, 501);
+  const { account } = getPdsAccountByDidForRead(did);
+  if (!account) {
+    return c.json({ error: 'RepoNotFound', message: 'Repository not found' }, 404);
+  }
+
+  // Get the record
+  const record = getPdsRecord(did, collection, rkey);
+  if (!record) {
+    return c.json({ error: 'RecordNotFound', message: 'Record not found' }, 404);
+  }
+
+  try {
+    // Export as CAR file
+    const carData = await exportRecordCar(did, collection, rkey);
+    if (!carData) {
+      return c.json({ error: 'RecordNotFound', message: 'Record not found' }, 404);
+    }
+
+    return new Response(carData, {
+      headers: {
+        'Content-Type': 'application/vnd.ipld.car',
+      },
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to export record';
+    return c.json({ error: 'InternalError', message }, 500);
+  }
 }
 
 /**
@@ -180,9 +218,78 @@ export async function getBlocksHandler(c: Context) {
     return c.json({ error: 'InvalidRequest', message: 'did and cids parameters required' }, 400);
   }
 
-  // This would return the blocks as CAR
-  // For now, not fully implemented
-  return c.json({ error: 'NotImplemented', message: 'Block retrieval not implemented' }, 501);
+  const { account } = getPdsAccountByDidForRead(did);
+  if (!account) {
+    return c.json({ error: 'RepoNotFound', message: 'Repository not found' }, 404);
+  }
+
+  try {
+    // Get the repository manager
+    const signingKey = JSON.parse(account.signing_key) as EncryptedKeyData;
+    const repository = await getRepository(did, signingKey);
+
+    // Collect requested blocks
+    const blocks: Array<{ cid: CID; bytes: Uint8Array }> = [];
+
+    for (const cidStr of cids) {
+      // Try to find in commits first
+      const commit = getPdsCommitByCid(cidStr);
+      if (commit) {
+        blocks.push({
+          cid: CID.parse(cidStr),
+          bytes: new Uint8Array(commit.data),
+        });
+        continue;
+      }
+
+      // Try to find in repository blocks
+      const block = repository.getBlock(cidStr);
+      if (block) {
+        blocks.push(block);
+      }
+    }
+
+    if (blocks.length === 0) {
+      return c.json({ error: 'BlocksNotFound', message: 'No blocks found' }, 404);
+    }
+
+    // Create CAR file with the blocks
+    const chunks: Uint8Array[] = [];
+    const { writer, out } = CarWriter.create(blocks.map(b => b.cid));
+
+    // Collect output
+    const collectPromise = (async () => {
+      for await (const chunk of out) {
+        chunks.push(chunk);
+      }
+    })();
+
+    // Write blocks
+    for (const block of blocks) {
+      await writer.put(block);
+    }
+
+    await writer.close();
+    await collectPromise;
+
+    // Concatenate chunks
+    const totalLength = chunks.reduce((acc, chunk) => acc + chunk.length, 0);
+    const carData = new Uint8Array(totalLength);
+    let offset = 0;
+    for (const chunk of chunks) {
+      carData.set(chunk, offset);
+      offset += chunk.length;
+    }
+
+    return new Response(carData, {
+      headers: {
+        'Content-Type': 'application/vnd.ipld.car',
+      },
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to get blocks';
+    return c.json({ error: 'InternalError', message }, 500);
+  }
 }
 
 /**
@@ -203,11 +310,46 @@ export async function listReposHandler(c: Context) {
   const limit = parseInt(c.req.query('limit') || '500', 10);
   const cursor = c.req.query('cursor');
 
-  // This would list all repos on the PDS
-  // For now, return empty (would need to implement proper pagination)
+  // Get all DIDs
+  const allDids = getAllPdsAccountDids();
+
+  // Apply cursor (simple string comparison for pagination)
+  let filteredDids = allDids;
+  if (cursor) {
+    const cursorIndex = allDids.findIndex(did => did === cursor);
+    if (cursorIndex !== -1) {
+      filteredDids = allDids.slice(cursorIndex + 1);
+    }
+  }
+
+  // Apply limit
+  const pageSize = Math.min(limit, 1000);
+  const pageDids = filteredDids.slice(0, pageSize + 1);
+
+  // Check if there are more results
+  let nextCursor: string | undefined;
+  if (pageDids.length > pageSize) {
+    pageDids.pop();
+    nextCursor = pageDids[pageDids.length - 1];
+  }
+
+  // Build repo info for each DID
+  const repos = [];
+  for (const did of pageDids) {
+    const state = getPdsRepoState(did);
+    if (state) {
+      repos.push({
+        did,
+        head: state.head_cid,
+        rev: state.head_rev,
+        active: true, // Already filtered by getAllPdsAccountDids
+      });
+    }
+  }
+
   return c.json({
-    repos: [],
-    cursor: undefined,
+    repos,
+    cursor: nextCursor,
   });
 }
 
@@ -219,7 +361,13 @@ export async function notifyOfUpdateHandler(c: Context) {
   const body = await c.req.json().catch(() => ({}));
   const { hostname } = body as { hostname?: string };
 
-  // This is for relay coordination, acknowledge but no action needed
+  // This is for relay coordination
+  // In a full implementation, we would:
+  // 1. Validate the requesting relay
+  // 2. Queue the repository for crawl
+  // 3. Return acknowledgment
+
+  // For now, acknowledge the request
   return c.json({});
 }
 
@@ -231,6 +379,12 @@ export async function requestCrawlHandler(c: Context) {
   const body = await c.req.json().catch(() => ({}));
   const { hostname } = body as { hostname?: string };
 
-  // This is for relay coordination, acknowledge
+  // This is for relay coordination
+  // In a full implementation, we would:
+  // 1. Validate the requesting relay
+  // 2. Add the relay to our list of subscribers
+  // 3. Initiate firehose connection or notify of updates
+
+  // For now, acknowledge the request
   return c.json({});
 }

@@ -61,12 +61,13 @@ export async function createRecordHandler(c: Context) {
   }
 
   const body = await c.req.json().catch(() => ({}));
-  const { repo, collection, rkey, validate, record } = body as {
+  const { repo, collection, rkey, validate, record, swapCommit } = body as {
     repo?: string;
     collection?: string;
     rkey?: string;
     validate?: boolean;
     record?: unknown;
+    swapCommit?: string;
   };
 
   if (!repo || !collection || !record) {
@@ -102,8 +103,8 @@ export async function createRecordHandler(c: Context) {
   const repository = await getRepository(session.did, signingKey);
 
   try {
-    // Create the record
-    const result = await repository.createRecord(collection, rkey, record);
+    // Create the record with swapCommit verification
+    const result = await repository.createRecord(collection, rkey, record, swapCommit);
 
     // Track blob references
     const blobCids = extractBlobCids(record);
@@ -117,6 +118,10 @@ export async function createRecordHandler(c: Context) {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to create record';
+    // Check for swap errors
+    if (message.includes('InvalidSwap')) {
+      return c.json({ error: 'InvalidSwap', message }, 400);
+    }
     return c.json({ error: 'InvalidRequest', message }, 400);
   }
 }
@@ -176,9 +181,14 @@ export async function putRecordHandler(c: Context) {
 
     let result;
     if (existing) {
-      result = await repository.updateRecord(collection, rkey, record);
+      // Update with swap verification
+      result = await repository.updateRecord(collection, rkey, record, swapRecord, swapCommit);
     } else {
-      result = await repository.createRecord(collection, rkey, record);
+      // Create new record (swapRecord should be null for create)
+      if (swapRecord !== undefined && swapRecord !== null) {
+        return c.json({ error: 'InvalidSwap', message: 'Record does not exist but swapRecord was provided' }, 400);
+      }
+      result = await repository.createRecord(collection, rkey, record, swapCommit);
     }
 
     // Track blob references
@@ -193,6 +203,9 @@ export async function putRecordHandler(c: Context) {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to put record';
+    if (message.includes('InvalidSwap')) {
+      return c.json({ error: 'InvalidSwap', message }, 400);
+    }
     return c.json({ error: 'InvalidRequest', message }, 400);
   }
 }
@@ -245,10 +258,14 @@ export async function deleteRecordHandler(c: Context) {
   const repository = await getRepository(session.did, signingKey);
 
   try {
-    await repository.deleteRecord(collection, rkey);
+    // Delete with swap verification
+    await repository.deleteRecord(collection, rkey, swapRecord, swapCommit);
     return c.json({});
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to delete record';
+    if (message.includes('InvalidSwap')) {
+      return c.json({ error: 'InvalidSwap', message }, 400);
+    }
     return c.json({ error: 'InvalidRequest', message }, 400);
   }
 }
