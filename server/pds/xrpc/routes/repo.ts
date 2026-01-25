@@ -57,6 +57,21 @@ export async function handleCreateRecord(c: Context): Promise<Response> {
 
     // Create record
     const repository = getRepository(auth.did);
+
+    // Validate swapCommit if provided (optimistic concurrency control)
+    if (swapCommit) {
+      const state = await repository.getState();
+      const currentHead = state?.headCid?.toString();
+      if (currentHead !== swapCommit) {
+        return xrpcError(
+          c,
+          'InvalidSwap',
+          `Repository has been modified. Expected commit: ${swapCommit}, current: ${currentHead || 'none'}`,
+          409
+        );
+      }
+    }
+
     const result = await repository.createRecord(collection, recordKey, record, signingKey);
 
     // Handle blob references in record
@@ -197,10 +212,25 @@ export async function handleDeleteRecord(c: Context): Promise<Response> {
       return xrpcError(c, 'InternalServerError', 'Failed to get signing key', 500);
     }
 
+    const repository = getRepository(auth.did);
+
+    // Validate swapCommit if provided (optimistic concurrency control)
+    if (swapCommit) {
+      const state = await repository.getState();
+      const currentHead = state?.headCid?.toString();
+      if (currentHead !== swapCommit) {
+        return xrpcError(
+          c,
+          'InvalidSwap',
+          `Repository has been modified. Expected commit: ${swapCommit}, current: ${currentHead || 'none'}`,
+          409
+        );
+      }
+    }
+
     // Remove blob references before deleting
     removeBlobReference(auth.did, collection, rkey);
 
-    const repository = getRepository(auth.did);
     await repository.deleteRecord(collection, rkey, signingKey);
 
     return c.json({});
@@ -247,6 +277,20 @@ export async function handlePutRecord(c: Context): Promise<Response> {
 
     const repository = getRepository(auth.did);
 
+    // Validate swapCommit if provided (optimistic concurrency control)
+    if (swapCommit) {
+      const state = await repository.getState();
+      const currentHead = state?.headCid?.toString();
+      if (currentHead !== swapCommit) {
+        return xrpcError(
+          c,
+          'InvalidSwap',
+          `Repository has been modified. Expected commit: ${swapCommit}, current: ${currentHead || 'none'}`,
+          409
+        );
+      }
+    }
+
     // Check if record exists to determine create vs update
     const existing = await repository.getRecord(collection, rkey);
     const result = existing
@@ -291,6 +335,22 @@ export async function handleApplyWrites(c: Context): Promise<Response> {
     const signingKey = await getSocialUserSigningKey(auth.userId);
     if (!signingKey) {
       return xrpcError(c, 'InternalServerError', 'Failed to get signing key', 500);
+    }
+
+    const repository = getRepository(auth.did);
+
+    // Validate swapCommit if provided (optimistic concurrency control)
+    if (swapCommit) {
+      const state = await repository.getState();
+      const currentHead = state?.headCid?.toString();
+      if (currentHead !== swapCommit) {
+        return xrpcError(
+          c,
+          'InvalidSwap',
+          `Repository has been modified. Expected commit: ${swapCommit}, current: ${currentHead || 'none'}`,
+          409
+        );
+      }
     }
 
     // Validate and transform writes to internal format
@@ -340,7 +400,6 @@ export async function handleApplyWrites(c: Context): Promise<Response> {
       });
     }
 
-    const repository = getRepository(auth.did);
     const result = await repository.applyWrites(writeOps, signingKey);
 
     // Handle blob references for each write
