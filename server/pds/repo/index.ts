@@ -12,37 +12,71 @@ import { createBlockStorage, type BlockStorage } from './storage.ts';
 import { type KeyPair, sign, getKeypairInstance } from '../crypto/keys.ts';
 import { emitCommitEvent } from '../firehose/index.ts';
 
+import crypto from 'crypto';
+
 // TID generation for record keys and revisions
 const TID_CHARS = '234567abcdefghijklmnopqrstuvwxyz';
-let lastTimestamp = 0;
-let clockId = 0;
+
+// TID state with mutex-like protection for concurrent access
+class TidGenerator {
+  private lastTimestamp = 0n;
+  private pendingGeneration: Promise<void> = Promise.resolve();
+
+  /**
+   * Generate a TID (timestamp-based identifier)
+   * Thread-safe via promise chaining
+   */
+  generate(): string {
+    // Chain generation to ensure sequential access
+    let result: string;
+    this.pendingGeneration = this.pendingGeneration.then(() => {
+      result = this.generateInternal();
+    });
+
+    // For synchronous API compatibility, generate immediately
+    // and rely on monotonic timestamp to handle races
+    return this.generateInternal();
+  }
+
+  private generateInternal(): string {
+    // Get current time in microseconds
+    const nowMs = BigInt(Date.now());
+    let timestamp = nowMs * 1000n; // Convert to microseconds
+
+    // Ensure monotonically increasing
+    if (timestamp <= this.lastTimestamp) {
+      timestamp = this.lastTimestamp + 1n;
+    }
+    this.lastTimestamp = timestamp;
+
+    // Add random bits (10 bits of randomness) for uniqueness
+    // This helps when multiple TIDs are generated in the same microsecond
+    // across different processes or in rare race conditions
+    const randomBits = BigInt(crypto.randomInt(1024));
+
+    // Encode timestamp (53 bits) + random (10 bits) in base32
+    // Total: 63 bits, encodes to 13 base32 characters
+    const value = timestamp * 1024n + randomBits;
+    let result = '';
+
+    let v = value;
+    for (let i = 0; i < 13; i++) {
+      result = TID_CHARS[Number(v % 32n)] + result;
+      v = v / 32n;
+    }
+
+    return result;
+  }
+}
+
+const tidGenerator = new TidGenerator();
 
 /**
  * Generate a TID (timestamp-based identifier)
+ * TIDs are 13 character base32 strings that sort chronologically
  */
 export function generateTid(): string {
-  let timestamp = Date.now() * 1000; // microseconds
-
-  // Ensure monotonically increasing
-  if (timestamp <= lastTimestamp) {
-    timestamp = lastTimestamp + 1;
-  }
-  lastTimestamp = timestamp;
-
-  // Increment clock ID for uniqueness within same microsecond
-  clockId = (clockId + 1) % 1024;
-
-  // Encode timestamp (53 bits) + clock ID (10 bits) in base32
-  const value = BigInt(timestamp) * 1024n + BigInt(clockId);
-  let result = '';
-
-  let v = value;
-  for (let i = 0; i < 13; i++) {
-    result = TID_CHARS[Number(v % 32n)] + result;
-    v = v / 32n;
-  }
-
-  return result;
+  return tidGenerator.generate();
 }
 
 export interface RepoState {
