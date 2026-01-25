@@ -11,6 +11,229 @@ import { getPDSConfig } from '../config.ts';
 import { getDatabase } from '../../database/index.ts';
 import { escapeHtml } from '../utils.ts';
 
+// PDS signing key for JWT tokens (generated on first use, stored encrypted)
+let pdsSigningKey: crypto.KeyObject | null = null;
+let pdsSigningKeyKid: string | null = null;
+
+/**
+ * Get or generate the PDS signing key for JWT tokens
+ */
+async function getPDSSigningKey(): Promise<{ key: crypto.KeyObject; kid: string }> {
+  if (pdsSigningKey && pdsSigningKeyKid) {
+    return { key: pdsSigningKey, kid: pdsSigningKeyKid };
+  }
+
+  const config = getPDSConfig();
+  const db = getDatabase();
+
+  // Try to load existing key from database
+  const row = db
+    .prepare('SELECT key_data, kid FROM pds_signing_keys WHERE active = 1 LIMIT 1')
+    .get() as { key_data: string; kid: string } | undefined;
+
+  if (row) {
+    // Decrypt and load existing key
+    const keyData = decryptPDSKey(row.key_data, config.jwtSecret);
+    pdsSigningKey = crypto.createPrivateKey({ key: keyData, format: 'jwk' });
+    pdsSigningKeyKid = row.kid;
+    return { key: pdsSigningKey, kid: pdsSigningKeyKid };
+  }
+
+  // Generate new key pair (ES256 - P-256 curve)
+  const { privateKey, publicKey } = crypto.generateKeyPairSync('ec', {
+    namedCurve: 'P-256',
+  });
+
+  // Export private key as JWK for storage
+  const privateJwk = privateKey.export({ format: 'jwk' });
+  const publicJwk = publicKey.export({ format: 'jwk' });
+
+  // Calculate kid from public key thumbprint
+  const kid = calculateJwkThumbprint(publicJwk as Record<string, unknown>);
+
+  // Encrypt and store the key
+  const encryptedKey = encryptPDSKey(JSON.stringify(privateJwk), config.jwtSecret);
+
+  // Ensure table exists
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS pds_signing_keys (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      kid TEXT UNIQUE NOT NULL,
+      key_data TEXT NOT NULL,
+      public_jwk TEXT NOT NULL,
+      active INTEGER DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  db.prepare(
+    'INSERT INTO pds_signing_keys (kid, key_data, public_jwk, active) VALUES (?, ?, ?, 1)'
+  ).run(kid, encryptedKey, JSON.stringify(publicJwk));
+
+  pdsSigningKey = privateKey;
+  pdsSigningKeyKid = kid;
+
+  return { key: pdsSigningKey, kid: pdsSigningKeyKid };
+}
+
+/**
+ * Encrypt PDS signing key for storage
+ */
+function encryptPDSKey(data: string, secret: string): string {
+  const salt = crypto.randomBytes(32);
+  const key = crypto.scryptSync(secret, salt, 32);
+  const iv = crypto.randomBytes(16);
+
+  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+  const encrypted = Buffer.concat([cipher.update(data, 'utf8'), cipher.final()]);
+  const authTag = cipher.getAuthTag();
+
+  return [
+    salt.toString('base64'),
+    iv.toString('base64'),
+    authTag.toString('base64'),
+    encrypted.toString('base64'),
+  ].join(':');
+}
+
+/**
+ * Decrypt PDS signing key from storage
+ */
+function decryptPDSKey(encryptedData: string, secret: string): crypto.JsonWebKey {
+  const [saltB64, ivB64, authTagB64, encryptedB64] = encryptedData.split(':');
+
+  const salt = Buffer.from(saltB64, 'base64');
+  const iv = Buffer.from(ivB64, 'base64');
+  const authTag = Buffer.from(authTagB64, 'base64');
+  const encrypted = Buffer.from(encryptedB64, 'base64');
+
+  const key = crypto.scryptSync(secret, salt, 32);
+
+  const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+  decipher.setAuthTag(authTag);
+
+  const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]);
+
+  return JSON.parse(decrypted.toString('utf8'));
+}
+
+/**
+ * Generate a JWT access token
+ */
+async function generateAccessTokenJWT(
+  subject: string,
+  clientId: string,
+  scope: string,
+  dpopJkt: string,
+  expiresInSeconds: number
+): Promise<string> {
+  const config = getPDSConfig();
+  const { key, kid } = await getPDSSigningKey();
+
+  const now = Math.floor(Date.now() / 1000);
+
+  // JWT Header
+  const header = {
+    alg: 'ES256',
+    typ: 'at+jwt', // ATProto access token type
+    kid,
+  };
+
+  // JWT Payload
+  const payload = {
+    iss: config.publicUrl, // Issuer
+    sub: subject, // Subject (user DID)
+    aud: config.publicUrl, // Audience (this PDS)
+    exp: now + expiresInSeconds, // Expiration
+    iat: now, // Issued at
+    jti: crypto.randomBytes(16).toString('hex'), // JWT ID
+    scope, // OAuth scopes
+    client_id: clientId, // Client that requested the token
+    cnf: {
+      jkt: dpopJkt, // DPoP key thumbprint for binding
+    },
+  };
+
+  // Encode header and payload
+  const headerB64 = Buffer.from(JSON.stringify(header)).toString('base64url');
+  const payloadB64 = Buffer.from(JSON.stringify(payload)).toString('base64url');
+  const signingInput = `${headerB64}.${payloadB64}`;
+
+  // Sign with ES256
+  const signer = crypto.createSign('SHA256');
+  signer.update(signingInput);
+  const signature = signer.sign(key);
+
+  // Convert DER signature to raw format (r || s) for JWT
+  const rawSignature = derToRaw(signature, 'ES256');
+
+  return `${signingInput}.${rawSignature.toString('base64url')}`;
+}
+
+/**
+ * Convert DER signature to raw format (r || s)
+ */
+function derToRaw(signature: Buffer, alg: string): Buffer {
+  const sizes: Record<string, number> = { ES256: 32, ES384: 48, ES512: 66 };
+  const size = sizes[alg];
+
+  // Parse DER: 0x30 [len] 0x02 [r_len] [r] 0x02 [s_len] [s]
+  let offset = 2; // Skip sequence tag and length
+  if (signature[1] & 0x80) {
+    offset += signature[1] & 0x7f; // Extended length
+  }
+
+  // Read r
+  if (signature[offset] !== 0x02) {
+    return signature; // Not valid DER, return as-is
+  }
+  offset++;
+  const rLen = signature[offset++];
+  let r = signature.subarray(offset, offset + rLen);
+  offset += rLen;
+
+  // Read s
+  if (signature[offset] !== 0x02) {
+    return signature;
+  }
+  offset++;
+  const sLen = signature[offset++];
+  let s = signature.subarray(offset, offset + sLen);
+
+  // Remove leading zeros and pad to size
+  if (r.length > size && r[0] === 0) r = r.subarray(1);
+  if (s.length > size && s[0] === 0) s = s.subarray(1);
+
+  const result = Buffer.alloc(size * 2);
+  r.copy(result, size - r.length);
+  s.copy(result, size * 2 - s.length);
+
+  return result;
+}
+
+/**
+ * Get JWKS (JSON Web Key Set) for token verification
+ */
+export async function getJWKS(): Promise<{ keys: crypto.JsonWebKey[] }> {
+  const { kid } = await getPDSSigningKey();
+  const db = getDatabase();
+
+  const row = db
+    .prepare('SELECT public_jwk FROM pds_signing_keys WHERE kid = ?')
+    .get(kid) as { public_jwk: string } | undefined;
+
+  if (!row) {
+    return { keys: [] };
+  }
+
+  const publicJwk = JSON.parse(row.public_jwk);
+  publicJwk.kid = kid;
+  publicJwk.use = 'sig';
+  publicJwk.alg = 'ES256';
+
+  return { keys: [publicJwk] };
+}
+
 // DPoP proof maximum age (5 minutes)
 const DPOP_MAX_AGE_MS = 5 * 60 * 1000;
 
@@ -345,6 +568,26 @@ export function mountOAuthRoutes(app: Hono): void {
 
   // Token revocation
   app.post('/oauth/revoke', handleRevoke);
+
+  // JWKS endpoint for token verification
+  app.get('/oauth/jwks', handleJWKS);
+}
+
+/**
+ * JWKS endpoint - returns public keys for token verification
+ */
+async function handleJWKS(c: Context): Promise<Response> {
+  try {
+    const jwks = await getJWKS();
+    return c.json(jwks, {
+      headers: {
+        'Cache-Control': 'public, max-age=3600',
+      },
+    });
+  } catch (error) {
+    console.error('JWKS error:', error);
+    return c.json({ error: 'server_error' }, 500);
+  }
 }
 
 /**
@@ -670,14 +913,23 @@ async function handleToken(c: Context): Promise<Response> {
       // Delete used code
       db.prepare('DELETE FROM pds_oauth_codes WHERE code = ?').run(code);
 
-      // Generate tokens
-      const accessToken = crypto.randomBytes(32).toString('base64url');
+      // Generate JWT access token
+      const accessTokenExpirySec = Math.floor(ACCESS_TOKEN_EXPIRY_MS / 1000);
+      const accessToken = await generateAccessTokenJWT(
+        codeRow.user_did,
+        codeRow.client_id,
+        codeRow.scope,
+        dpopJkt,
+        accessTokenExpirySec
+      );
+
+      // Generate refresh token (opaque, stored in database)
       const newRefreshToken = crypto.randomBytes(32).toString('base64url');
       const tokenId = crypto.randomBytes(16).toString('hex');
 
       const refreshExpiry = new Date(Date.now() + REFRESH_TOKEN_EXPIRY_MS).toISOString();
 
-      // Store tokens with DPoP JKT binding
+      // Store token metadata (for refresh token validation and revocation)
       db.prepare(
         `INSERT INTO pds_oauth_tokens
          (token_id, user_did, client_id, scope, access_token_hash, refresh_token_hash, dpop_jkt, expires_at)
@@ -687,7 +939,7 @@ async function handleToken(c: Context): Promise<Response> {
         codeRow.user_did,
         codeRow.client_id,
         codeRow.scope,
-        hashToken(accessToken),
+        '', // JWT access tokens are self-contained, no hash needed
         hashToken(newRefreshToken),
         dpopJkt,
         refreshExpiry
@@ -696,7 +948,7 @@ async function handleToken(c: Context): Promise<Response> {
       return c.json({
         access_token: accessToken,
         token_type: 'DPoP',
-        expires_in: Math.floor(ACCESS_TOKEN_EXPIRY_MS / 1000),
+        expires_in: accessTokenExpirySec,
         refresh_token: newRefreshToken,
         scope: codeRow.scope,
         sub: codeRow.user_did,
@@ -728,8 +980,17 @@ async function handleToken(c: Context): Promise<Response> {
         );
       }
 
-      // Generate new tokens (rotate refresh token for security)
-      const accessToken = crypto.randomBytes(32).toString('base64url');
+      // Generate new JWT access token
+      const accessTokenExpirySec = Math.floor(ACCESS_TOKEN_EXPIRY_MS / 1000);
+      const accessToken = await generateAccessTokenJWT(
+        tokenRow.user_did,
+        tokenRow.client_id,
+        tokenRow.scope,
+        dpopJkt,
+        accessTokenExpirySec
+      );
+
+      // Generate new refresh token (rotation for security)
       const newRefreshToken = crypto.randomBytes(32).toString('base64url');
 
       const refreshExpiry = new Date(Date.now() + REFRESH_TOKEN_EXPIRY_MS).toISOString();
@@ -737,14 +998,14 @@ async function handleToken(c: Context): Promise<Response> {
       // Update tokens (refresh token rotation)
       db.prepare(
         `UPDATE pds_oauth_tokens
-         SET access_token_hash = ?, refresh_token_hash = ?, dpop_jkt = ?, expires_at = ?, updated_at = CURRENT_TIMESTAMP
+         SET access_token_hash = '', refresh_token_hash = ?, dpop_jkt = ?, expires_at = ?, updated_at = CURRENT_TIMESTAMP
          WHERE token_id = ?`
-      ).run(hashToken(accessToken), hashToken(newRefreshToken), dpopJkt, refreshExpiry, tokenRow.token_id);
+      ).run(hashToken(newRefreshToken), dpopJkt, refreshExpiry, tokenRow.token_id);
 
       return c.json({
         access_token: accessToken,
         token_type: 'DPoP',
-        expires_in: Math.floor(ACCESS_TOKEN_EXPIRY_MS / 1000),
+        expires_in: accessTokenExpirySec,
         refresh_token: newRefreshToken,
         scope: tokenRow.scope,
         sub: tokenRow.user_did,
