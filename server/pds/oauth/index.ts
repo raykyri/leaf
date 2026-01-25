@@ -9,6 +9,7 @@ import type { Hono } from 'hono';
 import crypto from 'crypto';
 import { getPDSConfig } from '../config.ts';
 import { getDatabase } from '../../database/index.ts';
+import { escapeHtml } from '../utils.ts';
 
 const AUTH_CODE_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes
 const ACCESS_TOKEN_EXPIRY_MS = 15 * 60 * 1000; // 15 minutes
@@ -477,14 +478,3 @@ function renderLoginPage(params: Record<string, string>): string {
 </html>`;
 }
 
-/**
- * Escape HTML characters
- */
-function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
-}

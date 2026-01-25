@@ -13,6 +13,7 @@ import {
 } from '../social-auth/index.ts';
 import { createSocialUserSession } from '../xrpc/routes/server.ts';
 import { addRegisteredDid } from '../../services/jetstream.ts';
+import { escapeHtml } from '../utils.ts';
 
 /**
  * Mount social auth routes
@@ -244,10 +245,3 @@ export function renderSocialLoginPage(providers: string[], error?: string): stri
 </html>`;
 }
 
-function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
