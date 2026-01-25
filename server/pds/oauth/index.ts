@@ -75,6 +75,14 @@ async function handlePAR(c: Context): Promise<Response> {
       );
     }
 
+    // Validate code challenge format (S256 produces 43 char base64url hash)
+    if (codeChallenge.length !== 43 || !/^[A-Za-z0-9_-]+$/.test(codeChallenge)) {
+      return c.json(
+        { error: 'invalid_request', error_description: 'Invalid code challenge format' },
+        400
+      );
+    }
+
     // Generate request URI
     const requestUri = `urn:ietf:params:oauth:request_uri:${crypto.randomBytes(16).toString('hex')}`;
     const expiresIn = 60; // 60 seconds
@@ -255,9 +263,14 @@ async function handleToken(c: Context): Promise<Response> {
       }
 
       // Validate code verifier (PKCE)
+      // RFC 7636: code_verifier must be 43-128 characters
+      if (!codeVerifier || codeVerifier.length < 43 || codeVerifier.length > 128) {
+        return c.json({ error: 'invalid_grant', error_description: 'Invalid code verifier length' }, 400);
+      }
+
       const expectedChallenge = crypto
         .createHash('sha256')
-        .update(codeVerifier || '')
+        .update(codeVerifier)
         .digest('base64url');
 
       if (expectedChallenge !== codeRow.code_challenge) {
