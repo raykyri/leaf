@@ -12,6 +12,7 @@ import { uploadBlob, getBlob, extractBlobCids, addBlobReference } from '../../re
 import { getPdsAccountByDid, getPdsAccountByDidForRead, countPdsRecords } from '../../database/queries.ts';
 import { generateTid } from '../../identity/keys.ts';
 import type { EncryptedKeyData } from '../../identity/keys.ts';
+import { validateNsid, validateRkey, validateDid } from '../../validation/index.ts';
 
 /**
  * com.atproto.repo.describeRepo
@@ -72,6 +73,20 @@ export async function createRecordHandler(c: Context) {
     return c.json({ error: 'InvalidRequest', message: 'repo, collection, and record required' }, 400);
   }
 
+  // Validate collection name
+  const collectionValidation = validateNsid(collection);
+  if (!collectionValidation.valid) {
+    return c.json({ error: 'InvalidRequest', message: collectionValidation.error }, 400);
+  }
+
+  // Validate rkey if provided
+  if (rkey) {
+    const rkeyValidation = validateRkey(rkey);
+    if (!rkeyValidation.valid) {
+      return c.json({ error: 'InvalidRequest', message: rkeyValidation.error }, 400);
+    }
+  }
+
   // Verify the user owns this repo
   if (repo !== session.did) {
     return c.json({ error: 'AuthRequired', message: 'Cannot write to another user\'s repo' }, 403);
@@ -129,6 +144,18 @@ export async function putRecordHandler(c: Context) {
 
   if (!repo || !collection || !rkey || !record) {
     return c.json({ error: 'InvalidRequest', message: 'repo, collection, rkey, and record required' }, 400);
+  }
+
+  // Validate collection name
+  const collectionValidation = validateNsid(collection);
+  if (!collectionValidation.valid) {
+    return c.json({ error: 'InvalidRequest', message: collectionValidation.error }, 400);
+  }
+
+  // Validate rkey
+  const rkeyValidation = validateRkey(rkey);
+  if (!rkeyValidation.valid) {
+    return c.json({ error: 'InvalidRequest', message: rkeyValidation.error }, 400);
   }
 
   if (repo !== session.did) {
@@ -193,6 +220,18 @@ export async function deleteRecordHandler(c: Context) {
     return c.json({ error: 'InvalidRequest', message: 'repo, collection, and rkey required' }, 400);
   }
 
+  // Validate collection name
+  const collectionValidation = validateNsid(collection);
+  if (!collectionValidation.valid) {
+    return c.json({ error: 'InvalidRequest', message: collectionValidation.error }, 400);
+  }
+
+  // Validate rkey
+  const rkeyValidation = validateRkey(rkey);
+  if (!rkeyValidation.valid) {
+    return c.json({ error: 'InvalidRequest', message: rkeyValidation.error }, 400);
+  }
+
   if (repo !== session.did) {
     return c.json({ error: 'AuthRequired', message: 'Cannot write to another user\'s repo' }, 403);
   }
@@ -225,6 +264,18 @@ export async function getRecordHandler(c: Context) {
 
   if (!repo || !collection || !rkey) {
     return c.json({ error: 'InvalidRequest', message: 'repo, collection, and rkey required' }, 400);
+  }
+
+  // Validate collection name
+  const collectionValidation = validateNsid(collection);
+  if (!collectionValidation.valid) {
+    return c.json({ error: 'InvalidRequest', message: collectionValidation.error }, 400);
+  }
+
+  // Validate rkey
+  const rkeyValidation = validateRkey(rkey);
+  if (!rkeyValidation.valid) {
+    return c.json({ error: 'InvalidRequest', message: rkeyValidation.error }, 400);
   }
 
   const did = repo.startsWith('did:') ? repo : null;
@@ -265,6 +316,12 @@ export async function listRecordsHandler(c: Context) {
 
   if (!repo || !collection) {
     return c.json({ error: 'InvalidRequest', message: 'repo and collection required' }, 400);
+  }
+
+  // Validate collection name
+  const collectionValidation = validateNsid(collection);
+  if (!collectionValidation.valid) {
+    return c.json({ error: 'InvalidRequest', message: collectionValidation.error }, 400);
   }
 
   const did = repo.startsWith('did:') ? repo : null;
@@ -349,6 +406,25 @@ export async function applyWritesHandler(c: Context) {
 
   if (!repo || !writes || !Array.isArray(writes)) {
     return c.json({ error: 'InvalidRequest', message: 'repo and writes required' }, 400);
+  }
+
+  // Validate all writes before processing
+  for (const write of writes) {
+    const { collection, rkey } = write;
+
+    // Validate collection name
+    const collectionValidation = validateNsid(collection);
+    if (!collectionValidation.valid) {
+      return c.json({ error: 'InvalidRequest', message: collectionValidation.error }, 400);
+    }
+
+    // Validate rkey if provided
+    if (rkey) {
+      const rkeyValidation = validateRkey(rkey);
+      if (!rkeyValidation.valid) {
+        return c.json({ error: 'InvalidRequest', message: rkeyValidation.error }, 400);
+      }
+    }
   }
 
   if (repo !== session.did) {
