@@ -25,6 +25,13 @@ import {
 } from '../../database/queries.ts';
 import { getRepository } from '../../repo/repository.ts';
 import type { EncryptedKeyData } from '../../identity/keys.ts';
+import {
+  exportAccount,
+  generateMigrationToken,
+  importAccount,
+  validateAccountExport,
+  type AccountExport,
+} from '../../migration/index.ts';
 
 /**
  * com.atproto.server.describeServer
@@ -251,4 +258,226 @@ export function requireAuth(c: Context): { did: string; handle: string; email: s
   }
 
   return validateAccessToken(accessJwt);
+}
+
+// ============================================================================
+// Account Migration Endpoints
+// ============================================================================
+
+/**
+ * com.atproto.server.exportAccountData
+ * Export account data for migration to another PDS
+ */
+export async function exportAccountDataHandler(c: Context) {
+  const auth = requireAuth(c);
+  if (!auth) {
+    return c.json({ error: 'AuthRequired', message: 'Authentication required' }, 401);
+  }
+
+  const includeBlobs = c.req.query('includeBlobs') === 'true';
+  const reEncryptionSecret = c.req.query('reEncryptionSecret');
+
+  try {
+    const result = await exportAccount(auth.did, {
+      includeBlobs,
+      reEncryptionSecret: reEncryptionSecret || undefined,
+    });
+
+    // Return metadata as JSON, CAR files as separate endpoints
+    return c.json({
+      metadata: result.metadata,
+      repoCarSize: result.repoCarData.length,
+      blobCarSize: result.blobCarData?.length || 0,
+    });
+  } catch (error) {
+    return c.json(
+      { error: 'InternalError', message: error instanceof Error ? error.message : 'Export failed' },
+      500
+    );
+  }
+}
+
+/**
+ * com.atproto.server.exportAccountRepo
+ * Export account repository as CAR file
+ */
+export async function exportAccountRepoHandler(c: Context) {
+  const auth = requireAuth(c);
+  if (!auth) {
+    return c.json({ error: 'AuthRequired', message: 'Authentication required' }, 401);
+  }
+
+  try {
+    const result = await exportAccount(auth.did, { includeBlobs: false });
+
+    return new Response(result.repoCarData, {
+      headers: {
+        'Content-Type': 'application/vnd.ipld.car',
+        'Content-Disposition': `attachment; filename="${auth.did.replace(/:/g, '_')}_repo.car"`,
+      },
+    });
+  } catch (error) {
+    return c.json(
+      { error: 'InternalError', message: error instanceof Error ? error.message : 'Export failed' },
+      500
+    );
+  }
+}
+
+/**
+ * com.atproto.server.exportAccountBlobs
+ * Export account blobs as CAR file
+ */
+export async function exportAccountBlobsHandler(c: Context) {
+  const auth = requireAuth(c);
+  if (!auth) {
+    return c.json({ error: 'AuthRequired', message: 'Authentication required' }, 401);
+  }
+
+  try {
+    const result = await exportAccount(auth.did, { includeBlobs: true });
+
+    if (!result.blobCarData) {
+      return c.json({ error: 'NotFound', message: 'No blobs to export' }, 404);
+    }
+
+    return new Response(result.blobCarData, {
+      headers: {
+        'Content-Type': 'application/vnd.ipld.car',
+        'Content-Disposition': `attachment; filename="${auth.did.replace(/:/g, '_')}_blobs.car"`,
+      },
+    });
+  } catch (error) {
+    return c.json(
+      { error: 'InternalError', message: error instanceof Error ? error.message : 'Export failed' },
+      500
+    );
+  }
+}
+
+/**
+ * com.atproto.server.generateMigrationToken
+ * Generate a signed migration token for account transfer
+ */
+export async function generateMigrationTokenHandler(c: Context) {
+  const auth = requireAuth(c);
+  if (!auth) {
+    return c.json({ error: 'AuthRequired', message: 'Authentication required' }, 401);
+  }
+
+  const body = await c.req.json().catch(() => ({}));
+  const { targetPds } = body as { targetPds?: string };
+
+  if (!targetPds) {
+    return c.json({ error: 'InvalidRequest', message: 'targetPds is required' }, 400);
+  }
+
+  try {
+    const token = await generateMigrationToken(auth.did, targetPds);
+    return c.json({ token });
+  } catch (error) {
+    return c.json(
+      { error: 'InternalError', message: error instanceof Error ? error.message : 'Token generation failed' },
+      500
+    );
+  }
+}
+
+/**
+ * com.atproto.server.importAccount
+ * Import an account from another PDS
+ */
+export async function importAccountHandler(c: Context) {
+  const contentType = c.req.header('Content-Type');
+
+  if (!contentType?.includes('multipart/form-data')) {
+    return c.json({ error: 'InvalidRequest', message: 'multipart/form-data required' }, 400);
+  }
+
+  try {
+    const formData = await c.req.formData();
+
+    // Get metadata
+    const metadataStr = formData.get('metadata');
+    if (!metadataStr || typeof metadataStr !== 'string') {
+      return c.json({ error: 'InvalidRequest', message: 'metadata is required' }, 400);
+    }
+
+    const metadata = JSON.parse(metadataStr) as AccountExport;
+
+    // Validate metadata
+    const validation = validateAccountExport(metadata);
+    if (!validation.valid) {
+      return c.json(
+        { error: 'InvalidRequest', message: validation.errors.join(', ') },
+        400
+      );
+    }
+
+    // Get repository CAR
+    const repoCar = formData.get('repoCar');
+    if (!repoCar || !(repoCar instanceof File)) {
+      return c.json({ error: 'InvalidRequest', message: 'repoCar file is required' }, 400);
+    }
+    const repoCarData = new Uint8Array(await repoCar.arrayBuffer());
+
+    // Get blob CAR (optional)
+    const blobCar = formData.get('blobCar');
+    let blobCarData: Uint8Array | undefined;
+    if (blobCar instanceof File) {
+      blobCarData = new Uint8Array(await blobCar.arrayBuffer());
+    }
+
+    // Get options
+    const migrationToken = formData.get('migrationToken');
+    const reEncryptionSecret = formData.get('reEncryptionSecret');
+    const skipDidUpdate = formData.get('skipDidUpdate') === 'true';
+    const forceHandleChange = formData.get('forceHandleChange') === 'true';
+
+    // Import the account
+    const result = await importAccount(metadata, repoCarData, blobCarData, {
+      migrationToken: typeof migrationToken === 'string' ? migrationToken : undefined,
+      reEncryptionSecret: typeof reEncryptionSecret === 'string' ? reEncryptionSecret : undefined,
+      skipDidUpdate,
+      forceHandleChange,
+    });
+
+    // Create session for imported account
+    const tokens = createSession(result.did);
+
+    return c.json({
+      ...result,
+      accessJwt: tokens.accessJwt,
+      refreshJwt: tokens.refreshJwt,
+    });
+  } catch (error) {
+    return c.json(
+      { error: 'InternalError', message: error instanceof Error ? error.message : 'Import failed' },
+      500
+    );
+  }
+}
+
+/**
+ * com.atproto.server.checkAccountStatus
+ * Check if an account can be migrated to this PDS
+ */
+export async function checkAccountStatusHandler(c: Context) {
+  const did = c.req.query('did');
+  const handle = c.req.query('handle');
+
+  if (!did && !handle) {
+    return c.json({ error: 'InvalidRequest', message: 'did or handle required' }, 400);
+  }
+
+  // Check if account already exists
+  const existingByDid = did ? getPdsAccountByDid(did) : null;
+  const existingByHandle = handle ? getPdsAccountByHandle(handle) : null;
+
+  return c.json({
+    didAvailable: !existingByDid,
+    handleAvailable: !existingByHandle,
+    canImport: !existingByDid,
+    warnings: existingByHandle ? ['Handle is already taken on this PDS'] : [],
+  });
 }

@@ -23,7 +23,7 @@ import {
 } from './auth/google.ts';
 import { createAccountHandler } from './xrpc/handlers/server.ts';
 import { serveAtprotoDid } from './xrpc/handlers/identity.ts';
-import { createFirehoseServer, handleFirehoseConnection } from './sync/firehose.ts';
+import { createFirehoseServer, handleFirehoseConnection, initializeFirehose } from './sync/firehose.ts';
 import { cleanupExpiredSessions } from './auth/session.ts';
 import { cleanupExpiredPdsOAuthState } from './database/queries.ts';
 import { SESSION_EXPIRY_MS } from '../utils/constants.ts';
@@ -60,6 +60,9 @@ export function initializePds(): void {
   const db = getDatabase();
   initializePdsSchema(db);
   console.log('PDS database schema initialized');
+
+  // Initialize firehose with current sequence number
+  initializeFirehose();
 
   // Start periodic cleanup of expired sessions
   setInterval(() => {

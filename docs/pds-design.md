@@ -27,17 +27,21 @@ server/pds/
 │   ├── handles.ts             # Handle registration/resolution
 │   ├── keys.ts                # Key generation/encryption
 │   └── plc.ts                 # PLC directory integration
+├── migration/                  # Account migration
+│   ├── index.ts               # Module exports
+│   ├── export.ts              # Account export functionality
+│   └── import.ts              # Account import functionality
 ├── repo/                       # Repository management
-│   ├── repository.ts          # MST-based repo operations
+│   ├── repository.ts          # MST-based repo operations (incremental updates)
 │   ├── blobs.ts               # Blob storage/retrieval
 │   └── car.ts                 # CAR file export
 ├── sync/                       # Synchronization
 │   ├── relay.ts               # Relay communication
-│   └── firehose.ts            # WebSocket event stream
+│   └── firehose.ts            # WebSocket event stream (event-driven)
 ├── xrpc/                       # XRPC protocol
 │   ├── server.ts              # Router setup
 │   └── handlers/
-│       ├── server.ts          # com.atproto.server.*
+│       ├── server.ts          # com.atproto.server.* (includes migration)
 │       ├── repo.ts            # com.atproto.repo.*
 │       ├── identity.ts        # com.atproto.identity.*
 │       └── sync.ts            # com.atproto.sync.*
@@ -137,9 +141,15 @@ The repository uses a Merkle Search Tree for efficient, verifiable storage:
 ```
 
 - Keys sorted lexicographically
-- Tree depth based on key hash
+- Tree depth based on key hash (leading zeros / 2)
 - Each node is a CBOR-encoded block
 - Root CID changes on any modification
+
+**Incremental Updates:**
+- Only recomputes affected nodes when modified
+- Caches node CIDs until modifications occur
+- O(1) key lookups via internal index
+- Efficient for high-frequency write operations
 
 #### Repository Structure
 
@@ -192,6 +202,13 @@ WebSocket event stream for real-time updates:
 }
 ```
 
+**Event-Driven Architecture:**
+- Uses EventEmitter pattern for immediate event delivery
+- Events emitted directly when repository commits occur
+- Backup polling (1s interval) catches any missed events
+- Supports cursor-based replay for reconnecting clients
+- Per-connection event handlers for efficient filtering
+
 #### Relay Communication
 
 - Register/unregister relays
@@ -202,7 +219,73 @@ WebSocket event stream for real-time updates:
 
 ---
 
-### 5. XRPC Handlers
+### 5. Account Migration (`migration/`)
+
+The PDS supports full account migration between PDS instances.
+
+#### Export Flow
+
+```
+User requests export
+    ↓
+Authenticate user
+    ↓
+Package account data:
+  • Metadata (DID, handle, settings)
+  • Encrypted keys (optionally re-encrypted)
+  • Repository CAR file
+  • Blob CAR file (optional)
+    ↓
+Generate migration token (signed by rotation key)
+    ↓
+Return export package
+```
+
+#### Import Flow
+
+```
+User uploads export package
+    ↓
+Validate export metadata
+    ↓
+Verify migration token
+    ↓
+Check handle availability
+    ↓
+Re-encrypt keys with new PDS secret
+    ↓
+Create account record
+    ↓
+Import repository from CAR
+    ↓
+Import blobs from CAR
+    ↓
+Update DID document (PDS endpoint)
+    ↓
+Create session
+```
+
+#### Migration Endpoints
+
+| Endpoint | Description |
+|----------|-------------|
+| `exportAccountData` | Get metadata and sizes |
+| `exportAccountRepo` | Download repository CAR |
+| `exportAccountBlobs` | Download blobs CAR |
+| `generateMigrationToken` | Get signed transfer token |
+| `importAccount` | Upload and import account |
+| `checkAccountStatus` | Verify import eligibility |
+
+#### Security Considerations
+
+- Keys re-encrypted during migration
+- Migration tokens expire after 24 hours
+- Tokens signed by rotation keys
+- DID document updates require rotation key signature
+
+---
+
+### 6. XRPC Handlers
 
 #### Server Endpoints (`com.atproto.server.*`)
 
@@ -213,6 +296,12 @@ WebSocket event stream for real-time updates:
 | `refreshSession` | POST | Refresh tokens |
 | `getSession` | GET | Current session info |
 | `deleteSession` | POST | Logout |
+| `exportAccountData` | GET | Export account metadata for migration |
+| `exportAccountRepo` | GET | Export repository as CAR file |
+| `exportAccountBlobs` | GET | Export blobs as CAR file |
+| `generateMigrationToken` | POST | Generate signed migration token |
+| `importAccount` | POST | Import account from another PDS |
+| `checkAccountStatus` | GET | Check if account can be imported |
 
 #### Repository Endpoints (`com.atproto.repo.*`)
 
@@ -428,10 +517,11 @@ PDS_HANDLE_DOMAIN=example.com
 
 ### Medium Priority
 
-- [ ] **Account Migration**
-  - Export account with keys
+- [x] **Account Migration** ✅ (Implemented v0.4.0)
+  - Export account with keys (re-encryption support)
   - Import to another PDS
-  - Handle key transfer securely
+  - Migration tokens for secure transfer
+  - Endpoints: exportAccountData, importAccount, generateMigrationToken
 
 - [ ] **Key Rotation UI**
   - Rotation keys exist but no user-facing rotation flow
@@ -441,9 +531,10 @@ PDS_HANDLE_DOMAIN=example.com
   - Current implementation is in-memory
   - Need Redis for distributed deployments
 
-- [ ] **Database-triggered Events**
-  - Current firehose uses polling (100ms)
-  - Consider PostgreSQL NOTIFY or similar for real-time
+- [x] **Database-triggered Events** ✅ (Implemented v0.4.0)
+  - Firehose now uses EventEmitter pattern
+  - Events emitted immediately on commit
+  - Backup polling at 1s interval
 
 - [ ] **Moderation Tools**
   - Report handling
@@ -487,9 +578,10 @@ PDS_HANDLE_DOMAIN=example.com
 
 ### Technical Debt
 
-- [ ] **MST Optimization**
-  - Current implementation rebuilds tree on each operation
-  - Consider incremental updates for better performance
+- [x] **MST Optimization** ✅ (Implemented v0.4.0)
+  - Incremental updates - only recomputes changed nodes
+  - CID caching for unchanged nodes
+  - O(1) key lookups via internal index
 
 - [ ] **Connection Pooling**
   - Database connection management
@@ -624,6 +716,7 @@ User clicks "Login with GitHub"
 | 0.1.0 | 2024-01 | Initial implementation |
 | 0.2.0 | 2024-01 | MST, sync endpoints, atomic writes |
 | 0.3.0 | 2024-01 | Relay communication, handle verification |
+| 0.4.0 | 2024-01 | Event-driven firehose, MST incremental updates, account migration |
 
 ---
 

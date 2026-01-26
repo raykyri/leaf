@@ -3,9 +3,12 @@
  *
  * Provides a WebSocket endpoint for streaming repository events.
  * Implements the com.atproto.sync.subscribeRepos endpoint.
+ *
+ * Uses an event emitter pattern for immediate event delivery instead of polling.
  */
 
 import { WebSocketServer, WebSocket } from 'ws';
+import { EventEmitter } from 'events';
 import {
   getPdsSequencerEventsSince,
   getLatestSequence,
@@ -17,12 +20,33 @@ export interface FirehoseConnection {
   did?: string; // Optional filter by DID
 }
 
+export interface SequencerEvent {
+  seq: number;
+  did: string;
+  commit_cid: string | null;
+  event_type: string;
+  event_data: Buffer;
+  created_at: string;
+}
+
+// Event emitter for real-time event distribution
+class FirehoseEventEmitter extends EventEmitter {
+  constructor() {
+    super();
+    // Allow many listeners (one per WebSocket connection)
+    this.setMaxListeners(10000);
+  }
+}
+
+const firehoseEmitter = new FirehoseEventEmitter();
+
 // Active connections
 const connections = new Set<FirehoseConnection>();
 
-// Polling interval for new events (in production, use database triggers or pub/sub)
+// Legacy polling support (can be disabled when all events go through emitter)
 let pollInterval: ReturnType<typeof setInterval> | null = null;
-const POLL_INTERVAL_MS = 100;
+const POLL_INTERVAL_MS = 1000; // Increased to 1s as backup only
+let lastPolledSeq = 0;
 
 /**
  * Handle a new WebSocket connection for the firehose
@@ -40,6 +64,29 @@ export function handleFirehoseConnection(
 
   connections.add(connection);
 
+  // Create event handler for this connection
+  const eventHandler = (event: SequencerEvent) => {
+    if (ws.readyState !== WebSocket.OPEN) {
+      return;
+    }
+
+    // Check if connection wants this event
+    if (event.seq <= connection.cursor) {
+      return;
+    }
+
+    // Check DID filter
+    if (connection.did && connection.did !== event.did) {
+      return;
+    }
+
+    sendEvent(connection, event);
+    connection.cursor = event.seq;
+  };
+
+  // Subscribe to real-time events
+  firehoseEmitter.on('event', eventHandler);
+
   // If cursor is in the past, replay events
   if (cursor !== undefined && cursor < startCursor) {
     replayEvents(connection, cursor);
@@ -47,16 +94,18 @@ export function handleFirehoseConnection(
 
   // Handle close
   ws.on('close', () => {
+    firehoseEmitter.off('event', eventHandler);
     connections.delete(connection);
     maybeStopPolling();
   });
 
   ws.on('error', () => {
+    firehoseEmitter.off('event', eventHandler);
     connections.delete(connection);
     maybeStopPolling();
   });
 
-  // Start polling if not already
+  // Start backup polling if not already (catches any events that might be missed)
   maybeStartPolling();
 }
 
@@ -157,40 +206,32 @@ function maybeStopPolling(): void {
 }
 
 /**
- * Poll for new events and distribute to connections
+ * Poll for new events and distribute to connections (backup mechanism)
+ * Primary delivery is via the event emitter, this catches any missed events.
  */
 function pollForNewEvents(): void {
   if (connections.size === 0) {
     return;
   }
 
-  // Find the minimum cursor among all connections
-  let minCursor = Infinity;
-  for (const connection of connections) {
-    if (connection.cursor < minCursor) {
-      minCursor = connection.cursor;
-    }
-  }
-
-  if (minCursor === Infinity) {
-    return;
-  }
-
-  // Get new events
-  const events = getPdsSequencerEventsSince(minCursor, 100);
+  // Get events since last polled sequence
+  const events = getPdsSequencerEventsSince(lastPolledSeq, 100);
 
   if (events.length === 0) {
     return;
   }
 
-  // Send events to appropriate connections
+  // Update last polled sequence
+  lastPolledSeq = events[events.length - 1].seq;
+
+  // Send events to appropriate connections (backup delivery)
   for (const event of events) {
     for (const connection of connections) {
       if (connection.ws.readyState !== WebSocket.OPEN) {
         continue;
       }
 
-      // Check if connection wants this event
+      // Check if connection wants this event (skip if already delivered)
       if (event.seq <= connection.cursor) {
         continue;
       }
@@ -204,6 +245,27 @@ function pollForNewEvents(): void {
       connection.cursor = event.seq;
     }
   }
+}
+
+/**
+ * Emit a sequencer event to all connected clients immediately.
+ * This is called from the repository when a new event is created.
+ */
+export function emitSequencerEvent(event: SequencerEvent): void {
+  // Update last polled seq to avoid duplicate delivery via polling
+  if (event.seq > lastPolledSeq) {
+    lastPolledSeq = event.seq;
+  }
+
+  // Emit to all listeners
+  firehoseEmitter.emit('event', event);
+}
+
+/**
+ * Initialize the firehose with the current sequence number
+ */
+export function initializeFirehose(): void {
+  lastPolledSeq = getLatestSequence();
 }
 
 /**

@@ -18,6 +18,12 @@ import {
   getAccountInviteCodesHandler,
   requestPasswordResetHandler,
   resetPasswordHandler,
+  exportAccountDataHandler,
+  exportAccountRepoHandler,
+  exportAccountBlobsHandler,
+  generateMigrationTokenHandler,
+  importAccountHandler,
+  checkAccountStatusHandler,
 } from './handlers/server.ts';
 
 // Repo handlers
@@ -75,6 +81,14 @@ export function createXrpcRouter(): Hono {
   app.get('/xrpc/com.atproto.server.getAccountInviteCodes', rateLimits.standard, getAccountInviteCodesHandler);
   app.post('/xrpc/com.atproto.server.requestPasswordReset', rateLimits.auth, requestPasswordResetHandler);
   app.post('/xrpc/com.atproto.server.resetPassword', rateLimits.auth, resetPasswordHandler);
+
+  // Account migration endpoints
+  app.get('/xrpc/com.atproto.server.exportAccountData', rateLimits.standard, exportAccountDataHandler);
+  app.get('/xrpc/com.atproto.server.exportAccountRepo', rateLimits.standard, exportAccountRepoHandler);
+  app.get('/xrpc/com.atproto.server.exportAccountBlobs', rateLimits.standard, exportAccountBlobsHandler);
+  app.post('/xrpc/com.atproto.server.generateMigrationToken', rateLimits.auth, generateMigrationTokenHandler);
+  app.post('/xrpc/com.atproto.server.importAccount', rateLimits.auth, importAccountHandler);
+  app.get('/xrpc/com.atproto.server.checkAccountStatus', rateLimits.read, checkAccountStatusHandler);
 
   // ============================================
   // com.atproto.repo.* endpoints
