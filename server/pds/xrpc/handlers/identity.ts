@@ -8,7 +8,7 @@ import type { Context } from 'hono';
 import * as plc from '@did-plc/lib';
 import { getPdsConfig } from '../../config.ts';
 import { requireAuth } from './server.ts';
-import { resolveHandle, validateHandle, isHandleAvailable, isLocalHandle } from '../../identity/handles.ts';
+import { resolveHandle, resolveAnyHandle, validateHandle, isHandleAvailable, isLocalHandle } from '../../identity/handles.ts';
 import { resolveDid, updateHandle as updatePlcHandle, loadRotationKeys, getDidData } from '../../identity/plc.ts';
 import { getPdsAccountByDid, getPdsAccountByHandle, updatePdsAccountHandle } from '../../database/queries.ts';
 import type { EncryptedKeyData } from '../../identity/keys.ts';
@@ -24,16 +24,12 @@ export async function resolveHandleHandler(c: Context) {
     return c.json({ error: 'InvalidRequest', message: 'handle parameter required' }, 400);
   }
 
-  // Check if it's a local handle
-  if (isLocalHandle(handle)) {
-    const did = resolveHandle(handle);
-    if (did) {
-      return c.json({ did });
-    }
+  // Try to resolve the handle (local first, then external)
+  const did = await resolveAnyHandle(handle);
+  if (did) {
+    return c.json({ did });
   }
 
-  // For non-local handles, we could try to resolve via external means
-  // For now, return not found
   return c.json({ error: 'HandleNotFound', message: 'Handle not found' }, 404);
 }
 

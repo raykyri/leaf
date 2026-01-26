@@ -17,8 +17,7 @@ import {
   getPdsCommitsSince,
   getPdsCommitByCid,
   getPdsRecord,
-  getAllPdsAccountDids,
-  getPdsRepoState,
+  listPdsRepos,
 } from '../../database/queries.ts';
 import type { EncryptedKeyData } from '../../identity/keys.ts';
 
@@ -310,46 +309,15 @@ export async function listReposHandler(c: Context) {
   const limit = parseInt(c.req.query('limit') || '500', 10);
   const cursor = c.req.query('cursor');
 
-  // Get all DIDs
-  const allDids = getAllPdsAccountDids();
-
-  // Apply cursor (simple string comparison for pagination)
-  let filteredDids = allDids;
-  if (cursor) {
-    const cursorIndex = allDids.findIndex(did => did === cursor);
-    if (cursorIndex !== -1) {
-      filteredDids = allDids.slice(cursorIndex + 1);
-    }
-  }
-
-  // Apply limit
-  const pageSize = Math.min(limit, 1000);
-  const pageDids = filteredDids.slice(0, pageSize + 1);
-
-  // Check if there are more results
-  let nextCursor: string | undefined;
-  if (pageDids.length > pageSize) {
-    pageDids.pop();
-    nextCursor = pageDids[pageDids.length - 1];
-  }
-
-  // Build repo info for each DID
-  const repos = [];
-  for (const did of pageDids) {
-    const state = getPdsRepoState(did);
-    if (state) {
-      repos.push({
-        did,
-        head: state.head_cid,
-        rev: state.head_rev,
-        active: true, // Already filtered by getAllPdsAccountDids
-      });
-    }
-  }
+  // Get paginated list of repos with state
+  const result = listPdsRepos({
+    limit: Math.min(limit, 1000),
+    cursor: cursor || undefined,
+  });
 
   return c.json({
-    repos,
-    cursor: nextCursor,
+    repos: result.repos,
+    cursor: result.cursor,
   });
 }
 

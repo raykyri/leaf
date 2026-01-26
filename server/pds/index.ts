@@ -28,6 +28,13 @@ import { cleanupExpiredSessions } from './auth/session.ts';
 import { cleanupExpiredPdsOAuthState } from './database/queries.ts';
 import { SESSION_EXPIRY_MS } from '../utils/constants.ts';
 import { rateLimits } from './middleware/ratelimit.ts';
+import {
+  announceToNetwork,
+  registerRelay,
+  getRegisteredRelays,
+  getRelayStatuses,
+  emitRepoUpdate,
+} from './sync/relay.ts';
 
 /**
  * Build a secure session cookie string
@@ -63,6 +70,17 @@ export function initializePds(): void {
   setInterval(() => {
     cleanupExpiredPdsOAuthState();
   }, 60 * 1000); // Every minute
+
+  // Announce to relay network on startup (async, don't block)
+  const config = getPdsConfig();
+  if (config.publicUrl && process.env.NODE_ENV === 'production') {
+    // Only announce in production and if we have a public URL
+    setTimeout(() => {
+      announceToNetwork().catch(err => {
+        console.error('Failed to announce to relay network:', err);
+      });
+    }, 5000); // Wait 5 seconds for server to be ready
+  }
 }
 
 /**
@@ -198,6 +216,32 @@ export function createPdsRoutes(): Hono {
         github: config.github !== null,
         google: config.google !== null,
       },
+      relays: getRelayStatuses(),
+    });
+  });
+
+  // ============================================
+  // Relay management endpoints (admin only)
+  // ============================================
+
+  app.post('/pds/admin/relays', rateLimits.auth, async (c: Context) => {
+    // TODO: Add proper admin authentication
+    const body = await c.req.json().catch(() => ({}));
+    const { url } = body as { url?: string };
+
+    if (!url) {
+      return c.json({ error: 'url parameter required' }, 400);
+    }
+
+    registerRelay(url);
+    return c.json({ success: true, relays: getRegisteredRelays() });
+  });
+
+  app.get('/pds/admin/relays', rateLimits.standard, (c: Context) => {
+    // TODO: Add proper admin authentication
+    return c.json({
+      relays: getRegisteredRelays(),
+      statuses: getRelayStatuses(),
     });
   });
 

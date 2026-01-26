@@ -211,3 +211,90 @@ export function serveAtprotoDid(handle: string): string | null {
   const did = resolveHandle(handle);
   return did;
 }
+
+/**
+ * Resolve an external handle via well-known protocol
+ * This is used to verify handles from other PDSs
+ */
+export async function resolveExternalHandle(handle: string): Promise<string | null> {
+  try {
+    // First try HTTPS
+    const httpsResponse = await fetch(`https://${handle}/.well-known/atproto-did`, {
+      method: 'GET',
+      headers: { 'Accept': 'text/plain' },
+      signal: AbortSignal.timeout(5000), // 5 second timeout
+    });
+
+    if (httpsResponse.ok) {
+      const did = await httpsResponse.text();
+      if (did && did.startsWith('did:')) {
+        return did.trim();
+      }
+    }
+
+    return null;
+  } catch (error) {
+    // Try HTTP fallback for development
+    if (process.env.NODE_ENV !== 'production') {
+      try {
+        const httpResponse = await fetch(`http://${handle}/.well-known/atproto-did`, {
+          method: 'GET',
+          headers: { 'Accept': 'text/plain' },
+          signal: AbortSignal.timeout(5000),
+        });
+
+        if (httpResponse.ok) {
+          const did = await httpResponse.text();
+          if (did && did.startsWith('did:')) {
+            return did.trim();
+          }
+        }
+      } catch {
+        // Ignore HTTP fallback errors
+      }
+    }
+
+    return null;
+  }
+}
+
+/**
+ * Resolve a handle using DNS TXT record
+ * Alternative method per ATProto spec
+ */
+export async function resolveHandleViaDns(handle: string): Promise<string | null> {
+  // DNS resolution is typically done server-side
+  // This would require a DNS library - for now, return null
+  // In production, you would query _atproto.{handle} TXT record
+  return null;
+}
+
+/**
+ * Resolve any handle (local or external)
+ */
+export async function resolveAnyHandle(handle: string): Promise<string | null> {
+  // First check local handles
+  if (isLocalHandle(handle)) {
+    const did = resolveHandle(handle);
+    if (did) return did;
+  }
+
+  // Try external resolution via well-known
+  const externalDid = await resolveExternalHandle(handle);
+  if (externalDid) return externalDid;
+
+  // Try DNS resolution as fallback
+  const dnsDid = await resolveHandleViaDns(handle);
+  if (dnsDid) return dnsDid;
+
+  return null;
+}
+
+/**
+ * Verify that a DID's handle resolves back to the DID
+ * This is important for verifying handle ownership
+ */
+export async function verifyHandleResolution(handle: string, expectedDid: string): Promise<boolean> {
+  const resolvedDid = await resolveAnyHandle(handle);
+  return resolvedDid === expectedDid;
+}

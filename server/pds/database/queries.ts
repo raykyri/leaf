@@ -148,9 +148,64 @@ export function deactivatePdsAccount(did: string): boolean {
 
 export function getAllPdsAccountDids(): string[] {
   const db = getDatabase();
-  const stmt = db.prepare('SELECT did FROM pds_accounts WHERE deactivated_at IS NULL');
+  const stmt = db.prepare('SELECT did FROM pds_accounts WHERE deactivated_at IS NULL ORDER BY did ASC');
   const rows = stmt.all() as { did: string }[];
   return rows.map(r => r.did);
+}
+
+/**
+ * Get paginated list of repos with their state for sync.listRepos
+ */
+export function listPdsRepos(options?: { limit?: number; cursor?: string }): {
+  repos: Array<{ did: string; head: string; rev: string; active: boolean }>;
+  cursor?: string;
+} {
+  const db = getDatabase();
+  const limit = options?.limit || 500;
+  const cursor = options?.cursor;
+
+  // Join accounts with repo_state to get head info
+  let stmt;
+  let rows: Array<{ did: string; head_cid: string | null; head_rev: string | null; deactivated_at: string | null }>;
+
+  if (cursor) {
+    stmt = db.prepare(`
+      SELECT a.did, a.deactivated_at, r.head_cid, r.head_rev
+      FROM pds_accounts a
+      LEFT JOIN pds_repo_state r ON a.did = r.did
+      WHERE a.did > ?
+      ORDER BY a.did ASC
+      LIMIT ?
+    `);
+    rows = stmt.all(cursor, limit + 1) as typeof rows;
+  } else {
+    stmt = db.prepare(`
+      SELECT a.did, a.deactivated_at, r.head_cid, r.head_rev
+      FROM pds_accounts a
+      LEFT JOIN pds_repo_state r ON a.did = r.did
+      ORDER BY a.did ASC
+      LIMIT ?
+    `);
+    rows = stmt.all(limit + 1) as typeof rows;
+  }
+
+  // Check if there are more results
+  let nextCursor: string | undefined;
+  if (rows.length > limit) {
+    rows.pop();
+    nextCursor = rows[rows.length - 1]?.did;
+  }
+
+  const repos = rows
+    .filter(r => r.head_cid && r.head_rev) // Only include repos with commits
+    .map(r => ({
+      did: r.did,
+      head: r.head_cid!,
+      rev: r.head_rev!,
+      active: r.deactivated_at === null,
+    }));
+
+  return { repos, cursor: nextCursor };
 }
 
 // Commit operations
