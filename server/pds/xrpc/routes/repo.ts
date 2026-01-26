@@ -241,6 +241,26 @@ export async function handleDeleteRecord(c: Context): Promise<Response> {
       }
     }
 
+    // Validate swapRecord if provided (record-level concurrency control)
+    if (swapRecord !== undefined) {
+      const db = getDatabase();
+      const currentRecord = db
+        .prepare('SELECT cid FROM repo_records WHERE repo_did = ? AND collection = ? AND rkey = ?')
+        .get(auth.did, collection, rkey) as { cid: string } | undefined;
+
+      const currentCid = currentRecord?.cid || null;
+
+      // swapRecord should match current record CID (or both be null if record doesn't exist)
+      if (swapRecord !== currentCid) {
+        return xrpcError(
+          c,
+          'InvalidSwap',
+          `Record has been modified. Expected CID: ${swapRecord || 'null'}, current: ${currentCid || 'null'}`,
+          409
+        );
+      }
+    }
+
     // Remove blob references before deleting
     removeBlobReference(auth.did, collection, rkey);
 
@@ -312,6 +332,26 @@ export async function handlePutRecord(c: Context): Promise<Response> {
           c,
           'InvalidSwap',
           `Repository has been modified. Expected commit: ${swapCommit}, current: ${currentHead || 'none'}`,
+          409
+        );
+      }
+    }
+
+    // Validate swapRecord if provided (record-level concurrency control)
+    if (swapRecord !== undefined) {
+      const db = getDatabase();
+      const currentRecord = db
+        .prepare('SELECT cid FROM repo_records WHERE repo_did = ? AND collection = ? AND rkey = ?')
+        .get(auth.did, collection, rkey) as { cid: string } | undefined;
+
+      const currentCid = currentRecord?.cid || null;
+
+      // swapRecord should match current record CID (or both be null if record doesn't exist)
+      if (swapRecord !== currentCid) {
+        return xrpcError(
+          c,
+          'InvalidSwap',
+          `Record has been modified. Expected CID: ${swapRecord || 'null'}, current: ${currentCid || 'null'}`,
           409
         );
       }
