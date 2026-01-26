@@ -542,6 +542,195 @@ const AUTH_CODE_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes
 const ACCESS_TOKEN_EXPIRY_MS = 15 * 60 * 1000; // 15 minutes
 const REFRESH_TOKEN_EXPIRY_MS = 90 * 24 * 60 * 60 * 1000; // 90 days
 
+// Valid ATProto OAuth scopes
+const VALID_ATPROTO_SCOPES = new Set([
+  'atproto',
+  'transition:generic',
+  'transition:chat.bsky',
+]);
+
+// Client metadata cache (in-memory, would use Redis in production)
+const clientMetadataCache = new Map<string, { metadata: OAuthClientMetadata; fetchedAt: number }>();
+const CLIENT_METADATA_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+/**
+ * OAuth Client Metadata (per ATProto OAuth spec)
+ */
+export interface OAuthClientMetadata {
+  client_id: string;
+  client_name?: string;
+  client_uri?: string;
+  logo_uri?: string;
+  tos_uri?: string;
+  policy_uri?: string;
+  redirect_uris: string[];
+  scope?: string;
+  grant_types?: string[];
+  response_types?: string[];
+  token_endpoint_auth_method?: string;
+  application_type?: string;
+  dpop_bound_access_tokens?: boolean;
+}
+
+/**
+ * Validate that client_id is a valid OAuth client identifier URL
+ * Per ATProto spec: must be HTTPS URL (http://localhost allowed for development)
+ */
+function validateClientIdFormat(clientId: string): { valid: boolean; error?: string } {
+  try {
+    const url = new URL(clientId);
+
+    // Must be http or https
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+      return { valid: false, error: 'client_id must be an HTTP(S) URL' };
+    }
+
+    // HTTP is only allowed for localhost (development)
+    if (url.protocol === 'http:' && url.hostname !== 'localhost' && url.hostname !== '127.0.0.1') {
+      return { valid: false, error: 'client_id must use HTTPS (HTTP only allowed for localhost)' };
+    }
+
+    // Must not have fragment
+    if (url.hash) {
+      return { valid: false, error: 'client_id must not contain a fragment' };
+    }
+
+    // Must not have username/password
+    if (url.username || url.password) {
+      return { valid: false, error: 'client_id must not contain credentials' };
+    }
+
+    return { valid: true };
+  } catch {
+    return { valid: false, error: 'client_id must be a valid URL' };
+  }
+}
+
+/**
+ * Fetch OAuth client metadata from client_id URL
+ * Per ATProto spec: client_id URL should serve client metadata as JSON
+ */
+async function fetchClientMetadata(clientId: string): Promise<{ metadata?: OAuthClientMetadata; error?: string }> {
+  // Check cache first
+  const cached = clientMetadataCache.get(clientId);
+  if (cached && Date.now() - cached.fetchedAt < CLIENT_METADATA_CACHE_TTL_MS) {
+    return { metadata: cached.metadata };
+  }
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+
+    const response = await fetch(clientId, {
+      headers: {
+        'Accept': 'application/json',
+      },
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeout);
+
+    if (!response.ok) {
+      return { error: `Failed to fetch client metadata: HTTP ${response.status}` };
+    }
+
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      return { error: 'Client metadata must be served as application/json' };
+    }
+
+    const metadata = await response.json() as OAuthClientMetadata;
+
+    // Validate required fields
+    if (!metadata.client_id) {
+      return { error: 'Client metadata missing client_id' };
+    }
+
+    // Verify client_id matches the URL we fetched from
+    if (metadata.client_id !== clientId) {
+      return { error: 'Client metadata client_id does not match URL' };
+    }
+
+    if (!Array.isArray(metadata.redirect_uris) || metadata.redirect_uris.length === 0) {
+      return { error: 'Client metadata must include redirect_uris array' };
+    }
+
+    // Cache the metadata
+    clientMetadataCache.set(clientId, { metadata, fetchedAt: Date.now() });
+
+    return { metadata };
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      return { error: 'Timeout fetching client metadata' };
+    }
+    return { error: `Failed to fetch client metadata: ${error}` };
+  }
+}
+
+/**
+ * Validate redirect_uri against client metadata
+ */
+function validateRedirectUri(redirectUri: string, metadata: OAuthClientMetadata): { valid: boolean; error?: string } {
+  // Check if redirect_uri is in the registered list
+  if (!metadata.redirect_uris.includes(redirectUri)) {
+    return {
+      valid: false,
+      error: 'redirect_uri not registered for this client'
+    };
+  }
+
+  // Validate redirect_uri format
+  try {
+    const url = new URL(redirectUri);
+
+    // Must be http or https (or custom scheme for native apps)
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+      // Allow custom schemes for native apps, but they must be registered
+      if (!metadata.redirect_uris.includes(redirectUri)) {
+        return { valid: false, error: 'Custom scheme redirect_uri not registered' };
+      }
+    }
+
+    // HTTP only allowed for localhost
+    if (url.protocol === 'http:' && url.hostname !== 'localhost' && url.hostname !== '127.0.0.1') {
+      return { valid: false, error: 'redirect_uri must use HTTPS (HTTP only allowed for localhost)' };
+    }
+
+    return { valid: true };
+  } catch {
+    return { valid: false, error: 'redirect_uri must be a valid URL' };
+  }
+}
+
+/**
+ * Validate OAuth scopes
+ * Per ATProto spec: validates that requested scopes are valid ATProto scopes
+ */
+function validateScopes(scope: string): { valid: boolean; error?: string; scopes?: string[] } {
+  if (!scope || scope.trim() === '') {
+    // Default to 'atproto' scope if none specified
+    return { valid: true, scopes: ['atproto'] };
+  }
+
+  const requestedScopes = scope.split(' ').filter(s => s.length > 0);
+
+  if (requestedScopes.length === 0) {
+    return { valid: true, scopes: ['atproto'] };
+  }
+
+  // Check each scope is valid
+  const invalidScopes = requestedScopes.filter(s => !VALID_ATPROTO_SCOPES.has(s));
+
+  if (invalidScopes.length > 0) {
+    return {
+      valid: false,
+      error: `Invalid scope(s): ${invalidScopes.join(', ')}. Valid scopes: ${[...VALID_ATPROTO_SCOPES].join(', ')}`
+    };
+  }
+
+  return { valid: true, scopes: requestedScopes };
+}
+
 export interface AuthorizationRequest {
   clientId: string;
   redirectUri: string;
@@ -632,6 +821,43 @@ async function handlePAR(c: Context): Promise<Response> {
       );
     }
 
+    // Validate client_id format
+    const clientIdValidation = validateClientIdFormat(clientId);
+    if (!clientIdValidation.valid) {
+      return c.json(
+        { error: 'invalid_client', error_description: clientIdValidation.error },
+        400
+      );
+    }
+
+    // Fetch and validate client metadata
+    const metadataResult = await fetchClientMetadata(clientId);
+    if (metadataResult.error) {
+      return c.json(
+        { error: 'invalid_client', error_description: metadataResult.error },
+        400
+      );
+    }
+
+    // Validate redirect_uri against client metadata
+    const redirectValidation = validateRedirectUri(redirectUri, metadataResult.metadata!);
+    if (!redirectValidation.valid) {
+      return c.json(
+        { error: 'invalid_request', error_description: redirectValidation.error },
+        400
+      );
+    }
+
+    // Validate scopes
+    const scopeValidation = validateScopes(scope);
+    if (!scopeValidation.valid) {
+      return c.json(
+        { error: 'invalid_scope', error_description: scopeValidation.error },
+        400
+      );
+    }
+    const validatedScope = scopeValidation.scopes!.join(' ');
+
     // Validate code challenge method
     if (codeChallengeMethod !== 'S256') {
       return c.json(
@@ -658,7 +884,7 @@ async function handlePAR(c: Context): Promise<Response> {
       `INSERT INTO pds_oauth_codes
        (code, user_did, client_id, redirect_uri, scope, code_challenge, code_challenge_method, dpop_jkt, expires_at)
        VALUES (?, '', ?, ?, ?, ?, ?, ?, datetime('now', '+' || ? || ' seconds'))`
-    ).run(requestUri, clientId, redirectUri, scope, codeChallenge, codeChallengeMethod, dpopJkt, expiresIn);
+    ).run(requestUri, clientId, redirectUri, validatedScope, codeChallenge, codeChallengeMethod, dpopJkt, expiresIn);
 
     return c.json({
       request_uri: requestUri,
@@ -1021,24 +1247,88 @@ async function handleToken(c: Context): Promise<Response> {
 
 /**
  * Token revocation endpoint
+ * Implements RFC 7009 Token Revocation with DPoP binding
  */
 async function handleRevoke(c: Context): Promise<Response> {
-  const body = await parseFormBody(c);
-  const token = body.token;
+  try {
+    const body = await parseFormBody(c);
+    const config = getPDSConfig();
+    const token = body.token;
+    const tokenTypeHint = body.token_type_hint; // Optional: 'access_token' or 'refresh_token'
+    const clientId = body.client_id;
 
-  if (!token) {
-    return c.json({ error: 'invalid_request' }, 400);
+    if (!token) {
+      return c.json({ error: 'invalid_request', error_description: 'Missing token parameter' }, 400);
+    }
+
+    // DPoP is required for revocation (to prove key possession)
+    const dpopHeader = c.req.header('DPoP');
+    if (!dpopHeader) {
+      return c.json(
+        { error: 'invalid_request', error_description: 'DPoP proof required for token revocation' },
+        400
+      );
+    }
+
+    // Validate DPoP proof
+    const dpopResult = validateDPoPProof(
+      dpopHeader,
+      'POST',
+      `${config.publicUrl}/oauth/revoke`
+    );
+    if (!dpopResult.valid) {
+      return c.json(
+        { error: 'invalid_dpop_proof', error_description: dpopResult.error },
+        400
+      );
+    }
+
+    const dpopJkt = dpopResult.jkt!;
+    const db = getDatabase();
+
+    // For refresh tokens, we can look up directly
+    const tokenHash = hashToken(token);
+
+    // Find the token record
+    const tokenRecord = db
+      .prepare(
+        `SELECT token_id, dpop_jkt, client_id FROM pds_oauth_tokens
+         WHERE refresh_token_hash = ?`
+      )
+      .get(tokenHash) as { token_id: string; dpop_jkt: string | null; client_id: string } | undefined;
+
+    if (tokenRecord) {
+      // Verify DPoP key matches the one used to obtain the token
+      if (tokenRecord.dpop_jkt && tokenRecord.dpop_jkt !== dpopJkt) {
+        return c.json(
+          { error: 'invalid_dpop_proof', error_description: 'DPoP key does not match token binding' },
+          400
+        );
+      }
+
+      // Verify client_id if provided
+      if (clientId && tokenRecord.client_id !== clientId) {
+        return c.json(
+          { error: 'invalid_client', error_description: 'Client ID does not match token' },
+          400
+        );
+      }
+
+      // Revoke the token
+      db.prepare('DELETE FROM pds_oauth_tokens WHERE token_id = ?').run(tokenRecord.token_id);
+    }
+
+    // For JWT access tokens, we can't revoke them directly (they're stateless)
+    // but we try to find any associated token record
+    // Note: In a production system, you might want to maintain a token blacklist
+
+    // Per RFC 7009, always return 200 OK even if token was not found
+    // This prevents token existence disclosure
+    return c.json({});
+  } catch (error) {
+    console.error('Revoke error:', error);
+    return c.json({ error: 'server_error' }, 500);
   }
-
-  const db = getDatabase();
-  const tokenHash = hashToken(token);
-
-  // Try to revoke as access token or refresh token
-  db.prepare(
-    'DELETE FROM pds_oauth_tokens WHERE access_token_hash = ? OR refresh_token_hash = ?'
-  ).run(tokenHash, tokenHash);
-
-  return c.json({});
 }
 
 /**
